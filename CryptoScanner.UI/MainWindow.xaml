@@ -1,0 +1,44 @@
+﻿<Window x:Class="CryptoScanner.UI.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:CryptoScanner.UI"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="450" Width="800">
+    <Grid>
+        <DataGrid x:Name="dgRanking"
+              AutoGenerateColumns="False"
+              IsReadOnly="True">
+
+            <DataGrid.Columns>
+
+                <DataGridTextColumn
+                Header="Moeda"
+                Binding="{Binding Symbol}" />
+
+                <DataGridTextColumn
+                Header="Score"
+                Binding="{Binding Score}" />
+
+                <DataGridTextColumn
+                Header="Preço"
+                Binding="{Binding Close}" />
+
+                <DataGridTextColumn
+                Header="EMA21"
+                Binding="{Binding Ema21}" />
+
+                <DataGridTextColumn
+                Header="EMA50"
+                Binding="{Binding Ema50}" />
+
+                <DataGridTextColumn
+                Header="EMA200"
+                Binding="{Binding Ema200}" />
+
+            </DataGrid.Columns>
+
+        </DataGrid>
+    </Grid>
+</Window>

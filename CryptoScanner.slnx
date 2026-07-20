@@ -1,0 +1,9 @@
+<Solution>
+  <Project Path="CryptoScanner.Backtest/CryptoScanner.Backtest.csproj" />
+  <Project Path="CryptoScanner.Core/CryptoScanner.Core.csproj" />
+  <Project Path="CryptoScanner.Database/CryptoScanner.Database.csproj" />
+  <Project Path="CryptoScanner.Exchange/CryptoScanner.Exchange.csproj" />
+  <Project Path="CryptoScanner.Indicators/CryptoScanner.Indicators.csproj" />
+  <Project Path="CryptoScanner.Strategies/CryptoScanner.Strategies.csproj" />
+  <Project Path="CryptoScanner.UI/CryptoScanner.UI.csproj" />
+</Solution>
