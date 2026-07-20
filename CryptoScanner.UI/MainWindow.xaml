@@ -11,31 +11,51 @@
               AutoGenerateColumns="False"
               IsReadOnly="True">
 
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow">
+
+                    <Style.Triggers>
+
+                        <DataTrigger Binding="{Binding Signal}"
+                         Value="STRONG BUY">
+                            <Setter Property="Background"
+                        Value="LightGreen"/>
+                        </DataTrigger>
+
+                        <DataTrigger Binding="{Binding Signal}"
+                         Value="BUY">
+                            <Setter Property="Background"
+                        Value="LightBlue"/>
+                        </DataTrigger>
+
+                        <DataTrigger Binding="{Binding Signal}"
+                         Value="WATCH">
+                            <Setter Property="Background"
+                        Value="Khaki"/>
+                        </DataTrigger>
+
+                    </Style.Triggers>
+
+                </Style>
+            </DataGrid.RowStyle>
+
             <DataGrid.Columns>
 
-                <DataGridTextColumn
-                Header="Moeda"
-                Binding="{Binding Symbol}" />
+                <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" />
+                <DataGridTextColumn Header="Preço" Binding="{Binding CloseFormatted}" />
+                <DataGridTextColumn Header="Final Score" Binding="{Binding FinalScore, StringFormat=F2}" />
 
-                <DataGridTextColumn
-                Header="Score"
-                Binding="{Binding Score}" />
+                <DataGridTextColumn Header="1H" Binding="{Binding Score1H, StringFormat=F2}" />
+                <DataGridTextColumn Header="4H" Binding="{Binding Score4H, StringFormat=F2}" />
+                <DataGridTextColumn Header="1D" Binding="{Binding Score1D, StringFormat=F2}" />
 
-                <DataGridTextColumn
-                Header="Preço"
-                Binding="{Binding Close}" />
+                <DataGridTextColumn Header="RSI" Binding="{Binding Rsi, StringFormat=F2}" />
+                <DataGridTextColumn Header="RVOL" Binding="{Binding RelativeVolume, StringFormat=F2}" />
+                <DataGridTextColumn Header="ATR%" Binding="{Binding AtrPercent, StringFormat=F2}" />
 
-                <DataGridTextColumn
-                Header="EMA21"
-                Binding="{Binding Ema21}" />
-
-                <DataGridTextColumn
-                Header="EMA50"
-                Binding="{Binding Ema50}" />
-
-                <DataGridTextColumn
-                Header="EMA200"
-                Binding="{Binding Ema200}" />
+                <DataGridCheckBoxColumn Header="Breakout" Binding="{Binding IsBreakout}" />
+                <DataGridTextColumn Header="Resistência" Binding="{Binding Resistance}" />
+                <DataGridTextColumn Header="Signal" Binding="{Binding Signal}" />
 
             </DataGrid.Columns>
 

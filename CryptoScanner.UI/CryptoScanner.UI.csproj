@@ -1,6 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\CryptoScanner.Core\CryptoScanner.Core.csproj" />
     <ProjectReference Include="..\CryptoScanner.Exchange\CryptoScanner.Exchange.csproj" />
     <ProjectReference Include="..\CryptoScanner.Indicators\CryptoScanner.Indicators.csproj" />

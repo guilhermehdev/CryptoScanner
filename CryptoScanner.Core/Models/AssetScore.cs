@@ -17,4 +17,46 @@ public class AssetScore
     public decimal Ema50 { get; set; }
 
     public decimal Ema200 { get; set; }
+
+    public decimal Rsi { get; set; }
+
+    public decimal RelativeVolume { get; set; }
+
+    public decimal Atr { get; set; }
+
+    public decimal AtrPercent { get; set; }
+
+    public int Score1H { get; set; }
+
+    public int Score4H { get; set; }
+
+    public int Score1D { get; set; }
+
+    public decimal FinalScore { get; set; }
+
+    public bool IsBreakout { get; set; }
+
+    public decimal Resistance { get; set; }
+
+    public string CloseFormatted =>
+    Close >= 1
+        ? Close.ToString("N2")
+        : Close.ToString("N8");
+
+    public string Signal
+    {
+        get
+        {
+            if (FinalScore >= 75)
+                return "STRONG BUY";
+
+            if (FinalScore >= 60)
+                return "BUY";
+
+            if (FinalScore >= 45)
+                return "WATCH";
+
+            return "IGNORE";
+        }
+    }
 }

@@ -96,4 +96,26 @@ public class BinanceExchangeService
 
         return result;
     }
+
+    public async Task<decimal> GetCurrentPriceAsync(
+    string symbol)
+    {
+        string url =
+            $"https://api.binance.com/api/v3/ticker/price?symbol={symbol}";
+
+        string json =
+            await _http.GetStringAsync(url);
+
+        JsonDocument doc =
+            JsonDocument.Parse(json);
+
+        string price =
+            doc.RootElement
+               .GetProperty("price")
+               .GetString() ?? "0";
+
+        return decimal.Parse(
+            price,
+            CultureInfo.InvariantCulture);
+    }
 }

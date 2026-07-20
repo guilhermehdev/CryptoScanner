@@ -13,8 +13,10 @@ namespace CryptoScanner.UI;
 
 using CryptoScanner.Core.Models;
 using CryptoScanner.Exchange.Services;
+using CryptoScanner.Indicators;
 using CryptoScanner.Indicators.Indicators;
 using CryptoScanner.Strategies;
+using CryptoScanner.UI.Services;
 
 public partial class MainWindow : Window
 {
@@ -26,6 +28,9 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object sender,RoutedEventArgs e)
     {
+        var db = new SignalDatabase();
+
+        await db.InitializeAsync();
         BinanceExchangeService service = new();
 
         var symbols =
@@ -34,66 +39,254 @@ public partial class MainWindow : Window
 
         List<AssetScore> ranking = new();
 
-        foreach (string symbol in symbols)
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        var tasks =
+    symbols.Select(
+        symbol =>
+            AnalyzeSymbolAsync(
+                service,
+                symbol));
+
+        var results =
+            await Task.WhenAll(tasks);
+
+         ranking = results
+            .Where(x => x != null)
+            .Cast<AssetScore>()
+            .OrderByDescending(x => x.FinalScore)
+            .ToList();
+
+        ranking = ranking
+            .OrderByDescending(x => x.FinalScore)
+            .ToList();
+
+        var historyService = new SignalHistoryService();
+
+        var history = await historyService.LoadAsync();
+
+        MessageBox.Show(
+    $"Maior FinalScore: {ranking.Max(x => x.FinalScore)}");
+
+        foreach (var asset in ranking)
         {
-            var candles =
-                await service.GetCandlesAsync(
-                    symbol,
-                    "1h",
-                    300);
+            if (asset.FinalScore < 75)
+                continue;
 
-            var ema21 =
-                EmaIndicator.Calculate(candles, 21);
-
-            var ema50 =
-                EmaIndicator.Calculate(candles, 50);
-
-            var ema200 =
-                EmaIndicator.Calculate(candles, 200);
-
-            decimal close = candles.Last().Close;
-
-            decimal e21 = ema21.Last() ?? 0;
-            decimal e50 = ema50.Last() ?? 0;
-            decimal e200 = ema200.Last() ?? 0;
-
-            int score =
-                TrendScorer.Calculate(
-                    close,
-                    e21,
-                    e50,
-                    e200);
-
-            ranking.Add(
-                new AssetScore
+            history.Add(
+                new SignalHistory
                 {
-                    Symbol = symbol,
-                    Score = score,
-                    Close = close,
-                    Ema21 = e21,
-                    Ema50 = e50,
-                    Ema200 = e200
+                    Timestamp = DateTime.UtcNow,
+                    Symbol = asset.Symbol,
+                    Price = asset.Close,
+                    FinalScore = asset.FinalScore,
+                    Signal = asset.Signal
                 });
         }
 
-        ranking = ranking
-            .OrderByDescending(x => x.Score)
-            .ToList();
+        await historyService.SaveAsync(history);
 
         string msg = "";
 
-        MessageBox.Show($"Moedas encontradas: {symbols.Count}");
+        //MessageBox.Show($"Moedas encontradas: {symbols.Count}");
 
         foreach (var item in ranking)
         {
-            msg +=
-                $"{item.Symbol} - Score: {item.Score}\n";
+            msg += $"{item.Symbol} - FinalScore: {item.FinalScore:F1}\n";
+        }
+
+        foreach (var asset in ranking)
+        {
+            if (asset.FinalScore < 60)
+                continue;
+
+            if (await db.SignalExistsTodayAsync(asset.Symbol))
+                continue;
+
+            await db.InsertSignalAsync(
+                asset.Symbol,
+                asset.Close,
+                asset.FinalScore,
+                asset.Signal);
         }
 
         dgRanking.ItemsSource = ranking;
+       
+        sw.Stop();
 
+        Title = $"Scanner - {ranking.Count} moedas - {sw.ElapsedMilliseconds} ms";
+        var pending = await db.GetPendingSignalsAsync();
+
+        Title = $"Scanner - {ranking.Count} moedas - Pendentes: {pending.Count}";
+
+    }                                                                               
+
+    private async Task<AssetScore?> AnalyzeSymbolAsync(
+    BinanceExchangeService service,
+    string symbol)
+    {
+        try
+        {
+            var candles = await service.GetCandlesAsync(symbol,"1h",300);
+
+            var ema21 = EmaIndicator.Calculate(candles, 21);
+
+            var ema50 = EmaIndicator.Calculate(candles, 50);
+
+            var ema200 = EmaIndicator.Calculate(candles, 200);
+
+            var rsi = RsiIndicator.Calculate(candles);
+
+            decimal lastRsi = rsi.Last() ?? 0;
+
+            decimal rvol = RelativeVolumeIndicator.Calculate(candles);
+
+            bool breakout = BreakoutIndicator.IsBullishBreakout(candles);
+
+            decimal resistance = BreakoutIndicator.GetResistance(candles);
+
+            decimal atr = AtrIndicator.Calculate(candles);
+
+            decimal atrPercent = 0;          
+
+            decimal close = candles.Last().Close;
+            if (close > 0)
+            {
+                atrPercent =
+                    (atr / close) * 100;
+            }
+
+            decimal e21 = ema21.Last() ?? 0;
+
+            decimal e50 = ema50.Last() ?? 0;
+
+            decimal e200 = ema200.Last() ?? 0;
+
+            int score =
+     TrendScorer.Calculate(
+         close,
+         e21,
+         e50,
+         e200,
+         lastRsi,
+         rvol,
+         atrPercent,
+         breakout);
+
+            var task1H =
+           CalculateTimeframeScore(
+               service,
+               symbol,
+               "1h");
+
+            var task4H =
+                CalculateTimeframeScore(
+                    service,
+                    symbol,
+                    "4h");
+
+            var task1D =
+                CalculateTimeframeScore(
+                    service,
+                    symbol,
+                    "1d");
+
+            await Task.WhenAll(
+                task1H,
+                task4H,
+                task1D);
+
+            int score1H = task1H.Result;
+            int score4H = task4H.Result;
+            int score1D = task1D.Result;
+
+            decimal finalScore =
+                (score1H * 0.2m) +
+                (score4H * 0.3m) +
+                (score1D * 0.5m);
+
+            if (breakout)
+                finalScore += 15;
+
+
+            return new AssetScore
+            {
+                Symbol = symbol,
+                FinalScore = finalScore,
+                Close = close,
+                Ema21 = e21,
+                Ema50 = e50,
+                Ema200 = e200,
+                Rsi = lastRsi,
+                RelativeVolume = rvol,
+                Atr = atr,
+                AtrPercent = atrPercent,
+                Score1H = score1H,
+                Score4H = score4H,
+                Score1D = score1D,                
+                IsBreakout = breakout,
+                Resistance = resistance,
+            };
+        }
+        catch
+        {
+            return null;
+        }
     }
 
+    private async Task<int> CalculateTimeframeScore(
+    BinanceExchangeService service,
+    string symbol,
+    string timeframe)
+    {
+        var candles =
+            await service.GetCandlesAsync(
+                symbol,
+                timeframe,
+                300);
 
+        var ema21 =
+            EmaIndicator.Calculate(candles, 21);
+
+        var ema50 =
+            EmaIndicator.Calculate(candles, 50);
+
+        var ema200 =
+            EmaIndicator.Calculate(candles, 200);
+
+        var rsi =
+            RsiIndicator.Calculate(candles);
+
+        decimal close = candles.Last().Close;
+
+        decimal e21 = ema21.Last() ?? 0;
+        decimal e50 = ema50.Last() ?? 0;
+        decimal e200 = ema200.Last() ?? 0;
+
+        decimal lastRsi = rsi.Last() ?? 0;
+
+        decimal rvol =
+            RelativeVolumeIndicator.Calculate(candles);
+
+        decimal atr =
+            AtrIndicator.Calculate(candles);
+
+        decimal atrPercent =
+            close > 0
+                ? (atr / close) * 100
+                : 0;
+
+        bool breakout = BreakoutIndicator.IsBullishBreakout(candles);
+
+        return TrendScorer.Calculate(
+            close,
+            e21,
+            e50,
+            e200,
+            lastRsi,
+            rvol,
+            atrPercent,
+            breakout);
+    }
 }
 
