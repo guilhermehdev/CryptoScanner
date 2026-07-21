@@ -47,13 +47,13 @@ public class AssetScore
     {
         get
         {
-            if (FinalScore >= 75)
+            if (FinalScore >= 70)
                 return "STRONG BUY";
 
-            if (FinalScore >= 60)
+            if (FinalScore >= 55)
                 return "BUY";
 
-            if (FinalScore >= 45)
+            if (FinalScore >= 40)
                 return "WATCH";
 
             return "IGNORE";

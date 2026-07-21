@@ -7,7 +7,36 @@
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
     <Grid>
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="2*" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0"
+                Orientation="Horizontal"
+                Margin="10">
+
+            <TextBlock x:Name="txtWinRate"
+                   FontWeight="Bold"/>
+
+            <TextBlock x:Name="txtAvgReturn"
+                   Margin="20,0,0,0"
+                   FontWeight="Bold"/>
+
+            <TextBlock x:Name="txtPending"
+                   Margin="20,0,0,0"
+                   FontWeight="Bold"/>
+
+            <TextBlock x:Name="txtEvaluated"
+                   Margin="20,0,0,0"
+                   FontWeight="Bold"/>
+
+        </StackPanel>
+
         <DataGrid x:Name="dgRanking"
+              Grid.Row="1"
               AutoGenerateColumns="False"
               IsReadOnly="True">
 
@@ -17,21 +46,21 @@
                     <Style.Triggers>
 
                         <DataTrigger Binding="{Binding Signal}"
-                         Value="STRONG BUY">
+                                 Value="STRONG BUY">
                             <Setter Property="Background"
-                        Value="LightGreen"/>
+                                Value="LightGreen"/>
                         </DataTrigger>
 
                         <DataTrigger Binding="{Binding Signal}"
-                         Value="BUY">
+                                 Value="BUY">
                             <Setter Property="Background"
-                        Value="LightBlue"/>
+                                Value="LightBlue"/>
                         </DataTrigger>
 
                         <DataTrigger Binding="{Binding Signal}"
-                         Value="WATCH">
+                                 Value="WATCH">
                             <Setter Property="Background"
-                        Value="Khaki"/>
+                                Value="Khaki"/>
                         </DataTrigger>
 
                     </Style.Triggers>
@@ -45,9 +74,9 @@
                 <DataGridTextColumn Header="Preço" Binding="{Binding CloseFormatted}" />
                 <DataGridTextColumn Header="Final Score" Binding="{Binding FinalScore, StringFormat=F2}" />
 
-                <DataGridTextColumn Header="1H" Binding="{Binding Score1H, StringFormat=F2}" />
-                <DataGridTextColumn Header="4H" Binding="{Binding Score4H, StringFormat=F2}" />
-                <DataGridTextColumn Header="1D" Binding="{Binding Score1D, StringFormat=F2}" />
+                <DataGridTextColumn Header="1H" Binding="{Binding Score1H}" />
+                <DataGridTextColumn Header="4H" Binding="{Binding Score4H}" />
+                <DataGridTextColumn Header="1D" Binding="{Binding Score1D}" />
 
                 <DataGridTextColumn Header="RSI" Binding="{Binding Rsi, StringFormat=F2}" />
                 <DataGridTextColumn Header="RVOL" Binding="{Binding RelativeVolume, StringFormat=F2}" />
@@ -60,5 +89,31 @@
             </DataGrid.Columns>
 
         </DataGrid>
+
+        <DataGrid x:Name="dgHistory"
+              Grid.Row="2"
+              AutoGenerateColumns="False"
+              IsReadOnly="True">
+
+            <DataGrid.Columns>
+
+                <DataGridTextColumn Header="Data" Binding="{Binding Timestamp, StringFormat=dd/MM HH:mm}" />
+
+                <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" />
+
+                <DataGridTextColumn Header="Entrada" Binding="{Binding Price}" />
+
+                <DataGridTextColumn Header="Score" Binding="{Binding FinalScore}" />
+
+                <DataGridTextColumn Header="Resultado %" Binding="{Binding OutcomePercent, StringFormat=F2}" />
+
+                <DataGridCheckBoxColumn Header="Avaliado" Binding="{Binding Evaluated}" />
+
+            </DataGrid.Columns>
+
+        </DataGrid>
+
     </Grid>
+
+
 </Window>

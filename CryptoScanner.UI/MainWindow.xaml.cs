@@ -28,30 +28,24 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object sender,RoutedEventArgs e)
     {
+        const int EvaluationHours = 0;
         var db = new SignalDatabase();
-
-        await db.InitializeAsync();
         BinanceExchangeService service = new();
-
-        var symbols =
-     await service.GetUsdtSymbolsAsync();
-        symbols = symbols.Take(50).ToList();
-
         List<AssetScore> ranking = new();
 
+        await db.InitializeAsync();
+
+        var pendingSignals = await db.GetPendingSignalsAsync();  
+        var symbols = await service.GetUsdtSymbolsAsync();
+        symbols = symbols.Take(50).ToList();      
         var sw = System.Diagnostics.Stopwatch.StartNew();
+        var tasks = symbols.Select(symbol =>AnalyzeSymbolAsync(service, symbol));
+        var results = await Task.WhenAll(tasks);
+        var historyService = new SignalHistoryService();
+        var history = await historyService.LoadAsync();
+        string msg = "";
 
-        var tasks =
-    symbols.Select(
-        symbol =>
-            AnalyzeSymbolAsync(
-                service,
-                symbol));
-
-        var results =
-            await Task.WhenAll(tasks);
-
-         ranking = results
+        ranking = results
             .Where(x => x != null)
             .Cast<AssetScore>()
             .OrderByDescending(x => x.FinalScore)
@@ -61,12 +55,27 @@ public partial class MainWindow : Window
             .OrderByDescending(x => x.FinalScore)
             .ToList();
 
-        var historyService = new SignalHistoryService();
-
-        var history = await historyService.LoadAsync();
-
         MessageBox.Show(
-    $"Maior FinalScore: {ranking.Max(x => x.FinalScore)}");
+    $"Pendentes: {pendingSignals.Count}");
+
+        foreach (var signal in pendingSignals)
+        {           
+            if (DateTime.UtcNow < signal.Timestamp.AddHours(EvaluationHours))
+            {              
+                continue;
+            }
+
+            decimal currentPrice =
+                await service.GetCurrentPriceAsync(
+                    signal.Symbol);
+
+            decimal outcomePercent =
+                ((currentPrice - signal.Price)
+                    / signal.Price) * 100m;
+
+            await db.UpdateSignalResultAsync(signal.Id, currentPrice, outcomePercent);
+         
+        }
 
         foreach (var asset in ranking)
         {
@@ -84,10 +93,7 @@ public partial class MainWindow : Window
                 });
         }
 
-        await historyService.SaveAsync(history);
-
-        string msg = "";
-
+        await historyService.SaveAsync(history);  
         //MessageBox.Show($"Moedas encontradas: {symbols.Count}");
 
         foreach (var item in ranking)
@@ -100,7 +106,7 @@ public partial class MainWindow : Window
             if (asset.FinalScore < 60)
                 continue;
 
-            if (await db.SignalExistsTodayAsync(asset.Symbol))
+            if (await db.SignalExistsTodayAsync(asset.Symbol, asset.Signal))
                 continue;
 
             await db.InsertSignalAsync(
@@ -110,15 +116,29 @@ public partial class MainWindow : Window
                 asset.Signal);
         }
 
+        var historySignals = await db.GetSignalsAsync();
+
+        dgHistory.ItemsSource = historySignals;
         dgRanking.ItemsSource = ranking;
-       
+
+        double winRate = await db.GetWinRateAsync();
+        double avgReturn = await db.GetAverageReturnAsync();
+
+        txtWinRate.Text =
+            $"Win Rate: {winRate:F1}%";
+
+        txtAvgReturn.Text =
+            $"Retorno Médio: {avgReturn:F2}%";
+
+        txtPending.Text =
+            $"Pendentes: {historySignals.Count(x => !x.Evaluated)}";
+
+        txtEvaluated.Text =
+            $"Avaliados: {historySignals.Count(x => x.Evaluated)}";
+
         sw.Stop();
 
-        Title = $"Scanner - {ranking.Count} moedas - {sw.ElapsedMilliseconds} ms";
-        var pending = await db.GetPendingSignalsAsync();
-
-        Title = $"Scanner - {ranking.Count} moedas - Pendentes: {pending.Count}";
-
+        Title = $"Scanner | WinRate: {winRate:F1}% | Avg: {avgReturn:F2}%";
     }                                                                               
 
     private async Task<AssetScore?> AnalyzeSymbolAsync(
@@ -288,5 +308,7 @@ public partial class MainWindow : Window
             atrPercent,
             breakout);
     }
+
+  
 }
 

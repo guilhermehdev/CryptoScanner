@@ -6,6 +6,7 @@ namespace CryptoScanner.Core.Models
 {
     public class SignalHistory
     {
+        public int Id { get; set; }
         public DateTime Timestamp { get; set; }
 
         public string Symbol { get; set; } = "";

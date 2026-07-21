@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Windows;
 
 namespace CryptoScanner.UI.Services;
 
@@ -67,7 +68,10 @@ public class SignalDatabase
             Symbol,
             Price,
             FinalScore,
-            Signal
+            Signal,
+            OutcomePrice,
+            OutcomePercent,
+            Evaluated
         )
         VALUES
         (
@@ -75,7 +79,10 @@ public class SignalDatabase
             @Symbol,
             @Price,
             @FinalScore,
-            @Signal
+            @Signal,
+            NULL,
+            NULL,
+            0
         );
         """;
 
@@ -106,7 +113,8 @@ public class SignalDatabase
     }
 
     public async Task<bool> SignalExistsTodayAsync(
-    string symbol)
+    string symbol,
+    string signal)
     {
         await using var connection =
             new SqliteConnection(_connectionString);
@@ -117,6 +125,7 @@ public class SignalDatabase
         SELECT COUNT(*)
         FROM Signals
         WHERE Symbol = @Symbol
+        AND Signal = @Signal
         AND date(Timestamp) = date('now')
         """;
 
@@ -126,6 +135,9 @@ public class SignalDatabase
         command.Parameters.AddWithValue(
             "@Symbol",
             symbol);
+        command.Parameters.AddWithValue(
+            "@Signal",
+            signal);    
 
         long count =
             (long)(await command.ExecuteScalarAsync() ?? 0);
@@ -145,12 +157,7 @@ public class SignalDatabase
         string sql =
             """
         SELECT
-            Timestamp,
-            Symbol,
-            Price,
-            FinalScore,
-            Signal
-        FROM Signals
+            Timestamp,Symbol,Price,FinalScore,Signal,OutcomePrice,OutcomePercent,Evaluated FROM Signals
         ORDER BY Id DESC
         """;
 
@@ -181,7 +188,23 @@ public class SignalDatabase
                             reader.GetDouble(3)),
 
                     Signal =
-                        reader.GetString(4)
+                        reader.GetString(4),
+
+                    OutcomePrice =
+                        reader.IsDBNull(5)
+                            ? null
+                            : Convert.ToDecimal(
+                                reader.GetDouble(5)),
+
+                    OutcomePercent =
+                        reader.IsDBNull(6)
+                            ? null
+                            : Convert.ToDecimal(
+                                reader.GetDouble(6)),
+
+                    Evaluated =
+                        !reader.IsDBNull(7)
+                        && reader.GetInt32(7) == 1
                 });
         }
 
@@ -199,14 +222,7 @@ public class SignalDatabase
 
         string sql =
             """
-        SELECT
-            Timestamp,
-            Symbol,
-            Price,
-            FinalScore,
-            Signal
-        FROM Signals
-        WHERE Evaluated = 0
+        SELECT id,Timestamp,Symbol,Price,FinalScore,Signal,OutcomePrice,OutcomePercent,Evaluated FROM Signals WHERE Evaluated = 0
         """;
 
         await using var command =
@@ -217,30 +233,23 @@ public class SignalDatabase
 
         while (await reader.ReadAsync())
         {
-            result.Add(
-                new SignalHistory
-                {
-                    Timestamp =
-                        DateTime.Parse(reader.GetString(0)),
-                    Symbol =
-                        reader.GetString(1),
-                    Price =
-                        Convert.ToDecimal(reader.GetDouble(2)),
-                    FinalScore =
-                        Convert.ToDecimal(reader.GetDouble(3)),
-                    Signal =
-                        reader.GetString(4)
-                });
+            result.Add(new SignalHistory {
+                Id = reader.GetInt32(0),
+                Timestamp = DateTime.Parse(reader.GetString(1)),
+                Symbol = reader.GetString(2),
+                Price = Convert.ToDecimal(reader.GetDouble(3)),
+                FinalScore = Convert.ToDecimal(reader.GetDouble(4)),
+                Signal = reader.GetString(5),
+                OutcomePrice = reader.IsDBNull(6) ? null : Convert.ToDecimal(reader.GetDouble(6)),
+                OutcomePercent = reader.IsDBNull(7) ? null : Convert.ToDecimal(reader.GetDouble(7)),
+                Evaluated = !reader.IsDBNull(8) && reader.GetInt32(8) == 1
+            });
         }
 
         return result;
     }
 
-    public async Task UpdateSignalResultAsync(
-    string symbol,
-    DateTime timestamp,
-    decimal outcomePrice,
-    decimal outcomePercent)
+    public async Task UpdateSignalResultAsync(int id, decimal outcomePrice, decimal outcomePercent)
     {
         await using var connection =
             new SqliteConnection(_connectionString);
@@ -254,30 +263,101 @@ public class SignalDatabase
             OutcomePrice = @OutcomePrice,
             OutcomePercent = @OutcomePercent,
             Evaluated = 1
-        WHERE
-            Symbol = @Symbol
-            AND Timestamp = @Timestamp
+        WHERE Id = @Id
         """;
 
         await using var command =
             new SqliteCommand(sql, connection);
 
-        command.Parameters.AddWithValue(
-            "@OutcomePrice",
-            (double)outcomePrice);
+        command.Parameters.AddWithValue("@Id", id);
+        command.Parameters.AddWithValue("@OutcomePrice", (double)outcomePrice);
+        command.Parameters.AddWithValue("@OutcomePercent", (double)outcomePercent);
 
-        command.Parameters.AddWithValue(
-            "@OutcomePercent",
-            (double)outcomePercent);
+        //await command.ExecuteNonQueryAsync();
+        int rows =
+    await command.ExecuteNonQueryAsync();
 
-        command.Parameters.AddWithValue(
-            "@Symbol",
-            symbol);
+        MessageBox.Show(
+            $"Linhas atualizadas: {rows}");
 
-        command.Parameters.AddWithValue(
-            "@Timestamp",
-            timestamp.ToString("O"));
+    }
 
-        await command.ExecuteNonQueryAsync();
+    public async Task<double> GetWinRateAsync()
+    {
+        await using var connection =
+            new SqliteConnection(_connectionString);
+
+        await connection.OpenAsync();
+
+        string sql =
+            """
+        SELECT
+            COUNT(*)
+        FROM Signals
+        WHERE Evaluated = 1
+        """;
+
+        long total;
+
+        await using (var command =
+            new SqliteCommand(sql, connection))
+        {
+            total =
+                (long)(await command.ExecuteScalarAsync() ?? 0);
+        }
+
+        if (total == 0)
+            return 0;
+
+        sql =
+            """
+        SELECT
+            COUNT(*)
+        FROM Signals
+        WHERE Evaluated = 1
+        AND OutcomePercent > 0
+        """;
+
+        long wins;
+
+        await using (var command =
+            new SqliteCommand(sql, connection))
+        {
+            wins =
+                (long)(await command.ExecuteScalarAsync() ?? 0);
+        }
+
+        return (double)wins / total * 100.0;
+    }
+
+    public async Task<double> GetAverageReturnAsync()
+    {
+        await using var connection =
+            new SqliteConnection(_connectionString);
+
+        await connection.OpenAsync();
+
+        string sql =
+            """
+        SELECT
+            AVG(OutcomePercent)
+        FROM Signals
+        WHERE Evaluated = 1
+        """;
+
+        object? result;
+
+        await using (var command =
+            new SqliteCommand(sql, connection))
+        {
+            result =
+                await command.ExecuteScalarAsync();
+        }
+
+        if (result == DBNull.Value ||
+            result == null)
+            return 0;
+
+        return Convert.ToDouble(result);
     }
 }
