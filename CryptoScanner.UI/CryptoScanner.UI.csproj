@@ -6,6 +6,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\CryptoScanner.Backtest\CryptoScanner.Backtest.csproj" />
     <ProjectReference Include="..\CryptoScanner.Core\CryptoScanner.Core.csproj" />
     <ProjectReference Include="..\CryptoScanner.Exchange\CryptoScanner.Exchange.csproj" />
     <ProjectReference Include="..\CryptoScanner.Indicators\CryptoScanner.Indicators.csproj" />

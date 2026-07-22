@@ -72,19 +72,13 @@
 
                 <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" />
                 <DataGridTextColumn Header="Preço" Binding="{Binding CloseFormatted}" />
-                <DataGridTextColumn Header="Final Score" Binding="{Binding FinalScore, StringFormat=F2}" />
-
-                <DataGridTextColumn Header="1H" Binding="{Binding Score1H}" />
-                <DataGridTextColumn Header="4H" Binding="{Binding Score4H}" />
-                <DataGridTextColumn Header="1D" Binding="{Binding Score1D}" />
-
-                <DataGridTextColumn Header="RSI" Binding="{Binding Rsi, StringFormat=F2}" />
-                <DataGridTextColumn Header="RVOL" Binding="{Binding RelativeVolume, StringFormat=F2}" />
-                <DataGridTextColumn Header="ATR%" Binding="{Binding AtrPercent, StringFormat=F2}" />
-
-                <DataGridCheckBoxColumn Header="Breakout" Binding="{Binding IsBreakout}" />
+                <DataGridTextColumn Header="Score" Binding="{Binding FinalScore, StringFormat=F2}" />               
                 <DataGridTextColumn Header="Resistência" Binding="{Binding Resistance}" />
-                <DataGridTextColumn Header="Signal" Binding="{Binding Signal}" />
+                <DataGridCheckBoxColumn Header="Rompimento" Binding="{Binding IsBreakout}" />
+                <DataGridTextColumn Header="Trend" Binding="{Binding TrendDirection}" />
+                <DataGridTextColumn Header="Sinal" Binding="{Binding Signal}" />  
+                <DataGridCheckBoxColumn Header="Consol." Binding="{Binding IsConsolidating}" />
+                <DataGridTextColumn Header="Volume Spike" Binding="{Binding VolumeSpike, StringFormat=F2}" />
 
             </DataGrid.Columns>
 
@@ -112,6 +106,7 @@
             </DataGrid.Columns>
 
         </DataGrid>
+        <Button Content="Backtest BTC" Click="BtnBacktest_Click" HorizontalAlignment="Left" Height="19" Margin="696,7,0,0" VerticalAlignment="Top" Width="78"/>
 
     </Grid>
 

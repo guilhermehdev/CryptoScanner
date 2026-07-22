@@ -59,4 +59,14 @@ public class AssetScore
             return "IGNORE";
         }
     }
+
+    public int MarketStructureScore { get; set; }
+    public int MomentumScore { get; set; }
+    public int VolumeScore { get; set; }
+    public int VolatilityScore { get; set; }
+    public decimal Adx { get; set; }
+    public decimal VolumeSpike { get; set; }
+    public int TrendStrengthScore { get; set; }
+    public bool IsConsolidating { get; set; }
+    public string TrendDirection { get; set; } = "";
 }
