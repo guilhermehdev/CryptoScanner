@@ -1,4 +1,13 @@
-﻿using System.Text;
+﻿using CryptoScanner.Backtest.Services;
+using CryptoScanner.Core.Models;
+using CryptoScanner.Core.Scoring;
+using CryptoScanner.Core.Services;
+using CryptoScanner.Exchange.Services;
+using CryptoScanner.Indicators;
+using CryptoScanner.Indicators.Indicators;
+using CryptoScanner.Strategies;
+using CryptoScanner.UI.Services;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -8,14 +17,6 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
-using CryptoScanner.Backtest.Services;
-using CryptoScanner.Core.Models;
-using CryptoScanner.Core.Scoring;
-using CryptoScanner.Exchange.Services;
-using CryptoScanner.Indicators;
-using CryptoScanner.Indicators.Indicators;
-using CryptoScanner.Strategies;
-using CryptoScanner.UI.Services;
 using System.Windows.Threading;
 
 namespace CryptoScanner.UI;
@@ -23,6 +24,7 @@ namespace CryptoScanner.UI;
 public partial class MainWindow : Window
 {
     private DispatcherTimer _timer = new();
+    public decimal OpportunityScore { get; set; }
     public MainWindow()
     {
         InitializeComponent();
@@ -51,29 +53,20 @@ public partial class MainWindow : Window
         var db = new SignalDatabase();
         BinanceExchangeService service = new();
         List<AssetScore> ranking = new();
-
-
         await db.InitializeAsync();
 
+        var btcCandles = await service.GetCandlesAsync("BTCUSDT", "1d", 300);
+        decimal btcClose = btcCandles.Last().Close;
+        decimal btcEma200 = EmaIndicator.Calculate(btcCandles, 200).Last() ?? 0;
+        string marketRegime = MarketRegimeIndicator.Calculate(btcClose, btcEma200);
         var pendingSignals = await db.GetPendingSignalsAsync();
-        var symbols = await service.GetUsdtSymbolsAsync();
-        symbols = symbols.Take(50).ToList();
+        var symbols = await service.GetUsdtSymbolsAsync();      
+        symbols = symbols.Take(200).ToList();
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var tasks = symbols.Select(symbol => AnalyzeSymbolAsync(service, symbol));
-        var results = await Task.WhenAll(tasks);
-        var historyService = new SignalHistoryService();
-        var history = await historyService.LoadAsync();
-        string msg = "";
-
-        ranking = results
-            .Where(x => x != null)
-            .Cast<AssetScore>()
-            .OrderByDescending(x => x.FinalScore)
-            .ToList();
-
-        ranking = ranking
-            .OrderByDescending(x => x.FinalScore)
-            .ToList();
+        var results = await Task.WhenAll(tasks); 
+        ranking = results.Where(x => x != null).Cast<AssetScore>().OrderByDescending(x => x.FinalScore).ToList();
+        ranking = ranking.OrderByDescending(x => x.OpportunityScore).ToList();
 
         foreach (var signal in pendingSignals)
         {
@@ -92,36 +85,21 @@ public partial class MainWindow : Window
 
             await db.UpdateSignalResultAsync(signal.Id, currentPrice, outcomePercent);
 
-        }
+        }                
 
         foreach (var asset in ranking)
         {
-            if (asset.FinalScore < 75)
-                continue;
 
-            history.Add(
-                new SignalHistory
-                {
-                    Timestamp = DateTime.UtcNow,
-                    Symbol = asset.Symbol,
-                    Price = asset.Close,
-                    FinalScore = asset.FinalScore,
-                    Signal = asset.Signal
-                });
-        }
-
-        await historyService.SaveAsync(history);
-        //MessageBox.Show($"Moedas encontradas: {symbols.Count}");
-
-        foreach (var item in ranking)
-        {
-            msg += $"{item.Symbol} - FinalScore: {item.FinalScore:F1}\n";
-        }
-
-        foreach (var asset in ranking)
-        {
-            if (asset.FinalScore < 60)
-                continue;
+            if (marketRegime == "BEAR")
+            {
+                if (asset.FinalScore < 80)
+                    continue;
+            }
+            else
+            {
+                if (asset.FinalScore < 60)
+                    continue;
+            }
 
             if (!asset.IsBreakout)
                 continue;
@@ -129,8 +107,17 @@ public partial class MainWindow : Window
             if (!asset.IsConsolidating)
                 continue;
 
-            if (asset.VolumeSpike < 2)
+            if (asset.VolumeSpike < 1.3m)
                 continue;
+
+            if (asset.ResistanceDistance < 8)
+                continue;
+
+            if (asset.TrendDirection != "ALTA")
+                continue;
+
+            if (asset.RiskReward < 3)
+                continue;           
 
             if (await db.SignalExistsTodayAsync(asset.Symbol, asset.Signal))
                 continue;
@@ -143,28 +130,21 @@ public partial class MainWindow : Window
         }
 
         var historySignals = await db.GetSignalsAsync();
-
+     
         dgHistory.ItemsSource = historySignals;
         dgRanking.ItemsSource = ranking;
 
         double winRate = await db.GetWinRateAsync();
         double avgReturn = await db.GetAverageReturnAsync();
 
-        txtWinRate.Text =
-            $"Win Rate: {winRate:F1}%";
-
-        txtAvgReturn.Text =
-            $"Retorno Médio: {avgReturn:F2}%";
-
-        txtPending.Text =
-            $"Pendentes: {historySignals.Count(x => !x.Evaluated)}";
-
-        txtEvaluated.Text =
-            $"Avaliados: {historySignals.Count(x => x.Evaluated)}";
+        txtWinRate.Text = $"Win Rate: {winRate:F1}%";
+        txtAvgReturn.Text = $"Retorno Médio: {avgReturn:F2}%";
+        txtPending.Text = $"Pendentes: {historySignals.Count(x => !x.Evaluated)}";
+        txtEvaluated.Text = $"Avaliados: {historySignals.Count(x => x.Evaluated)}";
 
         sw.Stop();
 
-        Title = $"Scanner | WinRate: {winRate:F1}% | Avg: {avgReturn:F2}%";
+        Title = $"Scanner [{marketRegime}] | WinRate: {winRate:F1}% | Avg: {avgReturn:F2}%";
     }
 
     private async void MainWindow_Loaded(object sender,RoutedEventArgs e)
@@ -173,12 +153,11 @@ public partial class MainWindow : Window
         _timer.Start();
     }                                                                               
 
-    private async Task<AssetScore?> AnalyzeSymbolAsync(
-    BinanceExchangeService service,
-    string symbol)
+    private async Task<AssetScore?> AnalyzeSymbolAsync(BinanceExchangeService service,string symbol)
     {
         try
         {
+          
             var candles = await service.GetCandlesAsync(symbol,"1h",300);
             var ema21 = EmaIndicator.Calculate(candles, 21);
             var ema50 = EmaIndicator.Calculate(candles, 50);
@@ -187,19 +166,18 @@ public partial class MainWindow : Window
             decimal lastRsi = rsi.Last() ?? 0;
             decimal rvol = RelativeVolumeIndicator.Calculate(candles);
             bool breakout = BreakoutIndicator.IsBullishBreakout(candles);
-            decimal resistance = BreakoutIndicator.GetResistance(candles);
+            decimal rompimento = BreakoutIndicator.GetResistance(candles);
             decimal atr = AtrIndicator.Calculate(candles);
             decimal atrPercent = 0;          
             decimal close = candles.Last().Close;
             if (close > 0)
             {
-                atrPercent =
-                    (atr / close) * 100;
+                atrPercent = (atr / close) * 100;
             }
             decimal e21 = ema21.Last() ?? 0;
             decimal e50 = ema50.Last() ?? 0;
             decimal e200 = ema200.Last() ?? 0;
-            int score = TrendScorer.Calculate(close, e21, e50, e200, lastRsi, rvol, atrPercent, breakout);
+            int score = TrendScorer.Calculate(close, e21, e50, e200);
             var task1H = CalculateTimeframeScore(service, symbol,"1h");
             var task4H = CalculateTimeframeScore(service, symbol,"4h");
             var task1D = CalculateTimeframeScore(service, symbol,"1d");
@@ -207,28 +185,43 @@ public partial class MainWindow : Window
             int score1H = task1H.Result;
             int score4H = task4H.Result;
             int score1D = task1D.Result;
-            int marketStructureScore = MarketStructureScorer.Calculate(close, e21, e50, e200);            
+            var structure = MarketStructureAnalyzer.Calculate(candles);
+            int marketStructureScore = structure.Score;
             int volatilityScore = VolatilityScorer.Calculate(atrPercent);
             decimal adx = AdxIndicator.Calculate(candles);
-            int momentumScore = MomentumScorer.Calculate(lastRsi, atrPercent, adx);   
-            decimal volumeSpike = VolumeSpikeIndicator.Calculate(candles);
-            int volumeScore = VolumeScorer.Calculate(rvol, volumeSpike, breakout);
+            int momentumScore = MomentumScorer.Calculate(lastRsi);
+            var volume = VolumeAnalyzer.Calculate(candles);
+            // int volumeScore = VolumeScorer.Calculate(rvol, volumeSpike, breakout);
+            int volumeScore = volume.Score;
+            
             int trendStrengthScore = TrendStrengthScorer.Calculate(close, e21, e50, e200);
             bool consolidating = ConsolidationIndicator.IsConsolidating(candles);
+            decimal resistance = SupportResistanceIndicator.GetResistance(candles);
+            decimal support = SupportResistanceIndicator.GetSupport(candles);
+            decimal resistanceDistance = ((resistance - close) / close) * 100m;
+            decimal supportDistance = ((close - support) / close) * 100m;
+            decimal riskReward = 0;
+            if (supportDistance > 0)
+                riskReward = resistanceDistance / supportDistance;
             decimal finalScore = (marketStructureScore * 0.30m + momentumScore * 0.20m + volumeScore * 0.20m + volatilityScore * 0.10m + trendStrengthScore * 0.20m);
             if (breakout)
                 finalScore += 15;
             if (consolidating)
-                finalScore += 10;
+                finalScore += 10;          
+            decimal scoreVariation = ScoreTracker.GetVariation(symbol, finalScore);
+            decimal rejectionScore = RejectionScore.Calculate(candles);
+            if (rejectionScore > 0.60m)
+                finalScore -= 15;
+            else if (rejectionScore > 0.40m)
+                finalScore -= 8;
+            else if (rejectionScore > 0.25m)
+                finalScore -= 4;
 
-            string trendDirection = "LATERAL";
-            if (close > e200 && e21 > e50)
-                trendDirection = "ALTA";
+            string trendDirection = structure.Uptrend ? "ALTA" : structure.Downtrend ? "BAIXA" : "LATERAL";    
+            
 
-            if (close < e200 && e21 < e50)
-                trendDirection = "BAIXA";
 
-            return new AssetScore
+            AssetScore asset = new()
             {
                 Symbol = symbol,
                 FinalScore = finalScore,
@@ -244,77 +237,71 @@ public partial class MainWindow : Window
                 Score4H = score4H,
                 Score1D = score1D,                
                 IsBreakout = breakout,
-                Resistance = resistance,
+                Resistance = rompimento,
                 MarketStructureScore = marketStructureScore,
                 MomentumScore = momentumScore,
                 VolumeScore = volumeScore,
                 VolatilityScore = volatilityScore,
                 Adx = adx,
-                VolumeSpike = volumeSpike,
+                VolumeSpike = volume.ClimaxVolume ? 3m : 1m,
                 TrendStrengthScore = trendStrengthScore,
                 IsConsolidating = consolidating,
                 TrendDirection = trendDirection,
+                ScoreVariation = scoreVariation,
+                ResistanceDistance = resistanceDistance,
+                SupportDistance = supportDistance,               
+                RiskReward = riskReward,
+                RejectionScore = rejectionScore,
+                StrongUptrend = structure.StrongUptrend,
+                StrongDowntrend = structure.StrongDowntrend,
+                BreakOfStructure = structure.BreakOfStructure,
+                ChangeOfCharacter = structure.ChangeOfCharacter,
+                BuyingVolume = volume.BuyingVolume,
+                SellingVolume = volume.SellingVolume,
+                VolumeImbalance = volume.VolumeImbalance,
+                ClimaxVolume = volume.ClimaxVolume,
+                Absorption = volume.Absorption,
+                Distribution = volume.Distribution,
+              
             };
+            asset.OpportunityScore = OpportunityScoreCalculator.Calculate(asset);
+
+            asset.IsEliteSetup =
+            asset.OpportunityScore >= 75 &&
+            asset.TrendDirection == "ALTA" &&
+            asset.RiskReward >= 2.5m &&
+            asset.RejectionScore <= 0.40m;
+
+            return asset;
         }
         catch
         {
             return null;
         }
     }
+      
 
     private async Task<int> CalculateTimeframeScore(
     BinanceExchangeService service,
     string symbol,
     string timeframe)
     {
-        var candles =
-            await service.GetCandlesAsync(
-                symbol,
-                timeframe,
-                300);
-
-        var ema21 =
-            EmaIndicator.Calculate(candles, 21);
-
-        var ema50 =
-            EmaIndicator.Calculate(candles, 50);
-
-        var ema200 =
-            EmaIndicator.Calculate(candles, 200);
-
-        var rsi =
-            RsiIndicator.Calculate(candles);
-
+        var candles = await service.GetCandlesAsync(symbol,timeframe,300);
+        var ema21 = EmaIndicator.Calculate(candles, 21);
+        var ema50 = EmaIndicator.Calculate(candles, 50);
+        var ema200 = EmaIndicator.Calculate(candles, 200);
+        var rsi =  RsiIndicator.Calculate(candles);
         decimal close = candles.Last().Close;
-
         decimal e21 = ema21.Last() ?? 0;
         decimal e50 = ema50.Last() ?? 0;
         decimal e200 = ema200.Last() ?? 0;
-
         decimal lastRsi = rsi.Last() ?? 0;
-
-        decimal rvol =
-            RelativeVolumeIndicator.Calculate(candles);
-
-        decimal atr =
-            AtrIndicator.Calculate(candles);
-
-        decimal atrPercent =
-            close > 0
-                ? (atr / close) * 100
-                : 0;
-
+        decimal rvol = RelativeVolumeIndicator.Calculate(candles);
+        decimal atr = AtrIndicator.Calculate(candles);
+        decimal atrPercent = close > 0 ? (atr / close) * 100 : 0;
         bool breakout = BreakoutIndicator.IsBullishBreakout(candles);
 
-        return TrendScorer.Calculate(
-            close,
-            e21,
-            e50,
-            e200,
-            lastRsi,
-            rvol,
-            atrPercent,
-            breakout);
+        return TrendScorer.Calculate(close,e21,e50,e200);
     }    
 
     private async void BtnBacktest_Click(object sender, RoutedEventArgs e)
@@ -340,6 +327,11 @@ public partial class MainWindow : Window
 
         Lucro: {result.NetProfit:F2}%
         """);
+    }
+
+    private async void btAtualizar_Click(object sender, RoutedEventArgs e)
+    {
+        await RunScannerAsync();
     }
 }
 

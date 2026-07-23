@@ -8,35 +8,17 @@ namespace CryptoScanner.Strategies;
 
 public static class TrendScorer
 {
-    public static int Calculate(
-     decimal close,
-     decimal ema21,
-     decimal ema50,
-     decimal ema200,
-     decimal rsi,
-     decimal relativeVolume, decimal atrPercent, bool breakout)
+    public static int Calculate(decimal close, decimal ema21, decimal ema50, decimal ema200)
     {
-        int score = 0;      
+        int score = 0;
 
         if (close > ema200)
-            score += 20;
+            score += 40;
 
         if (ema21 > ema50)
-            score += 15;
+            score += 30;
 
         if (ema50 > ema200)
-            score += 15;
-
-        if (rsi >= 50 && rsi <= 70)
-            score += 15;
-
-        if (relativeVolume >= 1.5m)
-            score += 20;
-
-        if (atrPercent >= 2m)
-            score += 15;
-
-        if (breakout && relativeVolume >= 1.5m)
             score += 30;
 
         return score;

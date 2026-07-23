@@ -69,4 +69,31 @@ public class AssetScore
     public int TrendStrengthScore { get; set; }
     public bool IsConsolidating { get; set; }
     public string TrendDirection { get; set; } = "";
+    public decimal ScoreVariation { get; set; }
+    public decimal ResistanceDistance { get; set; }
+    public decimal SupportDistance { get; set; }
+    public decimal OpportunityScore { get; set; }
+    public decimal RiskReward { get; set; }
+    public decimal RejectionScore { get; set; }
+    public bool IsEliteSetup { get; set; }
+    public string EliteText => IsEliteSetup ? "⭐" : "";
+    public bool StrongUptrend { get; set; }
+
+    public bool StrongDowntrend { get; set; }
+
+    public bool BreakOfStructure { get; set; }
+
+    public bool ChangeOfCharacter { get; set; }
+    public decimal BuyingVolume { get; set; }
+
+    public decimal SellingVolume { get; set; }
+
+    public decimal VolumeImbalance { get; set; }
+
+    public bool ClimaxVolume { get; set; }
+
+    public bool Absorption { get; set; }
+
+    public bool Distribution { get; set; }
+
 }

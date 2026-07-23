@@ -5,7 +5,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:CryptoScanner.UI"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="MainWindow" Height="450" Width="800"
+        WindowStartupLocation="CenterScreen">
     <Grid>
 
         <Grid.RowDefinitions>
@@ -72,13 +73,17 @@
 
                 <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" />
                 <DataGridTextColumn Header="Preço" Binding="{Binding CloseFormatted}" />
-                <DataGridTextColumn Header="Score" Binding="{Binding FinalScore, StringFormat=F2}" />               
+                <DataGridTextColumn Header="Score" Binding="{Binding FinalScore, StringFormat=F2}" />
+                <DataGridTextColumn Header="Elite" Binding="{Binding EliteText}" />
                 <DataGridTextColumn Header="Resistência" Binding="{Binding Resistance}" />
                 <DataGridCheckBoxColumn Header="Rompimento" Binding="{Binding IsBreakout}" />
                 <DataGridTextColumn Header="Trend" Binding="{Binding TrendDirection}" />
-                <DataGridTextColumn Header="Sinal" Binding="{Binding Signal}" />  
+                <DataGridTextColumn Header="Sinal" Binding="{Binding Signal}" />
                 <DataGridCheckBoxColumn Header="Consol." Binding="{Binding IsConsolidating}" />
-                <DataGridTextColumn Header="Volume Spike" Binding="{Binding VolumeSpike, StringFormat=F2}" />
+                <DataGridTextColumn Header="Volume Spike" Binding="{Binding VolumeSpike, StringFormat=F2}" />             
+                <DataGridTextColumn Header="Res %" Binding="{Binding ResistanceDistance, StringFormat=F1}" />
+                <DataGridTextColumn Header="Sup %" Binding="{Binding SupportDistance, StringFormat=F1}" />               
+               
 
             </DataGrid.Columns>
 
@@ -92,21 +97,17 @@
             <DataGrid.Columns>
 
                 <DataGridTextColumn Header="Data" Binding="{Binding Timestamp, StringFormat=dd/MM HH:mm}" />
-
                 <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" />
-
                 <DataGridTextColumn Header="Entrada" Binding="{Binding Price}" />
-
                 <DataGridTextColumn Header="Score" Binding="{Binding FinalScore}" />
-
                 <DataGridTextColumn Header="Resultado %" Binding="{Binding OutcomePercent, StringFormat=F2}" />
-
                 <DataGridCheckBoxColumn Header="Avaliado" Binding="{Binding Evaluated}" />
 
             </DataGrid.Columns>
 
         </DataGrid>
         <Button Content="Backtest BTC" Click="BtnBacktest_Click" HorizontalAlignment="Left" Height="19" Margin="696,7,0,0" VerticalAlignment="Top" Width="78"/>
+        <Button x:Name="btAtualizar" Content="Atualizar" HorizontalAlignment="Left" Height="19" Margin="614,7,0,0" VerticalAlignment="Top" Width="77" RenderTransformOrigin="0.509,0.601" Click="btAtualizar_Click"/>
 
     </Grid>
 

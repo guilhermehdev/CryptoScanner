@@ -40,6 +40,7 @@ public class SignalDatabase
                 Signal TEXT NOT NULL,
                 OutcomePrice REAL,
                 OutcomePercent REAL,
+                PreviousScore REAL,
                 Evaluated INTEGER DEFAULT 0
             );
             """;
