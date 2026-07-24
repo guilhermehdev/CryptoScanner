@@ -1,4 +1,5 @@
 ﻿using CryptoScanner.Backtest.Services;
+using CryptoScanner.Core.Configuration;
 using CryptoScanner.Core.Models;
 using CryptoScanner.Core.Scoring;
 using CryptoScanner.Core.Services;
@@ -49,7 +50,7 @@ public partial class MainWindow : Window
 
     private async Task RunScannerAsync()
     {
-        const int EvaluationHours = 24;
+        const int EvaluationHours = ScannerSettings.EvaluationHours;
         var db = new SignalDatabase();
         BinanceExchangeService service = new();
         List<AssetScore> ranking = new();
@@ -60,8 +61,8 @@ public partial class MainWindow : Window
         decimal btcEma200 = EmaIndicator.Calculate(btcCandles, 200).Last() ?? 0;
         string marketRegime = MarketRegimeIndicator.Calculate(btcClose, btcEma200);
         var pendingSignals = await db.GetPendingSignalsAsync();
-        var symbols = await service.GetUsdtSymbolsAsync();      
-        symbols = symbols.Take(200).ToList();
+        var symbols = await service.GetUsdtSymbolsAsync();
+        symbols = symbols.Take(ScannerSettings.MaxCoins).ToList();
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var tasks = symbols.Select(symbol => AnalyzeSymbolAsync(service, symbol));
         var results = await Task.WhenAll(tasks);
@@ -110,16 +111,16 @@ public partial class MainWindow : Window
             if (!asset.IsConsolidating)
                 continue;
 
-            if (asset.VolumeSpike < 1.3m)
+            if (asset.VolumeSpike < ScannerSettings.MinVolumeSpike)
                 continue;
 
-            if (asset.ResistanceDistance < 8)
+            if (asset.ResistanceDistance < ScannerSettings.MinResistanceDistance)
                 continue;
 
             if (asset.TrendDirection != "ALTA")
                 continue;
 
-            if (asset.RiskReward < 3)
+            if (asset.RiskReward < ScannerSettings.MinRiskReward)
                 continue;           
 
             if (await db.SignalExistsTodayAsync(asset.Symbol, asset.Signal))
