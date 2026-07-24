@@ -74,6 +74,9 @@ namespace CryptoScanner.Indicators.Indicators
             if (asset.StrongDowntrend)
                 score -= 25;
 
+            score += (asset.CandleScore - 50) * 0.40m;
+            score = Math.Clamp(score, 0m, 100m);
+
             return Math.Round(score, 2);
         }
     }

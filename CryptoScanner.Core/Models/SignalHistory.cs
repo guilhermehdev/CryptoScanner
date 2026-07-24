@@ -22,5 +22,7 @@ namespace CryptoScanner.Core.Models
         public decimal? OutcomePercent { get; set; }
 
         public bool Evaluated { get; set; }
+
+        public decimal OpportunityScore { get; set; }
     }
 }

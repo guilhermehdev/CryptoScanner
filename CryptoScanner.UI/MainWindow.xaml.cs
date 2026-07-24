@@ -64,9 +64,12 @@ public partial class MainWindow : Window
         symbols = symbols.Take(200).ToList();
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var tasks = symbols.Select(symbol => AnalyzeSymbolAsync(service, symbol));
-        var results = await Task.WhenAll(tasks); 
-        ranking = results.Where(x => x != null).Cast<AssetScore>().OrderByDescending(x => x.FinalScore).ToList();
-        ranking = ranking.OrderByDescending(x => x.OpportunityScore).ToList();
+        var results = await Task.WhenAll(tasks);
+
+
+        ranking = results.Where(x => x != null).Cast<AssetScore>().OrderByDescending(x => x.OpportunityScore).ToList();
+        //ranking = ranking.OrderByDescending(x => x.OpportunityScore).ToList();
+        ranking = ranking.Take(30).ToList();
 
         foreach (var signal in pendingSignals)
         {
@@ -92,12 +95,12 @@ public partial class MainWindow : Window
 
             if (marketRegime == "BEAR")
             {
-                if (asset.FinalScore < 80)
+                if (asset.OpportunityScore < 80)
                     continue;
             }
             else
             {
-                if (asset.FinalScore < 60)
+                if (asset.OpportunityScore < 60)
                     continue;
             }
 
@@ -122,11 +125,7 @@ public partial class MainWindow : Window
             if (await db.SignalExistsTodayAsync(asset.Symbol, asset.Signal))
                 continue;
 
-            await db.InsertSignalAsync(
-                asset.Symbol,
-                asset.Close,
-                asset.FinalScore,
-                asset.Signal);
+            await db.InsertSignalAsync(asset.Symbol, asset.Close, asset.OpportunityScore, asset.Signal);
         }
 
         var historySignals = await db.GetSignalsAsync();
@@ -193,7 +192,7 @@ public partial class MainWindow : Window
             var volume = VolumeAnalyzer.Calculate(candles);
             // int volumeScore = VolumeScorer.Calculate(rvol, volumeSpike, breakout);
             int volumeScore = volume.Score;
-            
+            var candleQuality = CandleQualityAnalyzer.Calculate(candles);
             int trendStrengthScore = TrendStrengthScorer.Calculate(close, e21, e50, e200);
             bool consolidating = ConsolidationIndicator.IsConsolidating(candles);
             decimal resistance = SupportResistanceIndicator.GetResistance(candles);
@@ -203,19 +202,23 @@ public partial class MainWindow : Window
             decimal riskReward = 0;
             if (supportDistance > 0)
                 riskReward = resistanceDistance / supportDistance;
+
             decimal finalScore = (marketStructureScore * 0.30m + momentumScore * 0.20m + volumeScore * 0.20m + volatilityScore * 0.10m + trendStrengthScore * 0.20m);
             if (breakout)
                 finalScore += 15;
             if (consolidating)
-                finalScore += 10;          
+                finalScore += 10;
+
             decimal scoreVariation = ScoreTracker.GetVariation(symbol, finalScore);
             decimal rejectionScore = RejectionScore.Calculate(candles);
+
             if (rejectionScore > 0.60m)
                 finalScore -= 15;
             else if (rejectionScore > 0.40m)
                 finalScore -= 8;
             else if (rejectionScore > 0.25m)
                 finalScore -= 4;
+            finalScore = Math.Clamp(finalScore, 0m, 100m);
 
             string trendDirection = structure.Uptrend ? "ALTA" : structure.Downtrend ? "BAIXA" : "LATERAL";    
             
@@ -262,7 +265,17 @@ public partial class MainWindow : Window
                 ClimaxVolume = volume.ClimaxVolume,
                 Absorption = volume.Absorption,
                 Distribution = volume.Distribution,
-              
+                BullPower = candleQuality.BullPower,
+                BearPower = candleQuality.BearPower,
+                BodyRatio = candleQuality.BodyRatio,
+                UpperWickRatio = candleQuality.UpperWickRatio,
+                LowerWickRatio = candleQuality.LowerWickRatio,
+                StrongBullish = candleQuality.StrongBullish,
+                StrongBearish = candleQuality.StrongBearish,
+                BuyerRejection = candleQuality.BuyerRejection,
+                SellerRejection = candleQuality.SellerRejection,
+                CandleScore = candleQuality.Score,
+
             };
             asset.OpportunityScore = OpportunityScoreCalculator.Calculate(asset);
 
