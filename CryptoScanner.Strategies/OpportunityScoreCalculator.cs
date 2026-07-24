@@ -12,7 +12,10 @@ public static class OpportunityScoreCalculator
             analysis.Volume.Score * ScannerSettings.VolumeWeight +
             analysis.Structure.Score * ScannerSettings.StructureWeight +
             analysis.Candle.Score * ScannerSettings.CandleWeight +
-            analysis.Setup.Score * ScannerSettings.SetupWeight;
+            analysis.Setup.Score * ScannerSettings.SetupWeight +
+            analysis.Trend.MomentumScore * ScannerSettings.MomentumWeight +
+            analysis.Trend.VolatilityScore * ScannerSettings.VolatilityWeight +
+            analysis.Trend.TrendStrengthScore * ScannerSettings.TrendStrengthWeight;
 
         return Math.Round(Math.Clamp(score, 0m, 100m), 2);
     }

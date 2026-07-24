@@ -56,8 +56,9 @@ public class BacktestEngine
         }
 
         result.WinRate =
-            (decimal)result.Wins /
-            result.Trades * 100;
+            result.Trades > 0
+                ? (decimal)result.Wins / result.Trades * 100
+                : 0;
 
         return result;
     }

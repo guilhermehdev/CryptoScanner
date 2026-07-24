@@ -6,12 +6,19 @@ namespace CryptoScanner.Indicators.Indicators
 {
     public static class MarketRegimeIndicator
     {
+        private const decimal SidewaysBandPercent = 3m;
+
         public static string Calculate(decimal btcPrice, decimal btcEma200)
         {
-            if (btcPrice > btcEma200)
-                return "BULL";
+            if (btcEma200 <= 0)
+                return "LATERAL";
 
-            return "BEAR";
+            decimal distancePercent = ((btcPrice - btcEma200) / btcEma200) * 100m;
+
+            if (Math.Abs(distancePercent) <= SidewaysBandPercent)
+                return "LATERAL";
+
+            return distancePercent > 0 ? "BULL" : "BEAR";
         }
     }
 }

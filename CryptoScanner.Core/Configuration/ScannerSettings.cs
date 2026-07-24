@@ -35,4 +35,8 @@ public static class ScannerSettings
 
     // Scanner
     public const int MaxCoins = 50;
+
+    public const decimal MomentumWeight = 0.05m;
+    public const decimal VolatilityWeight = 0.05m;
+    public const decimal TrendStrengthWeight = 0.05m;
 }

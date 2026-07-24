@@ -15,8 +15,8 @@ public sealed class AssetAnalyzer
         var trend = AnalyzeTrend(candles, structure);
         var volume = AnalyzeVolume(candles);
         var candle = AnalyzeCandle(candles);
-        var setup = AnalyzeSetup(candles, trend);
         var risk = AnalyzeRisk(candles, trend.Close);
+        var setup = AnalyzeSetup(candles, trend, risk.Resistance);
 
         var analysis = new AssetAnalysis
         {
@@ -112,14 +112,14 @@ public sealed class AssetAnalyzer
         };
     }
 
-    private static SetupAnalysis AnalyzeSetup(List<Candle> candles, TrendAnalysis trend)
+    private static SetupAnalysis AnalyzeSetup(List<Candle> candles, TrendAnalysis trend, decimal resistance)
     {
         decimal swingLow = candles.Skip(Math.Max(0, candles.Count - 20)).Min(candle => candle.Low);
         var result = SetupQualityAnalyzer.Calculate(trend.Close, trend.Ema21, trend.Atr, swingLow);
         return new SetupAnalysis
         {
             Score = result.Score,
-            IsBreakout = BreakoutIndicator.IsBullishBreakout(candles),
+            IsBreakout = BreakoutIndicator.IsBullishBreakout(candles, resistance),
             IsConsolidating = ConsolidationIndicator.IsConsolidating(candles),
             IsOverextended = result.IsOverextended,
             EmaDistanceAtr = result.EmaDistanceAtr,

@@ -8,8 +8,14 @@ namespace CryptoScanner.Indicators.Indicators
     {
         public static int Calculate(decimal rsi)
         {
-            if (rsi >= 55 && rsi <= 70)
-                return 100;
+            if (rsi > 80)
+                return 30; // muito esticado, risco de exaustão
+
+            if (rsi > 70)
+                return 50; // sobrecomprado
+
+            if (rsi >= 55)
+                return 100; // faixa ideal de momentum
 
             if (rsi >= 50)
                 return 80;
