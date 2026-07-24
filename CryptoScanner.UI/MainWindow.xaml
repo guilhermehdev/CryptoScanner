@@ -73,7 +73,7 @@
 
                 <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" />
                 <DataGridTextColumn Header="Preço" Binding="{Binding CloseFormatted}" />
-                <DataGridTextColumn Header="Score" Binding="{Binding FinalScore, StringFormat=F2}" />
+                <DataGridTextColumn Header="Score" Binding="{Binding Score, StringFormat=F2}" />
                 <DataGridTextColumn Header="Elite" Binding="{Binding EliteText}" />
                 <DataGridTextColumn Header="Resistência" Binding="{Binding Resistance}" />
                 <DataGridCheckBoxColumn Header="Rompimento" Binding="{Binding IsBreakout}" />

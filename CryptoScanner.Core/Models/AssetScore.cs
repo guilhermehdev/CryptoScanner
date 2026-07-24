@@ -1,103 +1,25 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
 namespace CryptoScanner.Core.Models;
 
-public class AssetScore
+// Projection used exclusively by the ranking UI.
+public sealed class AssetScore
 {
-    public string Symbol { get; set; } = "";
+    public string Symbol { get; init; } = "";
+    public decimal Close { get; init; }
+    public decimal Score { get; init; }
+    public decimal OpportunityScore { get; init; }
+    public decimal Resistance { get; init; }
+    public decimal VolumeSpike { get; init; }
+    public decimal ResistanceDistance { get; init; }
+    public decimal SupportDistance { get; init; }
+    public decimal RiskReward { get; init; }
+    public string TrendDirection { get; init; } = "";
+    public bool IsBreakout { get; init; }
+    public bool IsConsolidating { get; init; }
+    public bool IsEliteSetup { get; init; }
 
-    public int Score { get; set; }
-
-    public decimal Close { get; set; }
-
-    public decimal Ema21 { get; set; }
-
-    public decimal Ema50 { get; set; }
-
-    public decimal Ema200 { get; set; }
-
-    public decimal Rsi { get; set; }
-
-    public decimal RelativeVolume { get; set; }
-
-    public decimal Atr { get; set; }
-
-    public decimal AtrPercent { get; set; }
-
-    public int Score1H { get; set; }
-
-    public int Score4H { get; set; }
-
-    public int Score1D { get; set; }
-
-    public decimal FinalScore { get; set; }
-
-    public bool IsBreakout { get; set; }
-
-    public decimal Resistance { get; set; }
-
-    public string CloseFormatted =>
-    Close >= 1
-        ? Close.ToString("N2")
-        : Close.ToString("N8");
-
-    public string Signal
-    {
-        get
-        {
-            if (FinalScore >= 70)
-                return "STRONG BUY";
-
-            if (FinalScore >= 55)
-                return "BUY";
-
-            if (FinalScore >= 40)
-                return "WATCH";
-
-            return "IGNORE";
-        }
-    }
-
-    public int MarketStructureScore { get; set; }
-    public int MomentumScore { get; set; }
-    public int VolumeScore { get; set; }
-    public int VolatilityScore { get; set; }
-    public decimal Adx { get; set; }
-    public decimal VolumeSpike { get; set; }
-    public int TrendStrengthScore { get; set; }
-    public bool IsConsolidating { get; set; }
-    public string TrendDirection { get; set; } = "";
-    public decimal ScoreVariation { get; set; }
-    public decimal ResistanceDistance { get; set; }
-    public decimal SupportDistance { get; set; }
-    public decimal OpportunityScore { get; set; }
-    public decimal RiskReward { get; set; }
-    public decimal RejectionScore { get; set; }
-    public bool IsEliteSetup { get; set; }
+    public string CloseFormatted => Close >= 1 ? Close.ToString("N2") : Close.ToString("N8");
+    public string Signal => OpportunityScore >= 70 ? "STRONG BUY" :
+                            OpportunityScore >= 55 ? "BUY" :
+                            OpportunityScore >= 40 ? "WATCH" : "IGNORE";
     public string EliteText => IsEliteSetup ? "⭐" : "";
-    public bool StrongUptrend { get; set; }
-    public bool StrongDowntrend { get; set; }
-    public bool BreakOfStructure { get; set; }
-    public bool ChangeOfCharacter { get; set; }
-    public decimal BuyingVolume { get; set; }
-    public decimal SellingVolume { get; set; }
-    public decimal VolumeImbalance { get; set; }
-    public bool ClimaxVolume { get; set; }
-    public bool Absorption { get; set; }
-    public bool Distribution { get; set; }
-    public decimal BullPower { get; set; }
-    public decimal BearPower { get; set; }
-    public decimal BodyRatio { get; set; }
-    public decimal UpperWickRatio { get; set; }
-    public decimal LowerWickRatio { get; set; }
-    public bool StrongBullish { get; set; }
-    public bool StrongBearish { get; set; }
-    public bool BuyerRejection { get; set; }
-    public bool SellerRejection { get; set; }
-    public int CandleScore { get; set; }
-    public int SetupQualityScore { get; set; }
-    public bool IsOverextended { get; set; }
-
 }

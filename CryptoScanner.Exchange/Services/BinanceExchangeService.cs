@@ -1,22 +1,24 @@
 ﻿using System.Globalization;
 using System.Text.Json;
+using CryptoScanner.Core.Contracts;
 using CryptoScanner.Core.Models;
 
 namespace CryptoScanner.Exchange.Services;
 
-public class BinanceExchangeService
+public class BinanceExchangeService : IMarketDataService
 {
     private readonly HttpClient _http = new();
 
     public async Task<List<Candle>> GetCandlesAsync(
         string symbol,
         string interval,
-        int limit = 1000)
+        int limit = 1000,
+        CancellationToken cancellationToken = default)
     {
         string url =
             $"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}";
 
-        string json = await _http.GetStringAsync(url);
+        string json = await _http.GetStringAsync(url, cancellationToken);
 
         JsonElement root =
             JsonSerializer.Deserialize<JsonElement>(json);
@@ -57,13 +59,14 @@ public class BinanceExchangeService
         return candles;
     }
 
-    public async Task<List<string>> GetUsdtSymbolsAsync()
+    public async Task<List<string>> GetUsdtSymbolsAsync(
+        CancellationToken cancellationToken = default)
     {
         string url =
             "https://api.binance.com/api/v3/exchangeInfo";
 
         string json =
-            await _http.GetStringAsync(url);
+            await _http.GetStringAsync(url, cancellationToken);
 
         JsonDocument doc =
             JsonDocument.Parse(json);
@@ -98,13 +101,14 @@ public class BinanceExchangeService
     }
 
     public async Task<decimal> GetCurrentPriceAsync(
-    string symbol)
+    string symbol,
+    CancellationToken cancellationToken = default)
     {
         string url =
             $"https://api.binance.com/api/v3/ticker/price?symbol={symbol}";
 
         string json =
-            await _http.GetStringAsync(url);
+            await _http.GetStringAsync(url, cancellationToken);
 
         JsonDocument doc =
             JsonDocument.Parse(json);

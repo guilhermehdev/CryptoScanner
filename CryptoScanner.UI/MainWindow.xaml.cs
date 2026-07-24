@@ -1,379 +1,94 @@
-﻿using CryptoScanner.Backtest.Services;
-using CryptoScanner.Core.Configuration;
-using CryptoScanner.Core.Models;
-using CryptoScanner.Core.Scoring;
-using CryptoScanner.Core.Services;
+using CryptoScanner.Application.Services;
+using CryptoScanner.Backtest.Services;
 using CryptoScanner.Exchange.Services;
-using CryptoScanner.Indicators;
-using CryptoScanner.Indicators.Indicators;
-using CryptoScanner.Strategies;
-using CryptoScanner.UI.Services;
-using System.Text;
+using CryptoScanner.Infrastructure.Sqlite;
+using System.IO;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 using System.Windows.Threading;
 
 namespace CryptoScanner.UI;
 
 public partial class MainWindow : Window
 {
-    private DispatcherTimer _timer = new();
-    public decimal OpportunityScore { get; set; }
+    private readonly DispatcherTimer _timer = new();
+    private readonly ScannerService _scanner;
+    private bool _isScanning;
+
     public MainWindow()
     {
         InitializeComponent();
+
+        var databasePath = GetDatabasePath();
+
+        _scanner = new ScannerService(
+            new BinanceExchangeService(),
+            new SqliteSignalRepository(databasePath),
+            new AssetAnalyzer());
+
         Loaded += MainWindow_Loaded;
         _timer.Interval = TimeSpan.FromMinutes(3);
         _timer.Tick += Timer_Tick;
     }
 
-    private async void Timer_Tick(object? sender, EventArgs e)
+    private async void Timer_Tick(object? sender, EventArgs e) => await RunScannerAsync();
+
+    private async Task RunScannerAsync()
     {
+        if (_isScanning)
+            return;
+
+        _isScanning = true;
         _timer.Stop();
+        btAtualizar.IsEnabled = false;
 
         try
         {
-            await RunScannerAsync();
+            var result = await _scanner.RunAsync();
+            dgRanking.ItemsSource = result.Ranking;
+            dgHistory.ItemsSource = result.History;
+            txtWinRate.Text = $"Win Rate: {result.WinRate:F1}%";
+            txtAvgReturn.Text = $"Retorno Médio: {result.AverageReturn:F2}%";
+            txtPending.Text = $"Pendentes: {result.History.Count(signal => !signal.Evaluated)}";
+            txtEvaluated.Text = $"Avaliados: {result.History.Count(signal => signal.Evaluated)}";
+            Title = $"Scanner [{result.MarketRegime}] | WinRate: {result.WinRate:F1}% | Avg: {result.AverageReturn:F2}%";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Não foi possível concluir a atualização do scanner.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {
+            btAtualizar.IsEnabled = true;
+            _isScanning = false;
             _timer.Start();
         }
     }
 
-    private async Task RunScannerAsync()
-    {
-        const int EvaluationHours = ScannerSettings.EvaluationHours;
-        var db = new SignalDatabase();
-        BinanceExchangeService service = new();
-        List<AssetScore> ranking = new();
-        await db.InitializeAsync();
-
-        var btcCandles = await service.GetCandlesAsync("BTCUSDT", "1d", 300);
-        decimal btcClose = btcCandles.Last().Close;
-        decimal btcEma200 = EmaIndicator.Calculate(btcCandles, 200).Last() ?? 0;
-        string marketRegime = MarketRegimeIndicator.Calculate(btcClose, btcEma200);
-        var pendingSignals = await db.GetPendingSignalsAsync();
-        var symbols = await service.GetUsdtSymbolsAsync();
-        symbols = symbols.Take(ScannerSettings.MaxCoins).ToList();
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        var tasks = symbols.Select(symbol => AnalyzeSymbolAsync(service, symbol));
-        var results = await Task.WhenAll(tasks);
-
-
-        ranking = results.Where(x => x != null).Cast<AssetScore>().OrderByDescending(x => x.OpportunityScore).ToList();
-        //ranking = ranking.OrderByDescending(x => x.OpportunityScore).ToList();
-        ranking = ranking.Take(30).ToList();
-
-        foreach (var signal in pendingSignals)
-        {
-            if (DateTime.UtcNow < signal.Timestamp.AddHours(EvaluationHours))
-            {
-                continue;
-            }
-
-            decimal currentPrice =
-                await service.GetCurrentPriceAsync(
-                    signal.Symbol);
-
-            decimal outcomePercent =
-                ((currentPrice - signal.Price)
-                    / signal.Price) * 100m;
-
-            await db.UpdateSignalResultAsync(signal.Id, currentPrice, outcomePercent);
-
-        }                
-
-        foreach (var asset in ranking)
-        {
-            decimal opportunity = asset.OpportunityScore;
-
-            if (marketRegime == "BEAR")
-                opportunity -= 15;
-
-            if (marketRegime == "SIDEWAYS")
-                opportunity -= 8;
-
-            if (opportunity < ScannerSettings.BuyOpportunityScore)
-                continue;
-
-            if (!asset.IsBreakout)
-                continue;
-
-            if (!asset.IsConsolidating)
-                continue;
-
-            if (asset.VolumeSpike < ScannerSettings.MinVolumeSpike)
-                continue;
-
-            if (asset.ResistanceDistance < ScannerSettings.MinResistanceDistance)
-                continue;
-
-            if (asset.TrendDirection != "ALTA")
-                continue;
-
-            if (asset.RiskReward < ScannerSettings.MinRiskReward)
-                continue;           
-
-            if (await db.SignalExistsTodayAsync(asset.Symbol, asset.Signal))
-                continue;
-
-            await db.InsertSignalAsync(asset.Symbol, asset.Close, asset.OpportunityScore, asset.Signal);
-        }
-
-        var historySignals = await db.GetSignalsAsync();
-     
-        dgHistory.ItemsSource = historySignals;
-        dgRanking.ItemsSource = ranking;
-
-        double winRate = await db.GetWinRateAsync();
-        double avgReturn = await db.GetAverageReturnAsync();
-
-        txtWinRate.Text = $"Win Rate: {winRate:F1}%";
-        txtAvgReturn.Text = $"Retorno Médio: {avgReturn:F2}%";
-        txtPending.Text = $"Pendentes: {historySignals.Count(x => !x.Evaluated)}";
-        txtEvaluated.Text = $"Avaliados: {historySignals.Count(x => x.Evaluated)}";
-
-        sw.Stop();
-
-        Title = $"Scanner [{marketRegime}] | WinRate: {winRate:F1}% | Avg: {avgReturn:F2}%";
-    }
-
-    private async void MainWindow_Loaded(object sender,RoutedEventArgs e)
-    {
-        await RunScannerAsync();
-        _timer.Start();
-    }                                                                               
-
-    private async Task<AssetScore?> AnalyzeSymbolAsync(BinanceExchangeService service,string symbol)
-    {
-        try
-        {
-          
-            var candles = await service.GetCandlesAsync(symbol,"1h",300);
-            var ema21 = EmaIndicator.Calculate(candles, 21);
-            var ema50 = EmaIndicator.Calculate(candles, 50);
-            var ema200 = EmaIndicator.Calculate(candles, 200);
-            var rsi = RsiIndicator.Calculate(candles);
-            decimal lastRsi = rsi.Last() ?? 0;
-            decimal rvol = RelativeVolumeIndicator.Calculate(candles);
-            bool breakout = BreakoutIndicator.IsBullishBreakout(candles);
-            decimal rompimento = BreakoutIndicator.GetResistance(candles);
-
-
-            // ... (código anterior do AnalyzeSymbolAsync) ...
-            decimal atr = AtrIndicator.Calculate(candles);
-            decimal atrPercent = 0;
-            decimal close = candles.Last().Close;
-            if (close > 0)
-            {
-                atrPercent = (atr / close) * 100;
-            }
-            decimal e21 = ema21.Last() ?? 0;
-            decimal e50 = ema50.Last() ?? 0;
-            decimal e200 = ema200.Last() ?? 0;
-
-            // --- NOVO: Lógica do Setup Quality (Fase 2) ---
-            // Pegamos a mínima dos últimos 20 candles para representar o Swing Low recente
-            var recentCandles = candles.Skip(Math.Max(0, candles.Count - 20));
-            decimal swingLow = recentCandles.Min(c => c.Low);
-
-            var setupQuality = SetupQualityAnalyzer.Calculate(close, e21, atr, swingLow);
-            int setupQualityScore = setupQuality.Score;
-            // ----------------------------------------------
-
-            int score = TrendScorer.Calculate(close, e21, e50, e200);
-            var task1H = CalculateTimeframeScore(service, symbol, "1h");
-            var task4H = CalculateTimeframeScore(service, symbol, "4h");
-            var task1D = CalculateTimeframeScore(service, symbol, "1d");
-            await Task.WhenAll(task1H, task4H, task1D);
-            int score1H = task1H.Result;
-            int score4H = task4H.Result;
-            int score1D = task1D.Result;
-            var structure = MarketStructureAnalyzer.Calculate(candles);
-            int marketStructureScore = structure.Score;
-            int volatilityScore = VolatilityScorer.Calculate(atrPercent);
-            decimal adx = AdxIndicator.Calculate(candles);
-            int momentumScore = MomentumScorer.Calculate(lastRsi);
-            var volume = VolumeAnalyzer.Calculate(candles);
-            int volumeScore = volume.Score;
-            var candleQuality = CandleQualityAnalyzer.Calculate(candles);
-            int trendStrengthScore = TrendStrengthScorer.Calculate(close, e21, e50, e200);
-            bool consolidating = ConsolidationIndicator.IsConsolidating(candles);
-            decimal resistance = SupportResistanceIndicator.GetResistance(candles);
-            decimal support = SupportResistanceIndicator.GetSupport(candles);
-            decimal resistanceDistance = ((resistance - close) / close) * 100m;
-            decimal supportDistance = ((close - support) / close) * 100m;
-            decimal riskReward = 0;
-            if (supportDistance > 0)
-                riskReward = resistanceDistance / supportDistance;
-
-            // --- NOVO: Ajuste nos pesos do FinalScore para incluir o Timing ---
-            // Antigo: marketStructure(30%) + momentum(20%) + volume(20%) + volatility(10%) + trendStrength(20%)
-            // Novo: Distribuído para caber os 15% do Timing da Operação
-            decimal finalScore = (
-                marketStructureScore * 0.25m +
-                momentumScore * 0.15m +
-                volumeScore * 0.20m +
-                volatilityScore * 0.05m +
-                trendStrengthScore * 0.20m +
-                setupQualityScore * 0.15m); // <-- Timing importa!
-
-            // Penalidade Severa: Se já esticou, remove o bônus de breakout para não comprar topo
-            if (setupQuality.IsOverextended)
-                finalScore -= 20;
-
-            if (breakout && !setupQuality.IsOverextended)
-                finalScore += 15;
-
-            if (consolidating)
-                finalScore += 10;
-            // ... (continua o resto do código original) ...
-
-            decimal scoreVariation = ScoreTracker.GetVariation(symbol, finalScore);
-            decimal rejectionScore = RejectionScore.Calculate(candles);
-
-            if (rejectionScore > 0.60m)
-                finalScore -= 15;
-            else if (rejectionScore > 0.40m)
-                finalScore -= 8;
-            else if (rejectionScore > 0.25m)
-                finalScore -= 4;
-            finalScore = Math.Clamp(finalScore, 0m, 100m);
-
-            string trendDirection = structure.Uptrend ? "ALTA" : structure.Downtrend ? "BAIXA" : "LATERAL";    
-            
-
-
-            AssetScore asset = new()
-            {
-                Symbol = symbol,
-                FinalScore = finalScore,
-                Close = close,
-                Ema21 = e21,
-                Ema50 = e50,
-                Ema200 = e200,
-                Rsi = lastRsi,
-                RelativeVolume = rvol,
-                Atr = atr,
-                AtrPercent = atrPercent,
-                Score1H = score1H,
-                Score4H = score4H,
-                Score1D = score1D,                
-                IsBreakout = breakout,
-                Resistance = rompimento,
-                MarketStructureScore = marketStructureScore,
-                MomentumScore = momentumScore,
-                VolumeScore = volumeScore,
-                VolatilityScore = volatilityScore,
-                Adx = adx,
-                VolumeSpike = volume.ClimaxVolume ? 3m : 1m,
-                TrendStrengthScore = trendStrengthScore,
-                IsConsolidating = consolidating,
-                TrendDirection = trendDirection,
-                ScoreVariation = scoreVariation,
-                ResistanceDistance = resistanceDistance,
-                SupportDistance = supportDistance,               
-                RiskReward = riskReward,
-                RejectionScore = rejectionScore,
-                StrongUptrend = structure.StrongUptrend,
-                StrongDowntrend = structure.StrongDowntrend,
-                BreakOfStructure = structure.BreakOfStructure,
-                ChangeOfCharacter = structure.ChangeOfCharacter,
-                BuyingVolume = volume.BuyingVolume,
-                SellingVolume = volume.SellingVolume,
-                VolumeImbalance = volume.VolumeImbalance,
-                ClimaxVolume = volume.ClimaxVolume,
-                Absorption = volume.Absorption,
-                Distribution = volume.Distribution,
-                BullPower = candleQuality.BullPower,
-                BearPower = candleQuality.BearPower,
-                BodyRatio = candleQuality.BodyRatio,
-                UpperWickRatio = candleQuality.UpperWickRatio,
-                LowerWickRatio = candleQuality.LowerWickRatio,
-                StrongBullish = candleQuality.StrongBullish,
-                StrongBearish = candleQuality.StrongBearish,
-                BuyerRejection = candleQuality.BuyerRejection,
-                SellerRejection = candleQuality.SellerRejection,
-                CandleScore = candleQuality.Score,
-                SetupQualityScore = setupQualityScore,
-                IsOverextended = setupQuality.IsOverextended
-            };
-            asset.OpportunityScore = OpportunityScoreCalculator.Calculate(asset);
-
-            asset.IsEliteSetup =
-            asset.OpportunityScore >= 75 &&
-            asset.TrendDirection == "ALTA" &&
-            asset.RiskReward >= 2.5m &&
-            asset.RejectionScore <= 0.40m;
-
-            return asset;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-      
-
-    private async Task<int> CalculateTimeframeScore(
-    BinanceExchangeService service,
-    string symbol,
-    string timeframe)
-    {
-        var candles = await service.GetCandlesAsync(symbol,timeframe,300);
-        var ema21 = EmaIndicator.Calculate(candles, 21);
-        var ema50 = EmaIndicator.Calculate(candles, 50);
-        var ema200 = EmaIndicator.Calculate(candles, 200);
-        var rsi =  RsiIndicator.Calculate(candles);
-        decimal close = candles.Last().Close;
-        decimal e21 = ema21.Last() ?? 0;
-        decimal e50 = ema50.Last() ?? 0;
-        decimal e200 = ema200.Last() ?? 0;
-        decimal lastRsi = rsi.Last() ?? 0;
-        decimal rvol = RelativeVolumeIndicator.Calculate(candles);
-        decimal atr = AtrIndicator.Calculate(candles);
-        decimal atrPercent = close > 0 ? (atr / close) * 100 : 0;
-        bool breakout = BreakoutIndicator.IsBullishBreakout(candles);
-
-        return TrendScorer.Calculate(close,e21,e50,e200);
-    }    
+    private async void MainWindow_Loaded(object sender, RoutedEventArgs e) => await RunScannerAsync();
 
     private async void BtnBacktest_Click(object sender, RoutedEventArgs e)
     {
-        BinanceExchangeService service = new();
-
-        var candles =
-            await service.GetCandlesAsync(
-                "BTCUSDT",
-                "1h",
-                1000);
-
-        BacktestEngine engine = new();
-
-        var result =
-            engine.Run(candles);
-
-        MessageBox.Show(
-            $"""
-        Trades: {result.Trades}
-
-        WinRate: {result.WinRate:F2}%
-
-        Lucro: {result.NetProfit:F2}%
-        """);
+        var service = new BinanceExchangeService();
+        var candles = await service.GetCandlesAsync("BTCUSDT", "1h", 1000);
+        var result = new BacktestEngine().Run(candles);
+        MessageBox.Show($"Trades: {result.Trades}\n\nWinRate: {result.WinRate:F2}%\n\nLucro: {result.NetProfit:F2}%");
     }
 
-    private async void btAtualizar_Click(object sender, RoutedEventArgs e)
+    private async void btAtualizar_Click(object sender, RoutedEventArgs e) => await RunScannerAsync();
+
+    private static string GetDatabasePath()
     {
-        await RunScannerAsync();
+        string databaseDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "CryptoScanner");
+        Directory.CreateDirectory(databaseDirectory);
+
+        string databasePath = Path.Combine(databaseDirectory, "signals.db");
+        string legacyPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "signals.db");
+
+        if (!File.Exists(databasePath) && File.Exists(legacyPath))
+            File.Copy(legacyPath, databasePath);
+
+        return databasePath;
     }
 }
-

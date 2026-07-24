@@ -6,6 +6,13 @@ namespace CryptoScanner.Core.Configuration;
 
 public static class ScannerSettings
 {
+    // Opportunity-score weights. They must total 1.00.
+    public const decimal TrendWeight = 0.25m;
+    public const decimal VolumeWeight = 0.20m;
+    public const decimal StructureWeight = 0.25m;
+    public const decimal CandleWeight = 0.15m;
+    public const decimal SetupWeight = 0.15m;
+
     // Scores
     public const decimal EliteOpportunityScore = 85m;
     public const decimal BuyOpportunityScore = 60m;
