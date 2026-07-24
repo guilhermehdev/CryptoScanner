@@ -93,17 +93,16 @@ public partial class MainWindow : Window
 
         foreach (var asset in ranking)
         {
+            decimal opportunity = asset.OpportunityScore;
 
             if (marketRegime == "BEAR")
-            {
-                if (asset.OpportunityScore < 80)
-                    continue;
-            }
-            else
-            {
-                if (asset.OpportunityScore < 60)
-                    continue;
-            }
+                opportunity -= 15;
+
+            if (marketRegime == "SIDEWAYS")
+                opportunity -= 8;
+
+            if (opportunity < ScannerSettings.BuyOpportunityScore)
+                continue;
 
             if (!asset.IsBreakout)
                 continue;
@@ -167,8 +166,11 @@ public partial class MainWindow : Window
             decimal rvol = RelativeVolumeIndicator.Calculate(candles);
             bool breakout = BreakoutIndicator.IsBullishBreakout(candles);
             decimal rompimento = BreakoutIndicator.GetResistance(candles);
+
+
+            // ... (código anterior do AnalyzeSymbolAsync) ...
             decimal atr = AtrIndicator.Calculate(candles);
-            decimal atrPercent = 0;          
+            decimal atrPercent = 0;
             decimal close = candles.Last().Close;
             if (close > 0)
             {
@@ -177,11 +179,21 @@ public partial class MainWindow : Window
             decimal e21 = ema21.Last() ?? 0;
             decimal e50 = ema50.Last() ?? 0;
             decimal e200 = ema200.Last() ?? 0;
+
+            // --- NOVO: Lógica do Setup Quality (Fase 2) ---
+            // Pegamos a mínima dos últimos 20 candles para representar o Swing Low recente
+            var recentCandles = candles.Skip(Math.Max(0, candles.Count - 20));
+            decimal swingLow = recentCandles.Min(c => c.Low);
+
+            var setupQuality = SetupQualityAnalyzer.Calculate(close, e21, atr, swingLow);
+            int setupQualityScore = setupQuality.Score;
+            // ----------------------------------------------
+
             int score = TrendScorer.Calculate(close, e21, e50, e200);
-            var task1H = CalculateTimeframeScore(service, symbol,"1h");
-            var task4H = CalculateTimeframeScore(service, symbol,"4h");
-            var task1D = CalculateTimeframeScore(service, symbol,"1d");
-            await Task.WhenAll(task1H,task4H,task1D);
+            var task1H = CalculateTimeframeScore(service, symbol, "1h");
+            var task4H = CalculateTimeframeScore(service, symbol, "4h");
+            var task1D = CalculateTimeframeScore(service, symbol, "1d");
+            await Task.WhenAll(task1H, task4H, task1D);
             int score1H = task1H.Result;
             int score4H = task4H.Result;
             int score1D = task1D.Result;
@@ -191,7 +203,6 @@ public partial class MainWindow : Window
             decimal adx = AdxIndicator.Calculate(candles);
             int momentumScore = MomentumScorer.Calculate(lastRsi);
             var volume = VolumeAnalyzer.Calculate(candles);
-            // int volumeScore = VolumeScorer.Calculate(rvol, volumeSpike, breakout);
             int volumeScore = volume.Score;
             var candleQuality = CandleQualityAnalyzer.Calculate(candles);
             int trendStrengthScore = TrendStrengthScorer.Calculate(close, e21, e50, e200);
@@ -204,11 +215,27 @@ public partial class MainWindow : Window
             if (supportDistance > 0)
                 riskReward = resistanceDistance / supportDistance;
 
-            decimal finalScore = (marketStructureScore * 0.30m + momentumScore * 0.20m + volumeScore * 0.20m + volatilityScore * 0.10m + trendStrengthScore * 0.20m);
-            if (breakout)
+            // --- NOVO: Ajuste nos pesos do FinalScore para incluir o Timing ---
+            // Antigo: marketStructure(30%) + momentum(20%) + volume(20%) + volatility(10%) + trendStrength(20%)
+            // Novo: Distribuído para caber os 15% do Timing da Operação
+            decimal finalScore = (
+                marketStructureScore * 0.25m +
+                momentumScore * 0.15m +
+                volumeScore * 0.20m +
+                volatilityScore * 0.05m +
+                trendStrengthScore * 0.20m +
+                setupQualityScore * 0.15m); // <-- Timing importa!
+
+            // Penalidade Severa: Se já esticou, remove o bônus de breakout para não comprar topo
+            if (setupQuality.IsOverextended)
+                finalScore -= 20;
+
+            if (breakout && !setupQuality.IsOverextended)
                 finalScore += 15;
+
             if (consolidating)
                 finalScore += 10;
+            // ... (continua o resto do código original) ...
 
             decimal scoreVariation = ScoreTracker.GetVariation(symbol, finalScore);
             decimal rejectionScore = RejectionScore.Calculate(candles);
@@ -276,7 +303,8 @@ public partial class MainWindow : Window
                 BuyerRejection = candleQuality.BuyerRejection,
                 SellerRejection = candleQuality.SellerRejection,
                 CandleScore = candleQuality.Score,
-
+                SetupQualityScore = setupQualityScore,
+                IsOverextended = setupQuality.IsOverextended
             };
             asset.OpportunityScore = OpportunityScoreCalculator.Calculate(asset);
 

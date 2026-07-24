@@ -78,41 +78,26 @@ public class AssetScore
     public bool IsEliteSetup { get; set; }
     public string EliteText => IsEliteSetup ? "⭐" : "";
     public bool StrongUptrend { get; set; }
-
     public bool StrongDowntrend { get; set; }
-
     public bool BreakOfStructure { get; set; }
-
     public bool ChangeOfCharacter { get; set; }
     public decimal BuyingVolume { get; set; }
-
     public decimal SellingVolume { get; set; }
-
     public decimal VolumeImbalance { get; set; }
-
     public bool ClimaxVolume { get; set; }
-
     public bool Absorption { get; set; }
-
     public bool Distribution { get; set; }
     public decimal BullPower { get; set; }
-
     public decimal BearPower { get; set; }
-
     public decimal BodyRatio { get; set; }
-
     public decimal UpperWickRatio { get; set; }
-
     public decimal LowerWickRatio { get; set; }
-
     public bool StrongBullish { get; set; }
-
     public bool StrongBearish { get; set; }
-
     public bool BuyerRejection { get; set; }
-
     public bool SellerRejection { get; set; }
-
     public int CandleScore { get; set; }
+    public int SetupQualityScore { get; set; }
+    public bool IsOverextended { get; set; }
 
 }
