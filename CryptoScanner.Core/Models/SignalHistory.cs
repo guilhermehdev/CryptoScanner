@@ -24,5 +24,14 @@ namespace CryptoScanner.Core.Models
         public bool Evaluated { get; set; }
 
         public decimal OpportunityScore { get; set; }
+
+        public decimal? PreviousScore { get; set; }
+
+        public decimal TakeProfit { get; set; }
+
+        public decimal StopLoss { get; set; }
+
+        // "TP", "SL" ou "TIMEOUT"
+        public string ExitReason { get; set; } = "";
     }
 }

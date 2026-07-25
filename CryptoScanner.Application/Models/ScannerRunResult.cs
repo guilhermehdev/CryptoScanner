@@ -9,4 +9,5 @@ public sealed class ScannerRunResult
     public required IReadOnlyList<SignalHistory> History { get; init; }
     public required double WinRate { get; init; }
     public required double AverageReturn { get; init; }
+    public required FilterDiagnostics Diagnostics { get; init; }
 }

@@ -10,10 +10,12 @@ public sealed class AssetAnalysis
     public required CandleAnalysis Candle { get; init; }
     public required SetupAnalysis Setup { get; init; }
     public decimal OpportunityScore { get; set; }
+    public decimal PreviousScore { get; set; }
+    public decimal ScoreVariation { get; set; }
 
-    public string Signal => OpportunityScore >= 70 ? "STRONG BUY" :
-                            OpportunityScore >= 55 ? "BUY" :
-                            OpportunityScore >= 40 ? "WATCH" : "IGNORE";
+    public string Signal => OpportunityScore >= 70 ? "COMPRA+" :
+                            OpportunityScore >= 55 ? "COMPRA" :
+                            OpportunityScore >= 40 ? "MONITORAR" : "IGNORAR";
 
     public bool IsEliteSetup =>
         OpportunityScore >= 75 &&

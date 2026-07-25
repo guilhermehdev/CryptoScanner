@@ -36,6 +36,13 @@
 
         </StackPanel>
 
+        <TextBlock x:Name="txtDiagnostics"
+               Grid.Row="0"
+               Margin="10,32,10,0"
+               FontSize="11"
+               Foreground="Gray"
+               TextWrapping="Wrap"/>
+
         <DataGrid x:Name="dgRanking"
               Grid.Row="1"
               AutoGenerateColumns="False"
@@ -44,22 +51,24 @@
             <DataGrid.RowStyle>
                 <Style TargetType="DataGridRow">
 
+                    <EventSetter Event="MouseLeftButtonUp" Handler="DgRankingRow_Click"/>
+
                     <Style.Triggers>
 
                         <DataTrigger Binding="{Binding Signal}"
-                                 Value="STRONG BUY">
+                                 Value="COMPRA+">
                             <Setter Property="Background"
                                 Value="LightGreen"/>
                         </DataTrigger>
 
                         <DataTrigger Binding="{Binding Signal}"
-                                 Value="BUY">
+                                 Value="COMPRA">
                             <Setter Property="Background"
                                 Value="LightBlue"/>
                         </DataTrigger>
 
                         <DataTrigger Binding="{Binding Signal}"
-                                 Value="WATCH">
+                                 Value="MONITORAR">
                             <Setter Property="Background"
                                 Value="Khaki"/>
                         </DataTrigger>
@@ -74,16 +83,18 @@
                 <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" />
                 <DataGridTextColumn Header="Preço" Binding="{Binding CloseFormatted}" />
                 <DataGridTextColumn Header="Score" Binding="{Binding Score, StringFormat=F2}" />
+                <DataGridTextColumn Header="Variação" Binding="{Binding VariationText}" />
                 <DataGridTextColumn Header="Elite" Binding="{Binding EliteText}" />
                 <DataGridTextColumn Header="Resistência" Binding="{Binding Resistance}" />
                 <DataGridCheckBoxColumn Header="Rompimento" Binding="{Binding IsBreakout}" />
                 <DataGridTextColumn Header="Trend" Binding="{Binding TrendDirection}" />
                 <DataGridTextColumn Header="Sinal" Binding="{Binding Signal}" />
                 <DataGridCheckBoxColumn Header="Consol." Binding="{Binding IsConsolidating}" />
-                <DataGridTextColumn Header="Volume Spike" Binding="{Binding VolumeSpike, StringFormat=F2}" />             
+                <DataGridTextColumn Header="Volume Spike" Binding="{Binding VolumeSpike, StringFormat=F2}" />
                 <DataGridTextColumn Header="Res %" Binding="{Binding ResistanceDistance, StringFormat=F1}" />
-                <DataGridTextColumn Header="Sup %" Binding="{Binding SupportDistance, StringFormat=F1}" />               
-               
+                <DataGridTextColumn Header="Sup %" Binding="{Binding SupportDistance, StringFormat=F1}" />
+                <DataGridTextColumn Header="Força Rel." Binding="{Binding RelativeStrengthText}" />
+
 
             </DataGrid.Columns>
 
@@ -94,6 +105,34 @@
               AutoGenerateColumns="False"
               IsReadOnly="True">
 
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow">
+
+                    <Style.Triggers>
+
+                        <DataTrigger Binding="{Binding ExitReason}"
+                                 Value="TP">
+                            <Setter Property="Background"
+                                Value="LightGreen"/>
+                        </DataTrigger>
+
+                        <DataTrigger Binding="{Binding ExitReason}"
+                                 Value="SL">
+                            <Setter Property="Background"
+                                Value="LightSalmon"/>
+                        </DataTrigger>
+
+                        <DataTrigger Binding="{Binding ExitReason}"
+                                 Value="TIMEOUT">
+                            <Setter Property="Background"
+                                Value="LightGray"/>
+                        </DataTrigger>
+
+                    </Style.Triggers>
+
+                </Style>
+            </DataGrid.RowStyle>
+
             <DataGrid.Columns>
 
                 <DataGridTextColumn Header="Data" Binding="{Binding Timestamp, StringFormat=dd/MM HH:mm}" />
@@ -101,6 +140,7 @@
                 <DataGridTextColumn Header="Entrada" Binding="{Binding Price}" />
                 <DataGridTextColumn Header="Score" Binding="{Binding FinalScore}" />
                 <DataGridTextColumn Header="Resultado %" Binding="{Binding OutcomePercent, StringFormat=F2}" />
+                <DataGridTextColumn Header="Motivo" Binding="{Binding ExitReason}" />
                 <DataGridCheckBoxColumn Header="Avaliado" Binding="{Binding Evaluated}" />
 
             </DataGrid.Columns>
@@ -108,6 +148,74 @@
         </DataGrid>
         <Button Content="Backtest BTC" Click="BtnBacktest_Click" HorizontalAlignment="Left" Height="19" Margin="696,7,0,0" VerticalAlignment="Top" Width="78"/>
         <Button x:Name="btAtualizar" Content="Atualizar" HorizontalAlignment="Left" Height="19" Margin="614,7,0,0" VerticalAlignment="Top" Width="77" RenderTransformOrigin="0.509,0.601" Click="btAtualizar_Click"/>
+
+        <Popup x:Name="popupBreakdown"
+               StaysOpen="False"
+               AllowsTransparency="True"
+               Placement="Bottom"
+               PopupAnimation="Fade">
+
+            <Border Background="White"
+                    BorderBrush="Gray"
+                    BorderThickness="1"
+                    Padding="10">
+
+                <StackPanel>
+
+                    <TextBlock Text="Score Breakdown"
+                           FontWeight="Bold"
+                           Margin="0,0,0,6"/>
+
+                    <UniformGrid Columns="4"
+                             Rows="2">
+
+                        <StackPanel Margin="0,0,10,6">
+                            <TextBlock Text="Trend" FontSize="11" Foreground="Gray"/>
+                            <TextBlock Text="{Binding TrendScore}" FontWeight="Bold"/>
+                        </StackPanel>
+
+                        <StackPanel Margin="0,0,10,6">
+                            <TextBlock Text="Structure" FontSize="11" Foreground="Gray"/>
+                            <TextBlock Text="{Binding StructureScore}" FontWeight="Bold"/>
+                        </StackPanel>
+
+                        <StackPanel Margin="0,0,10,6">
+                            <TextBlock Text="Volume" FontSize="11" Foreground="Gray"/>
+                            <TextBlock Text="{Binding VolumeScore}" FontWeight="Bold"/>
+                        </StackPanel>
+
+                        <StackPanel Margin="0,0,10,6">
+                            <TextBlock Text="Candle" FontSize="11" Foreground="Gray"/>
+                            <TextBlock Text="{Binding CandleScore}" FontWeight="Bold"/>
+                        </StackPanel>
+
+                        <StackPanel Margin="0,0,10,0">
+                            <TextBlock Text="Setup" FontSize="11" Foreground="Gray"/>
+                            <TextBlock Text="{Binding SetupScore}" FontWeight="Bold"/>
+                        </StackPanel>
+
+                        <StackPanel Margin="0,0,10,0">
+                            <TextBlock Text="Momentum" FontSize="11" Foreground="Gray"/>
+                            <TextBlock Text="{Binding MomentumScore}" FontWeight="Bold"/>
+                        </StackPanel>
+
+                        <StackPanel Margin="0,0,10,0">
+                            <TextBlock Text="Volatility" FontSize="11" Foreground="Gray"/>
+                            <TextBlock Text="{Binding VolatilityScore}" FontWeight="Bold"/>
+                        </StackPanel>
+
+                        <StackPanel Margin="0,0,10,0">
+                            <TextBlock Text="Trend Strength" FontSize="11" Foreground="Gray"/>
+                            <TextBlock Text="{Binding TrendStrengthScore}" FontWeight="Bold"/>
+                        </StackPanel>
+
+                    </UniformGrid>
+
+                </StackPanel>
+
+            </Border>
+
+        </Popup>
 
     </Grid>
 

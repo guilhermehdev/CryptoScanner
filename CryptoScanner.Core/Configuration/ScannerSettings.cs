@@ -7,11 +7,14 @@ namespace CryptoScanner.Core.Configuration;
 public static class ScannerSettings
 {
     // Opportunity-score weights. They must total 1.00.
-    public const decimal TrendWeight = 0.25m;
-    public const decimal VolumeWeight = 0.20m;
-    public const decimal StructureWeight = 0.25m;
-    public const decimal CandleWeight = 0.15m;
-    public const decimal SetupWeight = 0.15m;
+    public const decimal TrendWeight = 0.21m;
+    public const decimal VolumeWeight = 0.17m;
+    public const decimal StructureWeight = 0.21m;
+    public const decimal CandleWeight = 0.13m;
+    public const decimal SetupWeight = 0.13m;
+    public const decimal MomentumWeight = 0.05m;
+    public const decimal VolatilityWeight = 0.05m;
+    public const decimal TrendStrengthWeight = 0.05m;
 
     // Scores
     public const decimal EliteOpportunityScore = 85m;
@@ -36,7 +39,20 @@ public static class ScannerSettings
     // Scanner
     public const int MaxCoins = 50;
 
-    public const decimal MomentumWeight = 0.05m;
-    public const decimal VolatilityWeight = 0.05m;
-    public const decimal TrendStrengthWeight = 0.05m;
+    // Modo defensivo (ativado quando marketRegime != "BULL")
+    // Rompimento de curto prazo, em vez de resistência de 50 candles.
+    public const int DefensiveBreakoutLookback = 8;
+
+    // Volume spike mínimo relaxado, já que volume geral do mercado cai em bear/LATERAL.
+    public const decimal DefensiveMinVolumeSpike = 1.10m;
+
+    // Período (em candles de 1h) usado para comparar o retorno do ativo com o do BTC.
+    public const int RelativeStrengthPeriodHours = 24;
+
+    // Ativo precisa performar pelo menos igual ao BTC no período para contar como "força relativa".
+    public const decimal MinRelativeStrengthPercent = 0m;
+
+    // Penalidade aplicada ao Opportunity Score conforme o regime de mercado.
+    public const decimal BearRegimePenalty = 10m;
+    public const decimal SidewaysRegimePenalty = 8m;
 }

@@ -11,6 +11,8 @@ public static class AssetScoreFactory
         Close = analysis.Trend.Close,
         Score = analysis.OpportunityScore,
         OpportunityScore = analysis.OpportunityScore,
+        PreviousScore = analysis.PreviousScore,
+        ScoreVariation = analysis.ScoreVariation,
         Resistance = analysis.Risk.Resistance,
         VolumeSpike = analysis.Volume.Spike,
         ResistanceDistance = analysis.Risk.ResistanceDistancePercent,
@@ -18,7 +20,17 @@ public static class AssetScoreFactory
         RiskReward = analysis.Risk.RiskReward,
         TrendDirection = analysis.Trend.Direction,
         IsBreakout = analysis.Setup.IsBreakout,
+        IsShortTermBreakout = analysis.Setup.IsShortTermBreakout,
+        RelativeStrength = analysis.Setup.RelativeStrength,
         IsConsolidating = analysis.Setup.IsConsolidating,
-        IsEliteSetup = analysis.IsEliteSetup
+        IsEliteSetup = analysis.IsEliteSetup,
+        TrendScore = analysis.Trend.Score,
+        StructureScore = analysis.Structure.Score,
+        VolumeScore = analysis.Volume.Score,
+        CandleScore = analysis.Candle.Score,
+        SetupScore = analysis.Setup.Score,
+        MomentumScore = analysis.Trend.MomentumScore,
+        VolatilityScore = analysis.Trend.VolatilityScore,
+        TrendStrengthScore = analysis.Trend.TrendStrengthScore
     };
 }

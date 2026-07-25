@@ -1,9 +1,13 @@
 using CryptoScanner.Application.Services;
 using CryptoScanner.Backtest.Services;
+using CryptoScanner.Core.Models;
 using CryptoScanner.Exchange.Services;
 using CryptoScanner.Infrastructure.Sqlite;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Threading;
 
 namespace CryptoScanner.UI;
@@ -40,6 +44,7 @@ public partial class MainWindow : Window
         _isScanning = true;
         _timer.Stop();
         btAtualizar.IsEnabled = false;
+        popupBreakdown.IsOpen = false;
 
         try
         {
@@ -50,6 +55,7 @@ public partial class MainWindow : Window
             txtAvgReturn.Text = $"Retorno Médio: {result.AverageReturn:F2}%";
             txtPending.Text = $"Pendentes: {result.History.Count(signal => !signal.Evaluated)}";
             txtEvaluated.Text = $"Avaliados: {result.History.Count(signal => signal.Evaluated)}";
+            txtDiagnostics.Text = $"Filtros (motivos de rejeição): {result.Diagnostics.Summary}";
             Title = $"Scanner [{result.MarketRegime}] | WinRate: {result.WinRate:F1}% | Avg: {result.AverageReturn:F2}%";
         }
         catch (Exception ex)
@@ -75,6 +81,24 @@ public partial class MainWindow : Window
     }
 
     private async void btAtualizar_Click(object sender, RoutedEventArgs e) => await RunScannerAsync();
+
+    private void DgRankingRow_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not DataGridRow row || row.Item is not AssetScore asset)
+            return;
+
+        // Clicar na mesma linha que já está aberta fecha o popup (comportamento de alternância).
+        if (popupBreakdown.IsOpen && ReferenceEquals(popupBreakdown.DataContext, asset))
+        {
+            popupBreakdown.IsOpen = false;
+            return;
+        }
+
+        popupBreakdown.DataContext = asset;
+        popupBreakdown.PlacementTarget = row;
+        popupBreakdown.Placement = PlacementMode.Bottom;
+        popupBreakdown.IsOpen = true;
+    }
 
     private static string GetDatabasePath()
     {

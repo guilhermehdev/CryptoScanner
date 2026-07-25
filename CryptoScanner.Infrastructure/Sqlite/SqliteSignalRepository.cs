@@ -26,22 +26,41 @@ public sealed class SqliteSignalRepository : ISignalRepository
                 OutcomePrice REAL,
                 OutcomePercent REAL,
                 PreviousScore REAL,
-                Evaluated INTEGER DEFAULT 0
+                Evaluated INTEGER DEFAULT 0,
+                TakeProfit REAL,
+                StopLoss REAL,
+                ExitReason TEXT
             );
             CREATE INDEX IF NOT EXISTS IX_Signals_Evaluated_Timestamp ON Signals (Evaluated, Timestamp);
             CREATE INDEX IF NOT EXISTS IX_Signals_Symbol_Timestamp ON Signals (Symbol, Timestamp);
             """;
         await using var command = new SqliteCommand(sql, connection);
         await command.ExecuteNonQueryAsync(cancellationToken);
+
+        // Migração leve para bancos criados antes desta mudança.
+        foreach (var column in new[] { "TakeProfit REAL", "StopLoss REAL", "ExitReason TEXT" })
+        {
+            try
+            {
+                await using var alter = new SqliteCommand($"ALTER TABLE Signals ADD COLUMN {column}", connection);
+                await alter.ExecuteNonQueryAsync(cancellationToken);
+            }
+            catch (SqliteException)
+            {
+                // Coluna já existe — ignora.
+            }
+        }
     }
 
-    public async Task InsertSignalAsync(string symbol, decimal price, decimal score, string signal, CancellationToken cancellationToken = default)
+    public async Task InsertSignalAsync(string symbol, decimal price, decimal score, string signal, decimal previousScore, decimal takeProfit, decimal stopLoss, CancellationToken cancellationToken = default)
     {
         await ExecuteAsync("""
-            INSERT INTO Signals (Timestamp, Symbol, Price, FinalScore, Signal, OutcomePrice, OutcomePercent, Evaluated)
-            VALUES (@Timestamp, @Symbol, @Price, @Score, @Signal, NULL, NULL, 0)
+            INSERT INTO Signals (Timestamp, Symbol, Price, FinalScore, Signal, OutcomePrice, OutcomePercent, PreviousScore, Evaluated, TakeProfit, StopLoss, ExitReason)
+            VALUES (@Timestamp, @Symbol, @Price, @Score, @Signal, NULL, NULL, @PreviousScore, 0, @TakeProfit, @StopLoss, NULL)
             """, cancellationToken,
-            ("@Timestamp", DateTime.UtcNow.ToString("O")), ("@Symbol", symbol), ("@Price", (double)price), ("@Score", (double)score), ("@Signal", signal));
+            ("@Timestamp", DateTime.UtcNow.ToString("O")), ("@Symbol", symbol), ("@Price", (double)price),
+            ("@Score", (double)score), ("@Signal", signal), ("@PreviousScore", (double)previousScore),
+            ("@TakeProfit", (double)takeProfit), ("@StopLoss", (double)stopLoss));
     }
 
     public async Task<bool> SignalExistsTodayAsync(string symbol, string signal, CancellationToken cancellationToken = default)
@@ -56,15 +75,18 @@ public sealed class SqliteSignalRepository : ISignalRepository
         return Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken)) > 0;
     }
 
+    private const string SelectColumns =
+        "Id, Timestamp, Symbol, Price, FinalScore, Signal, OutcomePrice, OutcomePercent, Evaluated, PreviousScore, TakeProfit, StopLoss, ExitReason";
+
     public Task<IReadOnlyList<SignalHistory>> GetSignalsAsync(CancellationToken cancellationToken = default) =>
-        ReadSignalsAsync("SELECT Id, Timestamp, Symbol, Price, FinalScore, Signal, OutcomePrice, OutcomePercent, Evaluated FROM Signals ORDER BY Id DESC", cancellationToken);
+        ReadSignalsAsync($"SELECT {SelectColumns} FROM Signals ORDER BY Id DESC", cancellationToken);
 
     public Task<IReadOnlyList<SignalHistory>> GetPendingSignalsAsync(CancellationToken cancellationToken = default) =>
-        ReadSignalsAsync("SELECT Id, Timestamp, Symbol, Price, FinalScore, Signal, OutcomePrice, OutcomePercent, Evaluated FROM Signals WHERE Evaluated = 0", cancellationToken);
+        ReadSignalsAsync($"SELECT {SelectColumns} FROM Signals WHERE Evaluated = 0", cancellationToken);
 
-    public Task UpdateSignalResultAsync(int id, decimal outcomePrice, decimal outcomePercent, CancellationToken cancellationToken = default) =>
-        ExecuteAsync("UPDATE Signals SET OutcomePrice = @OutcomePrice, OutcomePercent = @OutcomePercent, Evaluated = 1 WHERE Id = @Id", cancellationToken,
-            ("@Id", id), ("@OutcomePrice", (double)outcomePrice), ("@OutcomePercent", (double)outcomePercent));
+    public Task UpdateSignalResultAsync(int id, decimal outcomePrice, decimal outcomePercent, string exitReason, CancellationToken cancellationToken = default) =>
+        ExecuteAsync("UPDATE Signals SET OutcomePrice = @OutcomePrice, OutcomePercent = @OutcomePercent, Evaluated = 1, ExitReason = @ExitReason WHERE Id = @Id", cancellationToken,
+            ("@Id", id), ("@OutcomePrice", (double)outcomePrice), ("@OutcomePercent", (double)outcomePercent), ("@ExitReason", exitReason));
 
     public async Task<double> GetWinRateAsync(CancellationToken cancellationToken = default)
     {
@@ -98,10 +120,19 @@ public sealed class SqliteSignalRepository : ISignalRepository
         {
             signals.Add(new SignalHistory
             {
-                Id = reader.GetInt32(0), Timestamp = DateTime.Parse(reader.GetString(1)), Symbol = reader.GetString(2),
-                Price = Convert.ToDecimal(reader.GetDouble(3)), FinalScore = Convert.ToDecimal(reader.GetDouble(4)), Signal = reader.GetString(5),
+                Id = reader.GetInt32(0),
+                Timestamp = DateTime.Parse(reader.GetString(1)),
+                Symbol = reader.GetString(2),
+                Price = Convert.ToDecimal(reader.GetDouble(3)),
+                FinalScore = Convert.ToDecimal(reader.GetDouble(4)),
+                Signal = reader.GetString(5),
                 OutcomePrice = reader.IsDBNull(6) ? null : Convert.ToDecimal(reader.GetDouble(6)),
-                OutcomePercent = reader.IsDBNull(7) ? null : Convert.ToDecimal(reader.GetDouble(7)), Evaluated = !reader.IsDBNull(8) && reader.GetInt32(8) == 1
+                OutcomePercent = reader.IsDBNull(7) ? null : Convert.ToDecimal(reader.GetDouble(7)),
+                Evaluated = !reader.IsDBNull(8) && reader.GetInt32(8) == 1,
+                PreviousScore = reader.IsDBNull(9) ? null : Convert.ToDecimal(reader.GetDouble(9)),
+                TakeProfit = reader.IsDBNull(10) ? 0 : Convert.ToDecimal(reader.GetDouble(10)),
+                StopLoss = reader.IsDBNull(11) ? 0 : Convert.ToDecimal(reader.GetDouble(11)),
+                ExitReason = reader.IsDBNull(12) ? "" : reader.GetString(12)
             });
         }
         return signals;

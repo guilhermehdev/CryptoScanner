@@ -1,6 +1,8 @@
+using CryptoScanner.Core.Configuration;
 using CryptoScanner.Core.Models;
 using CryptoScanner.Core.Models.Analysis;
 using CryptoScanner.Core.Scoring;
+using CryptoScanner.Core.Services;
 using CryptoScanner.Indicators;
 using CryptoScanner.Indicators.Indicators;
 using CryptoScanner.Strategies;
@@ -9,14 +11,14 @@ namespace CryptoScanner.Application.Services;
 
 public sealed class AssetAnalyzer
 {
-    public AssetAnalysis Analyze(string symbol, List<Candle> candles)
+    public AssetAnalysis Analyze(string symbol, List<Candle> candles, List<Candle> btcCandles)
     {
         var structure = AnalyzeStructure(candles);
         var trend = AnalyzeTrend(candles, structure);
         var volume = AnalyzeVolume(candles);
         var candle = AnalyzeCandle(candles);
         var risk = AnalyzeRisk(candles, trend.Close);
-        var setup = AnalyzeSetup(candles, trend, risk.Resistance);
+        var setup = AnalyzeSetup(candles, trend, risk.Resistance, btcCandles);
 
         var analysis = new AssetAnalysis
         {
@@ -30,6 +32,11 @@ public sealed class AssetAnalyzer
         };
 
         analysis.OpportunityScore = OpportunityScoreCalculator.Calculate(analysis);
+
+        var (previousScore, variation) = ScoreTracker.Update(symbol, analysis.OpportunityScore);
+        analysis.PreviousScore = previousScore;
+        analysis.ScoreVariation = variation;
+
         return analysis;
     }
 
@@ -112,14 +119,19 @@ public sealed class AssetAnalyzer
         };
     }
 
-    private static SetupAnalysis AnalyzeSetup(List<Candle> candles, TrendAnalysis trend, decimal resistance)
+    private static SetupAnalysis AnalyzeSetup(List<Candle> candles, TrendAnalysis trend, decimal resistance, List<Candle> btcCandles)
     {
         decimal swingLow = candles.Skip(Math.Max(0, candles.Count - 20)).Min(candle => candle.Low);
         var result = SetupQualityAnalyzer.Calculate(trend.Close, trend.Ema21, trend.Atr, swingLow);
+
+        decimal shortTermResistance = SupportResistanceIndicator.GetResistance(candles, ScannerSettings.DefensiveBreakoutLookback);
+
         return new SetupAnalysis
         {
             Score = result.Score,
             IsBreakout = BreakoutIndicator.IsBullishBreakout(candles, resistance),
+            IsShortTermBreakout = BreakoutIndicator.IsBullishBreakout(candles, shortTermResistance),
+            RelativeStrength = RelativeStrengthIndicator.Calculate(candles, btcCandles, ScannerSettings.RelativeStrengthPeriodHours),
             IsConsolidating = ConsolidationIndicator.IsConsolidating(candles),
             IsOverextended = result.IsOverextended,
             EmaDistanceAtr = result.EmaDistanceAtr,
@@ -143,5 +155,4 @@ public sealed class AssetAnalyzer
             RiskReward = supportDistance > 0 ? resistanceDistance / supportDistance : 0
         };
     }
-
 }
