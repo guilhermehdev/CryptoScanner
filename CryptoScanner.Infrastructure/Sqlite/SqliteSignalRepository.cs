@@ -29,7 +29,31 @@ public sealed class SqliteSignalRepository : ISignalRepository
                 Evaluated INTEGER DEFAULT 0,
                 TakeProfit REAL,
                 StopLoss REAL,
-                ExitReason TEXT
+                ExitReason TEXT,
+                Profile TEXT,
+                MarketRegime TEXT,
+                Rsi REAL,
+                Adx REAL,
+                AtrPercent REAL,
+                EmaDistanceAtr REAL,
+                SwingUsageAtr REAL,
+                VolumeSpike REAL,
+                VolumeImbalance REAL,
+                RelativeStrength REAL,
+                RiskReward REAL,
+                TrendScore INTEGER,
+                StructureScore INTEGER,
+                VolumeScore INTEGER,
+                CandleScore INTEGER,
+                SetupScore INTEGER,
+                MomentumScore INTEGER,
+                VolatilityScore INTEGER,
+                TrendStrengthScore INTEGER,
+                PatternName TEXT,
+                SmartMoneyLabel TEXT,
+                BreakoutSource TEXT,
+                IsBullTrap INTEGER DEFAULT 0,
+                IsBearTrap INTEGER DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS IX_Signals_Evaluated_Timestamp ON Signals (Evaluated, Timestamp);
             CREATE INDEX IF NOT EXISTS IX_Signals_Symbol_Timestamp ON Signals (Symbol, Timestamp);
@@ -38,7 +62,18 @@ public sealed class SqliteSignalRepository : ISignalRepository
         await command.ExecuteNonQueryAsync(cancellationToken);
 
         // Migração leve para bancos criados antes desta mudança.
-        foreach (var column in new[] { "TakeProfit REAL", "StopLoss REAL", "ExitReason TEXT" })
+        var newColumns = new[]
+        {
+            "TakeProfit REAL", "StopLoss REAL", "ExitReason TEXT", "Profile TEXT", "MarketRegime TEXT",
+            "Rsi REAL", "Adx REAL", "AtrPercent REAL", "EmaDistanceAtr REAL", "SwingUsageAtr REAL",
+            "VolumeSpike REAL", "VolumeImbalance REAL", "RelativeStrength REAL", "RiskReward REAL",
+            "TrendScore INTEGER", "StructureScore INTEGER", "VolumeScore INTEGER", "CandleScore INTEGER",
+            "SetupScore INTEGER", "MomentumScore INTEGER", "VolatilityScore INTEGER", "TrendStrengthScore INTEGER",
+            "PatternName TEXT", "SmartMoneyLabel TEXT", "BreakoutSource TEXT",
+            "IsBullTrap INTEGER DEFAULT 0", "IsBearTrap INTEGER DEFAULT 0"
+        };
+
+        foreach (var column in newColumns)
         {
             try
             {
@@ -52,31 +87,75 @@ public sealed class SqliteSignalRepository : ISignalRepository
         }
     }
 
-    public async Task InsertSignalAsync(string symbol, decimal price, decimal score, string signal, decimal previousScore, decimal takeProfit, decimal stopLoss, CancellationToken cancellationToken = default)
+    public async Task InsertSignalAsync(SignalSnapshot snapshot, CancellationToken cancellationToken = default)
     {
         await ExecuteAsync("""
-            INSERT INTO Signals (Timestamp, Symbol, Price, FinalScore, Signal, OutcomePrice, OutcomePercent, PreviousScore, Evaluated, TakeProfit, StopLoss, ExitReason)
-            VALUES (@Timestamp, @Symbol, @Price, @Score, @Signal, NULL, NULL, @PreviousScore, 0, @TakeProfit, @StopLoss, NULL)
+            INSERT INTO Signals
+            (Timestamp, Symbol, Price, FinalScore, Signal, OutcomePrice, OutcomePercent, PreviousScore, Evaluated,
+             TakeProfit, StopLoss, ExitReason, Profile, MarketRegime,
+             Rsi, Adx, AtrPercent, EmaDistanceAtr, SwingUsageAtr, VolumeSpike, VolumeImbalance, RelativeStrength, RiskReward,
+             TrendScore, StructureScore, VolumeScore, CandleScore, SetupScore, MomentumScore, VolatilityScore, TrendStrengthScore,
+             PatternName, SmartMoneyLabel, BreakoutSource, IsBullTrap, IsBearTrap)
+            VALUES
+            (@Timestamp, @Symbol, @Price, @Score, @Signal, NULL, NULL, @PreviousScore, 0,
+             @TakeProfit, @StopLoss, NULL, @Profile, @MarketRegime,
+             @Rsi, @Adx, @AtrPercent, @EmaDistanceAtr, @SwingUsageAtr, @VolumeSpike, @VolumeImbalance, @RelativeStrength, @RiskReward,
+             @TrendScore, @StructureScore, @VolumeScore, @CandleScore, @SetupScore, @MomentumScore, @VolatilityScore, @TrendStrengthScore,
+             @PatternName, @SmartMoneyLabel, @BreakoutSource, @IsBullTrap, @IsBearTrap)
             """, cancellationToken,
-            ("@Timestamp", DateTime.UtcNow.ToString("O")), ("@Symbol", symbol), ("@Price", (double)price),
-            ("@Score", (double)score), ("@Signal", signal), ("@PreviousScore", (double)previousScore),
-            ("@TakeProfit", (double)takeProfit), ("@StopLoss", (double)stopLoss));
+            ("@Timestamp", DateTime.UtcNow.ToString("O")),
+            ("@Symbol", snapshot.Symbol),
+            ("@Price", (double)snapshot.Price),
+            ("@Score", (double)snapshot.Score),
+            ("@Signal", snapshot.Signal),
+            ("@PreviousScore", (double)snapshot.PreviousScore),
+            ("@TakeProfit", (double)snapshot.TakeProfit),
+            ("@StopLoss", (double)snapshot.StopLoss),
+            ("@Profile", snapshot.Profile),
+            ("@MarketRegime", snapshot.MarketRegime),
+            ("@Rsi", (double)snapshot.Rsi),
+            ("@Adx", (double)snapshot.Adx),
+            ("@AtrPercent", (double)snapshot.AtrPercent),
+            ("@EmaDistanceAtr", (double)snapshot.EmaDistanceAtr),
+            ("@SwingUsageAtr", (double)snapshot.SwingUsageAtr),
+            ("@VolumeSpike", (double)snapshot.VolumeSpike),
+            ("@VolumeImbalance", (double)snapshot.VolumeImbalance),
+            ("@RelativeStrength", (double)snapshot.RelativeStrength),
+            ("@RiskReward", (double)snapshot.RiskReward),
+            ("@TrendScore", snapshot.TrendScore),
+            ("@StructureScore", snapshot.StructureScore),
+            ("@VolumeScore", snapshot.VolumeScore),
+            ("@CandleScore", snapshot.CandleScore),
+            ("@SetupScore", snapshot.SetupScore),
+            ("@MomentumScore", snapshot.MomentumScore),
+            ("@VolatilityScore", snapshot.VolatilityScore),
+            ("@TrendStrengthScore", snapshot.TrendStrengthScore),
+            ("@PatternName", snapshot.PatternName),
+            ("@SmartMoneyLabel", snapshot.SmartMoneyLabel),
+            ("@BreakoutSource", snapshot.BreakoutSource),
+            ("@IsBullTrap", snapshot.IsBullTrap ? 1 : 0),
+            ("@IsBearTrap", snapshot.IsBearTrap ? 1 : 0));
     }
 
-    public async Task<bool> SignalExistsTodayAsync(string symbol, string signal, CancellationToken cancellationToken = default)
+    public async Task<bool> SignalExistsWithinWindowAsync(string symbol, string signal, int windowDays, CancellationToken cancellationToken = default)
     {
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
-        const string sql = "SELECT COUNT(*) FROM Signals WHERE Symbol = @Symbol AND Signal = @Signal AND Timestamp >= @StartOfDay";
+        const string sql = "SELECT COUNT(*) FROM Signals WHERE Symbol = @Symbol AND Signal = @Signal AND Timestamp >= @WindowStart";
         await using var command = new SqliteCommand(sql, connection);
         command.Parameters.AddWithValue("@Symbol", symbol);
         command.Parameters.AddWithValue("@Signal", signal);
-        command.Parameters.AddWithValue("@StartOfDay", DateTime.UtcNow.Date.ToString("O"));
+        command.Parameters.AddWithValue("@WindowStart", DateTime.UtcNow.AddDays(-windowDays).ToString("O"));
         return Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken)) > 0;
     }
 
-    private const string SelectColumns =
-        "Id, Timestamp, Symbol, Price, FinalScore, Signal, OutcomePrice, OutcomePercent, Evaluated, PreviousScore, TakeProfit, StopLoss, ExitReason";
+    private const string SelectColumns = """
+        Id, Timestamp, Symbol, Price, FinalScore, Signal, OutcomePrice, OutcomePercent, Evaluated, PreviousScore,
+        TakeProfit, StopLoss, ExitReason, Profile, MarketRegime,
+        Rsi, Adx, AtrPercent, EmaDistanceAtr, SwingUsageAtr, VolumeSpike, VolumeImbalance, RelativeStrength, RiskReward,
+        TrendScore, StructureScore, VolumeScore, CandleScore, SetupScore, MomentumScore, VolatilityScore, TrendStrengthScore,
+        PatternName, SmartMoneyLabel, BreakoutSource, IsBullTrap, IsBearTrap
+        """;
 
     public Task<IReadOnlyList<SignalHistory>> GetSignalsAsync(CancellationToken cancellationToken = default) =>
         ReadSignalsAsync($"SELECT {SelectColumns} FROM Signals ORDER BY Id DESC", cancellationToken);
@@ -132,7 +211,31 @@ public sealed class SqliteSignalRepository : ISignalRepository
                 PreviousScore = reader.IsDBNull(9) ? null : Convert.ToDecimal(reader.GetDouble(9)),
                 TakeProfit = reader.IsDBNull(10) ? 0 : Convert.ToDecimal(reader.GetDouble(10)),
                 StopLoss = reader.IsDBNull(11) ? 0 : Convert.ToDecimal(reader.GetDouble(11)),
-                ExitReason = reader.IsDBNull(12) ? "" : reader.GetString(12)
+                ExitReason = reader.IsDBNull(12) ? "" : reader.GetString(12),
+                Profile = reader.IsDBNull(13) ? "" : reader.GetString(13),
+                MarketRegime = reader.IsDBNull(14) ? "" : reader.GetString(14),
+                Rsi = reader.IsDBNull(15) ? 0 : Convert.ToDecimal(reader.GetDouble(15)),
+                Adx = reader.IsDBNull(16) ? 0 : Convert.ToDecimal(reader.GetDouble(16)),
+                AtrPercent = reader.IsDBNull(17) ? 0 : Convert.ToDecimal(reader.GetDouble(17)),
+                EmaDistanceAtr = reader.IsDBNull(18) ? 0 : Convert.ToDecimal(reader.GetDouble(18)),
+                SwingUsageAtr = reader.IsDBNull(19) ? 0 : Convert.ToDecimal(reader.GetDouble(19)),
+                VolumeSpike = reader.IsDBNull(20) ? 0 : Convert.ToDecimal(reader.GetDouble(20)),
+                VolumeImbalance = reader.IsDBNull(21) ? 0 : Convert.ToDecimal(reader.GetDouble(21)),
+                RelativeStrength = reader.IsDBNull(22) ? 0 : Convert.ToDecimal(reader.GetDouble(22)),
+                RiskReward = reader.IsDBNull(23) ? 0 : Convert.ToDecimal(reader.GetDouble(23)),
+                TrendScore = reader.IsDBNull(24) ? 0 : reader.GetInt32(24),
+                StructureScore = reader.IsDBNull(25) ? 0 : reader.GetInt32(25),
+                VolumeScore = reader.IsDBNull(26) ? 0 : reader.GetInt32(26),
+                CandleScore = reader.IsDBNull(27) ? 0 : reader.GetInt32(27),
+                SetupScore = reader.IsDBNull(28) ? 0 : reader.GetInt32(28),
+                MomentumScore = reader.IsDBNull(29) ? 0 : reader.GetInt32(29),
+                VolatilityScore = reader.IsDBNull(30) ? 0 : reader.GetInt32(30),
+                TrendStrengthScore = reader.IsDBNull(31) ? 0 : reader.GetInt32(31),
+                PatternName = reader.IsDBNull(32) ? "" : reader.GetString(32),
+                SmartMoneyLabel = reader.IsDBNull(33) ? "" : reader.GetString(33),
+                BreakoutSource = reader.IsDBNull(34) ? "" : reader.GetString(34),
+                IsBullTrap = !reader.IsDBNull(35) && reader.GetInt32(35) == 1,
+                IsBearTrap = !reader.IsDBNull(36) && reader.GetInt32(36) == 1
             });
         }
         return signals;

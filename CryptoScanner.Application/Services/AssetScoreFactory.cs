@@ -1,3 +1,4 @@
+using CryptoScanner.Core.Configuration;
 using CryptoScanner.Core.Models;
 using CryptoScanner.Core.Models.Analysis;
 
@@ -5,7 +6,7 @@ namespace CryptoScanner.Application.Services;
 
 public static class AssetScoreFactory
 {
-    public static AssetScore Create(AssetAnalysis analysis) => new()
+    public static AssetScore Create(AssetAnalysis analysis, string marketRegime) => new()
     {
         Symbol = analysis.Symbol,
         Close = analysis.Trend.Close,
@@ -24,6 +25,10 @@ public static class AssetScoreFactory
         RelativeStrength = analysis.Setup.RelativeStrength,
         IsConsolidating = analysis.Setup.IsConsolidating,
         IsEliteSetup = analysis.IsEliteSetup,
+        HasExhaustion = analysis.Volume.HasExhaustion,
+        PatternName = analysis.Candle.PatternName,
+        BreakoutSource = DetermineBreakoutSource(analysis),
+        MarketRegime = marketRegime,
         TrendScore = analysis.Trend.Score,
         StructureScore = analysis.Structure.Score,
         VolumeScore = analysis.Volume.Score,
@@ -31,6 +36,17 @@ public static class AssetScoreFactory
         SetupScore = analysis.Setup.Score,
         MomentumScore = analysis.Trend.MomentumScore,
         VolatilityScore = analysis.Trend.VolatilityScore,
-        TrendStrengthScore = analysis.Trend.TrendStrengthScore
+        TrendStrengthScore = analysis.Trend.TrendStrengthScore,
+        SmartMoneyLabel = analysis.Structure.SmartMoneyLabel,
+        IsBullTrap = analysis.Structure.IsBullTrap,
+        IsBearTrap = analysis.Structure.IsBearTrap,
     };
+
+    private static string DetermineBreakoutSource(AssetAnalysis analysis)
+    {
+        if (analysis.Setup.IsBreakout) return "Clássico";
+        if (analysis.Setup.IsShortTermBreakout) return "Curto Prazo";
+        if (analysis.Setup.RelativeStrength >= ScannerSettings.MinRelativeStrengthPercent) return "Força Rel.";
+        return "";
+    }
 }

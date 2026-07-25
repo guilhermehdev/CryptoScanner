@@ -11,4 +11,5 @@ public sealed class VolumeAnalysis
     public bool IsClimax { get; init; }
     public bool HasAbsorption { get; init; }
     public bool HasDistribution { get; init; }
+    public bool HasExhaustion { get; init; }
 }

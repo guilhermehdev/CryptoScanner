@@ -19,7 +19,11 @@ public sealed class AssetScore
     public decimal RelativeStrength { get; init; }
     public bool IsConsolidating { get; init; }
     public bool IsEliteSetup { get; init; }
-    // Score Breakdown — componentes individuais que formam o OpportunityScore
+    public bool HasExhaustion { get; init; }
+    public string PatternName { get; init; } = "";
+    public string BreakoutSource { get; init; } = "";
+    public string MarketRegime { get; init; } = "";
+
     public int TrendScore { get; init; }
     public int StructureScore { get; init; }
     public int VolumeScore { get; init; }
@@ -28,11 +32,14 @@ public sealed class AssetScore
     public int MomentumScore { get; init; }
     public int VolatilityScore { get; init; }
     public int TrendStrengthScore { get; init; }
+    public string SmartMoneyLabel { get; init; } = "";
+    public bool IsBullTrap { get; init; }
+    public bool IsBearTrap { get; init; }
 
     public string CloseFormatted => Close >= 1 ? Close.ToString("N2") : Close.ToString("N8");
     public string Signal => OpportunityScore >= 70 ? "COMPRA+" :
-                            OpportunityScore >= 55 ? "COMPRA" :
-                            OpportunityScore >= 40 ? "MONITORAR" : "IGNORAR";
+                        OpportunityScore >= 55 ? "COMPRA" :
+                        OpportunityScore >= 40 ? "MONITORAR" : "IGNORAR";
     public string EliteText => IsEliteSetup ? "⭐" : "";
 
     public string VariationText =>
@@ -40,7 +47,9 @@ public sealed class AssetScore
         ScoreVariation < 0 ? $"▼ {Math.Abs(ScoreVariation):F2}" :
         "— 0.00";
 
-    // Ex.: "+2.10% vs BTC" ou "-1.30% vs BTC"
     public string RelativeStrengthText =>
         RelativeStrength >= 0 ? $"+{RelativeStrength:F2}% vs BTC" : $"{RelativeStrength:F2}% vs BTC";
+
+    // Consolidação só é exigida como critério de elegibilidade quando o regime é BULL.
+    public bool IsConsolidationRelevant => MarketRegime == "BULL";
 }

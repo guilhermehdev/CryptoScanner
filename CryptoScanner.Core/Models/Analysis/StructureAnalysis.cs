@@ -9,4 +9,9 @@ public sealed class StructureAnalysis
     public bool IsStrongDowntrend { get; init; }
     public bool HasBreakOfStructure { get; init; }
     public bool HasChangeOfCharacter { get; init; }
+    public bool LiquiditySweepHigh { get; init; }
+    public bool LiquiditySweepLow { get; init; }
+    public bool IsBullTrap { get; init; }
+    public bool IsBearTrap { get; init; }
+    public string SmartMoneyLabel { get; init; } = "";
 }

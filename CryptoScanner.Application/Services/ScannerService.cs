@@ -25,7 +25,7 @@ public sealed class ScannerService
         _assetAnalyzer = assetAnalyzer;
     }
 
-    public async Task<ScannerRunResult> RunAsync(CancellationToken cancellationToken = default)
+    public async Task<ScannerRunResult> RunAsync(ScanProfile profile, CancellationToken cancellationToken = default)
     {
         await _signals.InitializeAsync(cancellationToken);
 
@@ -33,8 +33,7 @@ public sealed class ScannerService
         decimal btcEma200 = EmaIndicator.Calculate(btcDailyCandles, 200)[^1] ?? 0;
         string marketRegime = MarketRegimeIndicator.Calculate(btcDailyCandles[^1].Close, btcEma200);
 
-        // Mesmo timeframe dos candles por-símbolo (1h), para comparação justa de força relativa.
-        var btcHourlyCandles = await _marketData.GetCandlesAsync("BTCUSDT", "1h", 300, cancellationToken);
+        var btcCandles = await _marketData.GetCandlesAsync("BTCUSDT", profile.CandleInterval, 300, cancellationToken);
 
         var pendingSignals = await _signals.GetPendingSignalsAsync(cancellationToken);
         var symbols = (await _marketData.GetUsdtSymbolsAsync(cancellationToken))
@@ -42,21 +41,21 @@ public sealed class ScannerService
             .ToList();
 
         using var throttle = new SemaphoreSlim(MaxConcurrentAnalyses);
-        var analyses = symbols.Select(symbol => AnalyzeSymbolAsync(symbol, btcHourlyCandles, throttle, cancellationToken));
+        var analyses = symbols.Select(symbol => AnalyzeSymbolAsync(symbol, btcCandles, profile, throttle, cancellationToken));
         var analysesResult = (await Task.WhenAll(analyses))
             .OfType<AssetAnalysis>()
             .OrderByDescending(asset => asset.OpportunityScore)
             .Take(30)
             .ToList();
 
-        await EvaluatePendingSignalsAsync(pendingSignals, cancellationToken);
-        var diagnostics = await PersistEligibleSignalsAsync(analysesResult, marketRegime, cancellationToken);
+        await EvaluatePendingSignalsAsync(pendingSignals, profile, cancellationToken);
+        var diagnostics = await PersistEligibleSignalsAsync(analysesResult, marketRegime, profile, cancellationToken);
 
         var history = await _signals.GetSignalsAsync(cancellationToken);
         return new ScannerRunResult
         {
             MarketRegime = marketRegime,
-            Ranking = analysesResult.Select(AssetScoreFactory.Create).ToList(),
+            Ranking = analysesResult.Select(asset => AssetScoreFactory.Create(asset, marketRegime)).ToList(),
             History = history,
             WinRate = await _signals.GetWinRateAsync(cancellationToken),
             AverageReturn = await _signals.GetAverageReturnAsync(cancellationToken),
@@ -64,17 +63,16 @@ public sealed class ScannerService
         };
     }
 
-    private async Task<AssetAnalysis?> AnalyzeSymbolAsync(string symbol, List<Candle> btcCandles, SemaphoreSlim throttle, CancellationToken cancellationToken)
+    private async Task<AssetAnalysis?> AnalyzeSymbolAsync(string symbol, List<Candle> btcCandles, ScanProfile profile, SemaphoreSlim throttle, CancellationToken cancellationToken)
     {
         await throttle.WaitAsync(cancellationToken);
         try
         {
-            var candles = await _marketData.GetCandlesAsync(symbol, "1h", 300, cancellationToken);
-            return _assetAnalyzer.Analyze(symbol, candles, btcCandles);
+            var candles = await _marketData.GetCandlesAsync(symbol, profile.CandleInterval, 300, cancellationToken);
+            return _assetAnalyzer.Analyze(symbol, candles, btcCandles, profile);
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
-            // A future logging implementation should record symbol, status code and exception.
             return null;
         }
         finally
@@ -83,13 +81,19 @@ public sealed class ScannerService
         }
     }
 
-    private async Task EvaluatePendingSignalsAsync(IReadOnlyList<SignalHistory> pendingSignals, CancellationToken cancellationToken)
+    private async Task EvaluatePendingSignalsAsync(IReadOnlyList<SignalHistory> pendingSignals, ScanProfile profile, CancellationToken cancellationToken)
     {
         foreach (var signal in pendingSignals)
         {
+            int evaluationHours = signal.Profile == ScanProfile.Intraday.Name
+                ? ScanProfile.Intraday.EvaluationHours
+                : signal.Profile == ScanProfile.Swing.Name
+                    ? ScanProfile.Swing.EvaluationHours
+                    : profile.EvaluationHours; // fallback pra sinais legados sem Profile gravado
+
             if (signal.TakeProfit <= 0 || signal.StopLoss <= 0)
             {
-                if (DateTime.UtcNow < signal.Timestamp.AddHours(ScannerSettings.EvaluationHours))
+                if (DateTime.UtcNow < signal.Timestamp.AddHours(evaluationHours))
                     continue;
 
                 decimal legacyPrice = await _marketData.GetCurrentPriceAsync(signal.Symbol, cancellationToken);
@@ -101,7 +105,7 @@ public sealed class ScannerService
             List<Candle> candles;
             try
             {
-                candles = await _marketData.GetCandlesAsync(signal.Symbol, "1h", ScannerSettings.EvaluationHours + 24, cancellationToken);
+                candles = await _marketData.GetCandlesAsync(signal.Symbol, "1h", evaluationHours + 24, cancellationToken);
             }
             catch (Exception) when (!cancellationToken.IsCancellationRequested)
             {
@@ -131,7 +135,7 @@ public sealed class ScannerService
                 }
             }
 
-            bool timeoutReached = DateTime.UtcNow >= signal.Timestamp.AddHours(ScannerSettings.EvaluationHours);
+            bool timeoutReached = DateTime.UtcNow >= signal.Timestamp.AddHours(evaluationHours);
 
             if (hitTakeProfit || hitStopLoss)
             {
@@ -151,6 +155,7 @@ public sealed class ScannerService
     private async Task<FilterDiagnostics> PersistEligibleSignalsAsync(
         IReadOnlyList<AssetAnalysis> ranking,
         string marketRegime,
+        ScanProfile profile,
         CancellationToken cancellationToken)
     {
         var diagnostics = new FilterDiagnostics { TotalAnalyzed = ranking.Count };
@@ -162,14 +167,12 @@ public sealed class ScannerService
             decimal opportunity = marketRegime switch
             {
                 "BEAR" => asset.OpportunityScore - ScannerSettings.BearRegimePenalty,
-                "LATERAL" => asset.OpportunityScore - ScannerSettings.SidewaysRegimePenalty,
+                "SIDEWAYS" => asset.OpportunityScore - ScannerSettings.SidewaysRegimePenalty,
                 _ => asset.OpportunityScore
             };
 
             bool failedScore = opportunity < ScannerSettings.BuyOpportunityScore;
 
-            // Em modo defensivo, qualquer um dos três sinais (breakout clássico, breakout de
-            // curto prazo, ou força relativa vs. BTC) já é suficiente.
             bool passesBreakout = defensiveMode
                 ? (asset.Setup.IsBreakout
                     || asset.Setup.IsShortTermBreakout
@@ -177,8 +180,6 @@ public sealed class ScannerService
                 : asset.Setup.IsBreakout;
             bool failedBreakout = !passesBreakout;
 
-            // Consolidação deixa de ser exigida em modo defensivo — o setup alvo aqui é
-            // força relativa/momentum de curto prazo, não necessariamente range apertado.
             bool failedConsolidation = defensiveMode ? false : !asset.Setup.IsConsolidating;
 
             decimal volumeSpikeThreshold = defensiveMode
@@ -205,7 +206,7 @@ public sealed class ScannerService
             if (!eligible)
                 continue;
 
-            if (await _signals.SignalExistsTodayAsync(asset.Symbol, asset.Signal, cancellationToken))
+            if (await _signals.SignalExistsWithinWindowAsync(asset.Symbol, asset.Signal, profile.DuplicateSignalWindowDays, cancellationToken))
             {
                 diagnostics.SkippedDuplicateToday++;
                 continue;
@@ -221,6 +222,7 @@ public sealed class ScannerService
                 asset.PreviousScore,
                 asset.Risk.Resistance,
                 asset.Risk.Support,
+                profile.Name,
                 cancellationToken);
         }
 

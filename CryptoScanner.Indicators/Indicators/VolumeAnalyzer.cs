@@ -19,6 +19,8 @@ namespace CryptoScanner.Indicators.Indicators
 
         public bool Distribution { get; set; }
 
+        public bool Exhaustion { get; set; }
+
         public int Score { get; set; }
         public decimal VolumeSpike { get; set; }
     }
@@ -73,6 +75,8 @@ namespace CryptoScanner.Indicators.Indicators
                 result.VolumeImbalance < -0.30m &&
                 last.Close < last.Open;
 
+            result.Exhaustion = DetectExhaustion(recent);
+
             result.Score = 50;
 
             result.VolumeSpike = lastVolume / avgVolume;
@@ -91,9 +95,40 @@ namespace CryptoScanner.Indicators.Indicators
             if (result.Distribution)
                 result.Score -= 20;
 
+            if (result.Exhaustion)
+                result.Score -= 15;
+
             result.Score = Math.Clamp(result.Score, 0, 100);
 
             return result;
+        }
+
+        /// <summary>
+        /// Exaustão: movimento direcional consistente (últimos 5 candles todos de alta ou
+        /// todos de baixa) mas com volume caindo — fôlego comprador/vendedor diminuindo
+        /// mesmo com o preço ainda seguindo na mesma direção.
+        /// </summary>
+        private static bool DetectExhaustion(List<Candle> recent)
+        {
+            if (recent.Count < 5)
+                return false;
+
+            var lastFive = recent.TakeLast(5).ToList();
+
+            bool allBullish = lastFive.All(c => c.Close >= c.Open);
+            bool allBearish = lastFive.All(c => c.Close <= c.Open);
+
+            if (!allBullish && !allBearish)
+                return false;
+
+            decimal earlyAvgVolume = lastFive.Take(2).Average(c => c.Volume);
+            decimal lateAvgVolume = lastFive.TakeLast(2).Average(c => c.Volume);
+
+            if (earlyAvgVolume == 0)
+                return false;
+
+            // Volume caiu pelo menos 30% entre o início e o fim da sequência direcional.
+            return lateAvgVolume < earlyAvgVolume * 0.70m;
         }
     }
 }

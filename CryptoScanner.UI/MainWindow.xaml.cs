@@ -1,5 +1,6 @@
 using CryptoScanner.Application.Services;
 using CryptoScanner.Backtest.Services;
+using CryptoScanner.Core.Configuration;
 using CryptoScanner.Core.Models;
 using CryptoScanner.Exchange.Services;
 using CryptoScanner.Infrastructure.Sqlite;
@@ -17,6 +18,8 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _timer = new();
     private readonly ScannerService _scanner;
     private bool _isScanning;
+    private bool _isWindowLoaded;
+    private ScanProfile _currentProfile = ScanProfile.Swing;
 
     public MainWindow()
     {
@@ -30,7 +33,7 @@ public partial class MainWindow : Window
             new AssetAnalyzer());
 
         Loaded += MainWindow_Loaded;
-        _timer.Interval = TimeSpan.FromMinutes(3);
+        _timer.Interval = TimeSpan.FromMinutes(30); // perfil padrão: Swing
         _timer.Tick += Timer_Tick;
     }
 
@@ -48,7 +51,7 @@ public partial class MainWindow : Window
 
         try
         {
-            var result = await _scanner.RunAsync();
+            var result = await _scanner.RunAsync(_currentProfile);
             dgRanking.ItemsSource = result.Ranking;
             dgHistory.ItemsSource = result.History;
             txtWinRate.Text = $"Win Rate: {result.WinRate:F1}%";
@@ -56,7 +59,7 @@ public partial class MainWindow : Window
             txtPending.Text = $"Pendentes: {result.History.Count(signal => !signal.Evaluated)}";
             txtEvaluated.Text = $"Avaliados: {result.History.Count(signal => signal.Evaluated)}";
             txtDiagnostics.Text = $"Filtros (motivos de rejeição): {result.Diagnostics.Summary}";
-            Title = $"Scanner [{result.MarketRegime}] | WinRate: {result.WinRate:F1}% | Avg: {result.AverageReturn:F2}%";
+            Title = $"Scanner [{result.MarketRegime}] | Perfil: {_currentProfile.Name} | WinRate: {result.WinRate:F1}% | Avg: {result.AverageReturn:F2}%";
         }
         catch (Exception ex)
         {
@@ -70,7 +73,27 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void MainWindow_Loaded(object sender, RoutedEventArgs e) => await RunScannerAsync();
+    private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+        _isWindowLoaded = true;
+        await RunScannerAsync();
+    }
+
+    private async void ProfileChanged(object sender, RoutedEventArgs e)
+    {
+        // Ignora o Checked disparado durante o carregamento inicial do XAML
+        // (rbSwing já nasce com IsChecked="True").
+        if (!_isWindowLoaded)
+            return;
+
+        _currentProfile = ReferenceEquals(sender, rbIntraday) ? ScanProfile.Intraday : ScanProfile.Swing;
+
+        _timer.Interval = _currentProfile.Name == ScanProfile.Intraday.Name
+            ? TimeSpan.FromMinutes(3)
+            : TimeSpan.FromMinutes(30);
+
+        await RunScannerAsync();
+    }
 
     private async void BtnBacktest_Click(object sender, RoutedEventArgs e)
     {

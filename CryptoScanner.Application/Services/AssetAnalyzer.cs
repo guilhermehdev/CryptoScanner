@@ -11,14 +11,14 @@ namespace CryptoScanner.Application.Services;
 
 public sealed class AssetAnalyzer
 {
-    public AssetAnalysis Analyze(string symbol, List<Candle> candles, List<Candle> btcCandles)
+    public AssetAnalysis Analyze(string symbol, List<Candle> candles, List<Candle> btcCandles, ScanProfile profile)
     {
         var structure = AnalyzeStructure(candles);
         var trend = AnalyzeTrend(candles, structure);
         var volume = AnalyzeVolume(candles);
         var candle = AnalyzeCandle(candles);
         var risk = AnalyzeRisk(candles, trend.Close);
-        var setup = AnalyzeSetup(candles, trend, risk.Resistance, btcCandles);
+        var setup = AnalyzeSetup(candles, trend, risk.Resistance, btcCandles, profile);
 
         var analysis = new AssetAnalysis
         {
@@ -81,31 +81,45 @@ public sealed class AssetAnalyzer
             Score = result.Score,
             IsClimax = result.ClimaxVolume,
             HasAbsorption = result.Absorption,
-            HasDistribution = result.Distribution
-        };
+            HasDistribution = result.Distribution,
+            HasExhaustion = result.Exhaustion
+        };      
     }
 
     private static StructureAnalysis AnalyzeStructure(List<Candle> candles)
     {
         var result = MarketStructureAnalyzer.Calculate(candles);
+        var smartMoney = SmartMoneyAnalyzer.Calculate(candles);
+
+        int score = Math.Clamp(result.Score + smartMoney.Bonus, 0, 100);
+
         return new StructureAnalysis
         {
-            Score = result.Score,
+            Score = score,
             IsUptrend = result.Uptrend,
             IsDowntrend = result.Downtrend,
             IsStrongUptrend = result.StrongUptrend,
             IsStrongDowntrend = result.StrongDowntrend,
             HasBreakOfStructure = result.BreakOfStructure,
-            HasChangeOfCharacter = result.ChangeOfCharacter
+            HasChangeOfCharacter = result.ChangeOfCharacter,
+            LiquiditySweepHigh = smartMoney.LiquiditySweepHigh,
+            LiquiditySweepLow = smartMoney.LiquiditySweepLow,
+            IsBullTrap = smartMoney.IsBullTrap,
+            IsBearTrap = smartMoney.IsBearTrap,
+            SmartMoneyLabel = smartMoney.Label
         };
     }
 
     private static CandleAnalysis AnalyzeCandle(List<Candle> candles)
     {
         var result = CandleQualityAnalyzer.Calculate(candles);
+        var pattern = CandlePatternDetector.Calculate(candles);
+
+        int score = Math.Clamp(result.Score + pattern.Bonus, 0, 100);
+
         return new CandleAnalysis
         {
-            Score = result.Score,
+            Score = score,
             BullPower = result.BullPower,
             BearPower = result.BearPower,
             BodyRatio = result.BodyRatio,
@@ -115,16 +129,24 @@ public sealed class AssetAnalyzer
             IsStrongBearish = result.StrongBearish,
             HasBuyerRejection = result.BuyerRejection,
             HasSellerRejection = result.SellerRejection,
-            RejectionScore = RejectionScore.Calculate(candles)
+            RejectionScore = RejectionScore.Calculate(candles),
+            IsDoji = pattern.IsDoji,
+            IsHammer = pattern.IsHammer,
+            IsShootingStar = pattern.IsShootingStar,
+            IsBullishMarubozu = pattern.IsBullishMarubozu,
+            IsBearishMarubozu = pattern.IsBearishMarubozu,
+            IsBullishEngulfing = pattern.IsBullishEngulfing,
+            IsBearishEngulfing = pattern.IsBearishEngulfing,
+            PatternName = pattern.PatternName
         };
     }
 
-    private static SetupAnalysis AnalyzeSetup(List<Candle> candles, TrendAnalysis trend, decimal resistance, List<Candle> btcCandles)
+    private static SetupAnalysis AnalyzeSetup(List<Candle> candles, TrendAnalysis trend, decimal resistance, List<Candle> btcCandles, ScanProfile profile)
     {
         decimal swingLow = candles.Skip(Math.Max(0, candles.Count - 20)).Min(candle => candle.Low);
         var result = SetupQualityAnalyzer.Calculate(trend.Close, trend.Ema21, trend.Atr, swingLow);
 
-        decimal shortTermResistance = SupportResistanceIndicator.GetResistance(candles, ScannerSettings.DefensiveBreakoutLookback);
+        decimal shortTermResistance = SupportResistanceIndicator.GetResistance(candles, profile.DefensiveBreakoutLookback);
 
         return new SetupAnalysis
         {

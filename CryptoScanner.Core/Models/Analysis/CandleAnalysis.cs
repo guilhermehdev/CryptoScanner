@@ -13,4 +13,12 @@ public sealed class CandleAnalysis
     public bool HasBuyerRejection { get; init; }
     public bool HasSellerRejection { get; init; }
     public decimal RejectionScore { get; init; }
+    public bool IsDoji { get; init; }
+    public bool IsHammer { get; init; }
+    public bool IsShootingStar { get; init; }
+    public bool IsBullishMarubozu { get; init; }
+    public bool IsBearishMarubozu { get; init; }
+    public bool IsBullishEngulfing { get; init; }
+    public bool IsBearishEngulfing { get; init; }
+    public string PatternName { get; init; } = "";
 }

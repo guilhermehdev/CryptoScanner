@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:CryptoScanner.UI"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800"
+        Title="ScannerCripto" Height="600" Width="1250"
         WindowStartupLocation="CenterScreen">
     <Grid>
 
@@ -43,6 +43,39 @@
                Foreground="Gray"
                TextWrapping="Wrap"/>
 
+        <TextBlock Grid.Row="0"
+               Margin="10,50,10,0"
+               FontSize="10"
+               FontStyle="Italic"
+               Foreground="Gray"
+               Text="*Consol.: exigido apenas quando o regime de mercado é BULL. Em BEAR/SIDEWAYS (modo defensivo), esse critério é apenas informativo."/>
+
+        <StackPanel Grid.Row="0"
+                Orientation="Horizontal"
+                Margin="10,68,0,0"
+                VerticalAlignment="Top">
+
+            <TextBlock Text="Perfil:"
+                   VerticalAlignment="Center"
+                   FontWeight="Bold"
+                   Margin="0,0,8,0"/>
+
+            <RadioButton x:Name="rbIntraday"
+                     Content="Intraday (1h / 24h)"
+                     GroupName="Profile"
+                     Margin="0,0,12,0"
+                     VerticalAlignment="Center"
+                     Checked="ProfileChanged"/>
+
+            <RadioButton x:Name="rbSwing"
+                     Content="Swing (4h / 10 dias)"
+                     GroupName="Profile"
+                     IsChecked="True"
+                     VerticalAlignment="Center"
+                     Checked="ProfileChanged"/>
+
+        </StackPanel>
+
         <DataGrid x:Name="dgRanking"
               Grid.Row="1"
               AutoGenerateColumns="False"
@@ -73,6 +106,13 @@
                                 Value="Khaki"/>
                         </DataTrigger>
 
+                        <!-- Alerta de risco: sobrepõe a cor do sinal quando há Bull Trap detectado -->
+                        <DataTrigger Binding="{Binding IsBullTrap}"
+                                 Value="True">
+                            <Setter Property="Background"
+                                Value="Orange"/>
+                        </DataTrigger>
+
                     </Style.Triggers>
 
                 </Style>
@@ -86,14 +126,31 @@
                 <DataGridTextColumn Header="Variação" Binding="{Binding VariationText}" />
                 <DataGridTextColumn Header="Elite" Binding="{Binding EliteText}" />
                 <DataGridTextColumn Header="Resistência" Binding="{Binding Resistance}" />
-                <DataGridCheckBoxColumn Header="Rompimento" Binding="{Binding IsBreakout}" />
+                <DataGridTextColumn Header="Via Rompimento" Binding="{Binding BreakoutSource}" />
+                <DataGridTextColumn Header="Risk/Reward" Binding="{Binding RiskReward, StringFormat=F2}" />
                 <DataGridTextColumn Header="Trend" Binding="{Binding TrendDirection}" />
                 <DataGridTextColumn Header="Sinal" Binding="{Binding Signal}" />
-                <DataGridCheckBoxColumn Header="Consol." Binding="{Binding IsConsolidating}" />
+
+                <DataGridCheckBoxColumn Header="Consol.*" Binding="{Binding IsConsolidating}">
+                    <DataGridCheckBoxColumn.CellStyle>
+                        <Style TargetType="DataGridCell">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsConsolidationRelevant}" Value="False">
+                                    <Setter Property="Opacity" Value="0.35"/>
+                                    <Setter Property="ToolTip" Value="Não exigido como critério no regime de mercado atual (modo defensivo)."/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGridCheckBoxColumn.CellStyle>
+                </DataGridCheckBoxColumn>
+
                 <DataGridTextColumn Header="Volume Spike" Binding="{Binding VolumeSpike, StringFormat=F2}" />
                 <DataGridTextColumn Header="Res %" Binding="{Binding ResistanceDistance, StringFormat=F1}" />
                 <DataGridTextColumn Header="Sup %" Binding="{Binding SupportDistance, StringFormat=F1}" />
                 <DataGridTextColumn Header="Força Rel." Binding="{Binding RelativeStrengthText}" />
+                <DataGridCheckBoxColumn Header="Exaustão" Binding="{Binding HasExhaustion}" />
+                <DataGridTextColumn Header="Padrão" Binding="{Binding PatternName}" />
+                <DataGridTextColumn Header="Smart Money" Binding="{Binding SmartMoneyLabel}" />
 
 
             </DataGrid.Columns>
