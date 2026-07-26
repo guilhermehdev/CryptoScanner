@@ -123,10 +123,11 @@
                 <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" />
                 <DataGridTextColumn Header="Preço" Binding="{Binding CloseFormatted}" />
                 <DataGridTextColumn Header="Score" Binding="{Binding Score, StringFormat=F2}" />
+                <DataGridCheckBoxColumn Header="Elegível" Binding="{Binding IsEligible}" />
                 <DataGridTextColumn Header="Variação" Binding="{Binding VariationText}" />
                 <DataGridTextColumn Header="Elite" Binding="{Binding EliteText}" />
                 <DataGridTextColumn Header="Resistência" Binding="{Binding Resistance}" />
-                <DataGridTextColumn Header="Via Rompimento" Binding="{Binding BreakoutSource}" />
+                <DataGridTextColumn Header="Rompimento" Binding="{Binding BreakoutSource}" />
                 <DataGridTextColumn Header="Risk/Reward" Binding="{Binding RiskReward, StringFormat=F2}" />
                 <DataGridTextColumn Header="Trend" Binding="{Binding TrendDirection}" />
                 <DataGridTextColumn Header="Sinal" Binding="{Binding Signal}" />
@@ -144,14 +145,13 @@
                     </DataGridCheckBoxColumn.CellStyle>
                 </DataGridCheckBoxColumn>
 
-                <DataGridTextColumn Header="Volume Spike" Binding="{Binding VolumeSpike, StringFormat=F2}" />
+                <DataGridTextColumn Header="Volume" Binding="{Binding VolumeSpike, StringFormat=F2}" />
                 <DataGridTextColumn Header="Res %" Binding="{Binding ResistanceDistance, StringFormat=F1}" />
                 <DataGridTextColumn Header="Sup %" Binding="{Binding SupportDistance, StringFormat=F1}" />
                 <DataGridTextColumn Header="Força Rel." Binding="{Binding RelativeStrengthText}" />
                 <DataGridCheckBoxColumn Header="Exaustão" Binding="{Binding HasExhaustion}" />
                 <DataGridTextColumn Header="Padrão" Binding="{Binding PatternName}" />
-                <DataGridTextColumn Header="Smart Money" Binding="{Binding SmartMoneyLabel}" />
-
+                <DataGridTextColumn Header="Smart Money" Binding="{Binding SmartMoneyLabel}" />  
 
             </DataGrid.Columns>
 

@@ -14,10 +14,10 @@ namespace CryptoScanner.Indicators.Indicators
         public int Bonus { get; set; }
 
         public string Label =>
-            IsBullTrap ? "Bull Trap" :
-            IsBearTrap ? "Bear Trap" :
-            LiquiditySweepHigh ? "Liq. Sweep (Alta)" :
-            LiquiditySweepLow ? "Liq. Sweep (Baixa)" :
+            IsBullTrap ? "BULL_Trap" :
+            IsBearTrap ? "BEAR_Trap" :
+            LiquiditySweepHigh ? "FLUSH (Alta)" :
+            LiquiditySweepLow ? "FLUSH (Baixa)" :
             "";
     }
 

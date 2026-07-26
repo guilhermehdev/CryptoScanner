@@ -167,7 +167,7 @@ public sealed class ScannerService
             decimal opportunity = marketRegime switch
             {
                 "BEAR" => asset.OpportunityScore - ScannerSettings.BearRegimePenalty,
-                "SIDEWAYS" => asset.OpportunityScore - ScannerSettings.SidewaysRegimePenalty,
+                "LATERAL" => asset.OpportunityScore - ScannerSettings.SidewaysRegimePenalty,
                 _ => asset.OpportunityScore
             };
 
@@ -204,6 +204,25 @@ public sealed class ScannerService
                              !failedDirection && !failedRiskReward;
 
             if (!eligible)
+                continue;
+
+            if (await _signals.SignalExistsWithinWindowAsync(asset.Symbol, asset.Signal, profile.DuplicateSignalWindowDays, cancellationToken))
+            {
+                diagnostics.SkippedDuplicateToday++;
+                continue;
+            }
+
+            var eligibility = EligibilityEvaluator.Evaluate(asset, marketRegime);
+
+            if (eligibility.FailedScore) diagnostics.FailedScore++;
+            if (eligibility.FailedBreakout) diagnostics.FailedBreakout++;
+            if (eligibility.FailedConsolidation) diagnostics.FailedConsolidation++;
+            if (eligibility.FailedVolumeSpike) diagnostics.FailedVolumeSpike++;
+            if (eligibility.FailedResistanceDistance) diagnostics.FailedResistanceDistance++;
+            if (eligibility.FailedDirection) diagnostics.FailedDirection++;
+            if (eligibility.FailedRiskReward) diagnostics.FailedRiskReward++;
+
+            if (!eligibility.IsEligible)
                 continue;
 
             if (await _signals.SignalExistsWithinWindowAsync(asset.Symbol, asset.Signal, profile.DuplicateSignalWindowDays, cancellationToken))
