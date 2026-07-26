@@ -205,6 +205,7 @@
         </DataGrid>
         <Button Content="Backtest BTC" Click="BtnBacktest_Click" HorizontalAlignment="Left" Height="19" Margin="696,7,0,0" VerticalAlignment="Top" Width="78"/>
         <Button x:Name="btAtualizar" Content="Atualizar" HorizontalAlignment="Left" Height="19" Margin="614,7,0,0" VerticalAlignment="Top" Width="77" RenderTransformOrigin="0.509,0.601" Click="btAtualizar_Click"/>
+        <Button Content="Análise" Click="BtnAnalytics_Click" HorizontalAlignment="Left" Height="19" Margin="782,7,0,0" VerticalAlignment="Top" Width="78"/>
 
         <Popup x:Name="popupBreakdown"
                StaysOpen="False"

@@ -1,0 +1,132 @@
+<Window x:Class="CryptoScanner.UI.AnalyticsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Análise de Performance" Height="600" Width="900"
+        WindowStartupLocation="CenterOwner">
+
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="txtSummary"
+               Grid.Row="0"
+               FontWeight="Bold"
+               Margin="0,0,0,10"/>
+
+        <TabControl Grid.Row="1">
+
+            <TabItem Header="Score">
+                <DataGrid x:Name="dgScore" AutoGenerateColumns="False" IsReadOnly="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Faixa" Binding="{Binding Label}" Width="*"/>
+                        <DataGridTextColumn Header="Qtd" Binding="{Binding Count}" Width="80"/>
+                        <DataGridTextColumn Header="Win Rate %" Binding="{Binding WinRate, StringFormat=F1}" Width="100"/>
+                        <DataGridTextColumn Header="Retorno Médio %" Binding="{Binding AvgReturn, StringFormat=F2}" Width="130"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <TabItem Header="RSI">
+                <DataGrid x:Name="dgRsi" AutoGenerateColumns="False" IsReadOnly="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Faixa" Binding="{Binding Label}" Width="*"/>
+                        <DataGridTextColumn Header="Qtd" Binding="{Binding Count}" Width="80"/>
+                        <DataGridTextColumn Header="Win Rate %" Binding="{Binding WinRate, StringFormat=F1}" Width="100"/>
+                        <DataGridTextColumn Header="Retorno Médio %" Binding="{Binding AvgReturn, StringFormat=F2}" Width="130"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <TabItem Header="ADX">
+                <DataGrid x:Name="dgAdx" AutoGenerateColumns="False" IsReadOnly="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Faixa" Binding="{Binding Label}" Width="*"/>
+                        <DataGridTextColumn Header="Qtd" Binding="{Binding Count}" Width="80"/>
+                        <DataGridTextColumn Header="Win Rate %" Binding="{Binding WinRate, StringFormat=F1}" Width="100"/>
+                        <DataGridTextColumn Header="Retorno Médio %" Binding="{Binding AvgReturn, StringFormat=F2}" Width="130"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <TabItem Header="ATR %">
+                <DataGrid x:Name="dgAtr" AutoGenerateColumns="False" IsReadOnly="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Faixa" Binding="{Binding Label}" Width="*"/>
+                        <DataGridTextColumn Header="Qtd" Binding="{Binding Count}" Width="80"/>
+                        <DataGridTextColumn Header="Win Rate %" Binding="{Binding WinRate, StringFormat=F1}" Width="100"/>
+                        <DataGridTextColumn Header="Retorno Médio %" Binding="{Binding AvgReturn, StringFormat=F2}" Width="130"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <TabItem Header="Padrão de Candle">
+                <DataGrid x:Name="dgPattern" AutoGenerateColumns="False" IsReadOnly="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Padrão" Binding="{Binding Label}" Width="*"/>
+                        <DataGridTextColumn Header="Qtd" Binding="{Binding Count}" Width="80"/>
+                        <DataGridTextColumn Header="Win Rate %" Binding="{Binding WinRate, StringFormat=F1}" Width="100"/>
+                        <DataGridTextColumn Header="Retorno Médio %" Binding="{Binding AvgReturn, StringFormat=F2}" Width="130"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <TabItem Header="Smart Money">
+                <DataGrid x:Name="dgSmartMoney" AutoGenerateColumns="False" IsReadOnly="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Sinal" Binding="{Binding Label}" Width="*"/>
+                        <DataGridTextColumn Header="Qtd" Binding="{Binding Count}" Width="80"/>
+                        <DataGridTextColumn Header="Win Rate %" Binding="{Binding WinRate, StringFormat=F1}" Width="100"/>
+                        <DataGridTextColumn Header="Retorno Médio %" Binding="{Binding AvgReturn, StringFormat=F2}" Width="130"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <TabItem Header="Via Rompimento">
+                <DataGrid x:Name="dgBreakoutSource" AutoGenerateColumns="False" IsReadOnly="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Via" Binding="{Binding Label}" Width="*"/>
+                        <DataGridTextColumn Header="Qtd" Binding="{Binding Count}" Width="80"/>
+                        <DataGridTextColumn Header="Win Rate %" Binding="{Binding WinRate, StringFormat=F1}" Width="100"/>
+                        <DataGridTextColumn Header="Retorno Médio %" Binding="{Binding AvgReturn, StringFormat=F2}" Width="130"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <TabItem Header="Regime de Mercado">
+                <DataGrid x:Name="dgRegime" AutoGenerateColumns="False" IsReadOnly="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Regime" Binding="{Binding Label}" Width="*"/>
+                        <DataGridTextColumn Header="Qtd" Binding="{Binding Count}" Width="80"/>
+                        <DataGridTextColumn Header="Win Rate %" Binding="{Binding WinRate, StringFormat=F1}" Width="100"/>
+                        <DataGridTextColumn Header="Retorno Médio %" Binding="{Binding AvgReturn, StringFormat=F2}" Width="130"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <TabItem Header="Perfil">
+                <DataGrid x:Name="dgProfile" AutoGenerateColumns="False" IsReadOnly="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Perfil" Binding="{Binding Label}" Width="*"/>
+                        <DataGridTextColumn Header="Qtd" Binding="{Binding Count}" Width="80"/>
+                        <DataGridTextColumn Header="Win Rate %" Binding="{Binding WinRate, StringFormat=F1}" Width="100"/>
+                        <DataGridTextColumn Header="Retorno Médio %" Binding="{Binding AvgReturn, StringFormat=F2}" Width="130"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <TabItem Header="Motivo de Saída">
+                <DataGrid x:Name="dgExitReason" AutoGenerateColumns="False" IsReadOnly="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Motivo" Binding="{Binding Label}" Width="*"/>
+                        <DataGridTextColumn Header="Qtd" Binding="{Binding Count}" Width="80"/>
+                        <DataGridTextColumn Header="Win Rate %" Binding="{Binding WinRate, StringFormat=F1}" Width="100"/>
+                        <DataGridTextColumn Header="Retorno Médio %" Binding="{Binding AvgReturn, StringFormat=F2}" Width="130"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+        </TabControl>
+    </Grid>
+</Window>

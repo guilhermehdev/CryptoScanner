@@ -214,18 +214,50 @@ public sealed class ScannerService
 
             diagnostics.PassedAll++;
 
-            await _signals.InsertSignalAsync(
-                asset.Symbol,
-                asset.Trend.Close,
-                asset.OpportunityScore,
-                asset.Signal,
-                asset.PreviousScore,
-                asset.Risk.Resistance,
-                asset.Risk.Support,
-                profile.Name,
-                cancellationToken);
+            var snapshot = new SignalSnapshot
+            {
+                Symbol = asset.Symbol,
+                Price = asset.Trend.Close,
+                Score = asset.OpportunityScore,
+                Signal = asset.Signal,
+                PreviousScore = asset.PreviousScore,
+                TakeProfit = asset.Risk.Resistance,
+                StopLoss = asset.Risk.Support,
+                Profile = profile.Name,
+                MarketRegime = marketRegime,
+
+                Rsi = asset.Trend.Rsi,
+                Adx = asset.Trend.Adx,
+                AtrPercent = asset.Trend.AtrPercent,
+                EmaDistanceAtr = asset.Setup.EmaDistanceAtr,
+                SwingUsageAtr = asset.Setup.SwingUsageAtr,
+                VolumeSpike = asset.Volume.Spike,
+                VolumeImbalance = asset.Volume.Imbalance,
+                RelativeStrength = asset.Setup.RelativeStrength,
+                RiskReward = asset.Risk.RiskReward,
+
+                TrendScore = asset.Trend.Score,
+                StructureScore = asset.Structure.Score,
+                VolumeScore = asset.Volume.Score,
+                CandleScore = asset.Candle.Score,
+                SetupScore = asset.Setup.Score,
+                MomentumScore = asset.Trend.MomentumScore,
+                VolatilityScore = asset.Trend.VolatilityScore,
+                TrendStrengthScore = asset.Trend.TrendStrengthScore,
+
+                PatternName = asset.Candle.PatternName,
+                SmartMoneyLabel = asset.Structure.SmartMoneyLabel,
+                BreakoutSource = asset.Setup.IsBreakout ? "Clássico" :
+                                  asset.Setup.IsShortTermBreakout ? "Curto Prazo" :
+                                  asset.Setup.RelativeStrength >= ScannerSettings.MinRelativeStrengthPercent ? "Força Rel." : "",
+                IsBullTrap = asset.Structure.IsBullTrap,
+                IsBearTrap = asset.Structure.IsBearTrap
+            };
+
+            await _signals.InsertSignalAsync(snapshot, cancellationToken);
         }
 
         return diagnostics;
     }
 }
+    
