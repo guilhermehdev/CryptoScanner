@@ -15,11 +15,13 @@ public static class EligibilityEvaluator
         public bool FailedDirection { get; init; }
         public bool FailedRiskReward { get; init; }
         public bool FailedStopDistance { get; init; }
+        public bool FailedRiskRewardTooHigh { get; init; }
 
         public bool IsEligible =>
             !FailedScore && !FailedBreakout && !FailedConsolidation &&
             !FailedVolumeSpike && !FailedResistanceDistance &&
-            !FailedDirection && !FailedRiskReward && !FailedStopDistance;
+            !FailedDirection && !FailedRiskReward && !FailedStopDistance &&
+            !FailedRiskRewardTooHigh;
     }
 
     public static EligibilityResult Evaluate(AssetAnalysis asset, string marketRegime, EligibilityThresholds? thresholds = null)
@@ -55,6 +57,7 @@ public static class EligibilityEvaluator
         bool failedDirection = asset.Trend.Direction != "ALTA";
         bool failedRiskReward = asset.Risk.RiskReward < thresholds.MinRiskReward;
         bool failedStopDistance = asset.Risk.SupportDistancePercent < thresholds.MinStopDistancePercent;
+        bool failedRiskRewardTooHigh = asset.Risk.RiskReward > thresholds.MaxRiskReward;
 
         return new EligibilityResult
         {
@@ -65,7 +68,8 @@ public static class EligibilityEvaluator
             FailedResistanceDistance = failedResistanceDistance,
             FailedDirection = failedDirection,
             FailedRiskReward = failedRiskReward,
-            FailedStopDistance = failedStopDistance
+            FailedStopDistance = failedStopDistance,
+            FailedRiskRewardTooHigh = failedRiskRewardTooHigh
         };
     }
 }

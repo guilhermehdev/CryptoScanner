@@ -33,6 +33,7 @@ public partial class BacktestWindow : Window
         txtMinVolumeSpike.Text = ScannerSettings.MinVolumeSpike.ToString("F2");
         txtMinRiskReward.Text = ScannerSettings.MinRiskReward.ToString("F1");
         txtMinStopDistance.Text = "0"; // 0 = sem piso, reproduz o comportamento atual do app ao vivo
+        txtMaxRiskReward.Text = "999"; // efetivamente sem teto
     }
 
     private void BtnFillYears_Click(object sender, RoutedEventArgs e)
@@ -107,7 +108,8 @@ public partial class BacktestWindow : Window
             !decimal.TryParse(txtMinResistDistance.Text, out decimal minResistDistance) ||
             !decimal.TryParse(txtMinVolumeSpike.Text, out decimal minVolumeSpike) ||
             !decimal.TryParse(txtMinRiskReward.Text, out decimal minRiskReward) ||
-            !decimal.TryParse(txtMinStopDistance.Text, out decimal minStopDistance))
+            !decimal.TryParse(txtMinStopDistance.Text, out decimal minStopDistance) ||
+            !decimal.TryParse(txtMaxRiskReward.Text, out decimal maxRiskReward))
         {
             MessageBox.Show("Revise os valores de limiares — todos precisam ser números válidos.", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
@@ -123,7 +125,8 @@ public partial class BacktestWindow : Window
             MinResistanceDistance = minResistDistance,
             MinRiskReward = minRiskReward,
             MinRelativeStrengthPercent = ScannerSettings.MinRelativeStrengthPercent,
-            MinStopDistancePercent = minStopDistance
+            MinStopDistancePercent = minStopDistance,
+            MaxRiskReward = maxRiskReward
         };
 
         return true;
@@ -257,7 +260,8 @@ public partial class BacktestWindow : Window
                     MinResistanceDistance = baseThresholds.MinResistanceDistance,
                     MinRiskReward = rr,
                     MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
-                    MinStopDistancePercent = baseThresholds.MinStopDistancePercent
+                    MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
+                    MaxRiskReward = baseThresholds.MaxRiskReward
                 };
 
                 var summary = await backtester.RunAsync(
@@ -268,7 +272,7 @@ public partial class BacktestWindow : Window
                     scenarioThresholds,
                     onProgress: (message, percent) => Dispatcher.Invoke(() =>
                     {
-                        txtStatus.Text = message;
+                        txtStatus.Text = $"[RR≥{rr}] {message}";
                         pbProgress.Value = percent;
                     }),
                     _cts.Token);
@@ -358,7 +362,8 @@ public partial class BacktestWindow : Window
                     MinResistanceDistance = baseThresholds.MinResistanceDistance,
                     MinRiskReward = baseThresholds.MinRiskReward,
                     MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
-                    MinStopDistancePercent = stopMin
+                    MinStopDistancePercent = stopMin,
+                    MaxRiskReward = baseThresholds.MaxRiskReward
                 };
 
                 var summary = await backtester.RunAsync(
@@ -369,7 +374,7 @@ public partial class BacktestWindow : Window
                     scenarioThresholds,
                     onProgress: (message, percent) => Dispatcher.Invoke(() =>
                     {
-                        txtStatus.Text = message;
+                        txtStatus.Text = $"[Stop≥{stopMin}%] {message}";
                         pbProgress.Value = percent;
                     }),
                     _cts.Token);
@@ -406,6 +411,108 @@ public partial class BacktestWindow : Window
         }
     }
 
+    private async void BtnCompareMaxRRScenarios_Click(object sender, RoutedEventArgs e)
+    {
+        if (!TryGetDateRange(out var start, out var end))
+            return;
+
+        if (!TryBuildThresholds(out var baseThresholds))
+            return;
+
+        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : ScanProfile.Swing;
+
+        List<string>? symbols;
+        try
+        {
+            symbols = await ResolveSymbolsAsync();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Não foi possível obter a lista de moedas.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
+            txtStatus.Text = "";
+            return;
+        }
+
+        if (symbols == null)
+            return;
+
+        // MinRiskReward fica fixo no valor da tela — só o teto varia,
+        // pra isolar o efeito de excluir RRs extremos (potencialmente mal-calibrados).
+        decimal[] maxRiskRewardScenarios = { 999m, 10m, 8m, 6m, 4m };
+
+        SetRunningState(true);
+        dgTrades.ItemsSource = null;
+        txtSummaryResult.Text = "";
+        var results = new List<ScenarioResult>();
+        _cts = new CancellationTokenSource();
+
+        try
+        {
+            var backtester = new StrategyBacktester(_marketData, _assetAnalyzer);
+
+            foreach (var maxRR in maxRiskRewardScenarios)
+            {
+                _cts.Token.ThrowIfCancellationRequested();
+
+                var scenarioThresholds = new EligibilityThresholds
+                {
+                    BuyOpportunityScore = baseThresholds.BuyOpportunityScore,
+                    BearRegimePenalty = baseThresholds.BearRegimePenalty,
+                    SidewaysRegimePenalty = baseThresholds.SidewaysRegimePenalty,
+                    MinVolumeSpike = baseThresholds.MinVolumeSpike,
+                    DefensiveMinVolumeSpike = baseThresholds.DefensiveMinVolumeSpike,
+                    MinResistanceDistance = baseThresholds.MinResistanceDistance,
+                    MinRiskReward = baseThresholds.MinRiskReward,
+                    MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
+                    MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
+                    MaxRiskReward = maxRR
+                };
+
+                var summary = await backtester.RunAsync(
+                    symbols,
+                    start,
+                    end,
+                    profile,
+                    scenarioThresholds,
+                    onProgress: (message, percent) => Dispatcher.Invoke(() =>
+                    {
+                        txtStatus.Text = $"[RR≤{maxRR}] {message}";
+                        pbProgress.Value = percent;
+                    }),
+                    _cts.Token);
+
+                results.Add(new ScenarioResult
+                {
+                    Label = maxRR >= 999m ? "Sem teto" : $"RR ≤ {maxRR}",
+                    TotalTrades = summary.TotalTrades,
+                    WinRate = summary.WinRate,
+                    TotalReturnPercent = summary.TotalReturnPercent,
+                    MaxDrawdownPercent = summary.MaxDrawdownPercent,
+                    ProfitFactor = summary.ProfitFactor
+                });
+            }
+
+            dgComparison.ItemsSource = results;
+            dgComparison.Visibility = Visibility.Visible;
+            txtSummaryResult.Text = $"Comparação por teto de RR concluída — RR mínimo fixo em {baseThresholds.MinRiskReward}. " +
+                                     "Isso isola o efeito de excluir operações com RR muito alto (possível resistência mal-calibrada).";
+            txtStatus.Text = "Concluído.";
+        }
+        catch (OperationCanceledException)
+        {
+            txtStatus.Text = "Comparação cancelada.";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Erro ao comparar cenários.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
+            txtStatus.Text = "";
+        }
+        finally
+        {
+            SetRunningState(false);
+        }
+    }
+
     private void BtnCancel_Click(object sender, RoutedEventArgs e)
     {
         _cts?.Cancel();
@@ -417,7 +524,9 @@ public partial class BacktestWindow : Window
         btnRun.IsEnabled = !isRunning;
         btnCompare.IsEnabled = !isRunning;
         btnCompareStop.IsEnabled = !isRunning;
+        btnCompareMaxRR.IsEnabled = !isRunning;
         btnCancel.IsEnabled = isRunning;
+        pbProgress.Visibility = isRunning ? Visibility.Visible : Visibility.Collapsed;
 
         if (!isRunning)
             _cts = null;

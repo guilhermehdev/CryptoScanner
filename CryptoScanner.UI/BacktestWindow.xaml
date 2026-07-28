@@ -1,7 +1,7 @@
 <Window x:Class="CryptoScanner.UI.BacktestWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Backtest Completo" Height="720" Width="1050"
+        Title="Backtest Completo" Height="720" Width="1350"
         WindowStartupLocation="CenterOwner">
 
     <Grid Margin="10">
@@ -63,7 +63,10 @@
             <TextBox x:Name="txtMinRiskReward" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
 
             <TextBlock Text="Stop mín. %:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-            <TextBox x:Name="txtMinStopDistance" Width="45" VerticalAlignment="Center"/>
+            <TextBox x:Name="txtMinStopDistance" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
+
+            <TextBlock Text="Risk/Reward máx.:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <TextBox x:Name="txtMaxRiskReward" Width="45" VerticalAlignment="Center"/>
         </StackPanel>
 
         <!-- Ações -->
@@ -71,6 +74,7 @@
             <Button x:Name="btnRun" Content="Rodar Backtest" Width="130" Height="26" Click="BtnRun_Click"/>
             <Button x:Name="btnCompare" Content="Comparar Cenários (RR)" Width="160" Height="26" Margin="8,0,0,0" Click="BtnCompareScenarios_Click"/>
             <Button x:Name="btnCompareStop" Content="Comparar Cenários (Stop)" Width="170" Height="26" Margin="8,0,0,0" Click="BtnCompareStopScenarios_Click"/>
+            <Button x:Name="btnCompareMaxRR" Content="Comparar Cenários (Teto RR)" Width="180" Height="26" Margin="8,0,0,0" Click="BtnCompareMaxRRScenarios_Click"/>
             <Button x:Name="btnCancel" Content="Cancelar" Width="90" Height="26" Margin="8,0,0,0" IsEnabled="False" Click="BtnCancel_Click"/>
             <TextBlock x:Name="txtStatus" VerticalAlignment="Center" Margin="15,0,0,0" Foreground="Gray"/>
         </StackPanel>
@@ -124,6 +128,9 @@
                     <DataGridTextColumn Header="Motivo" Binding="{Binding ExitReason}" Width="80"/>
                     <DataGridTextColumn Header="Sinal" Binding="{Binding Signal}" Width="90"/>
                     <DataGridTextColumn Header="Score" Binding="{Binding Score, StringFormat=F2}" Width="70"/>
+                    <DataGridTextColumn Header="Res % (entrada)" Binding="{Binding ResistanceDistancePercent, StringFormat=F1}" Width="110"/>
+                    <DataGridTextColumn Header="Sup % (entrada)" Binding="{Binding SupportDistancePercent, StringFormat=F1}" Width="110"/>
+                    <DataGridTextColumn Header="RR (entrada)" Binding="{Binding RiskRewardAtEntry, StringFormat=F2}" Width="90"/>
                 </DataGrid.Columns>
 
                 <DataGrid.RowStyle>

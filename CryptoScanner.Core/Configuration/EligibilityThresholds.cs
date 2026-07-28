@@ -10,10 +10,11 @@ public sealed class EligibilityThresholds
     public required decimal MinResistanceDistance { get; init; }
     public required decimal MinRiskReward { get; init; }
     public required decimal MinRelativeStrengthPercent { get; init; }
-
-    // Piso mínimo de distância até o stop (Sup %), independente da proporção RR.
-    // Default = 0 (sem piso) para não alterar o comportamento do scanner ao vivo.
     public required decimal MinStopDistancePercent { get; init; }
+
+    // Teto de RR — valores muito altos podem indicar resistência mal-calibrada,
+    // não necessariamente uma oportunidade melhor. Default = sem teto (comportamento atual).
+    public required decimal MaxRiskReward { get; init; }
 
     public static readonly EligibilityThresholds Default = new()
     {
@@ -25,6 +26,7 @@ public sealed class EligibilityThresholds
         MinResistanceDistance = ScannerSettings.MinResistanceDistance,
         MinRiskReward = ScannerSettings.MinRiskReward,
         MinRelativeStrengthPercent = ScannerSettings.MinRelativeStrengthPercent,
-        MinStopDistancePercent = 0m
+        MinStopDistancePercent = 0m,
+        MaxRiskReward = decimal.MaxValue
     };
 }

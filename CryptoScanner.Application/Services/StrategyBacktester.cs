@@ -170,6 +170,7 @@ public sealed class StrategyBacktester
             if (eligibility.FailedDirection) diagnostics.FailedDirection++;
             if (eligibility.FailedRiskReward) diagnostics.FailedRiskReward++;
             if (eligibility.FailedStopDistance) diagnostics.FailedStopDistance++;
+            if (eligibility.FailedRiskRewardTooHigh) diagnostics.FailedRiskRewardTooHigh++;
 
             if (!eligibility.IsEligible)
                 continue;
@@ -219,6 +220,7 @@ public sealed class StrategyBacktester
         target.FailedRiskReward += source.FailedRiskReward;
         target.SkippedDuplicateToday += source.SkippedDuplicateToday;
         target.FailedStopDistance += source.FailedStopDistance;
+        target.FailedRiskRewardTooHigh += source.FailedRiskRewardTooHigh;
     }
 
     private static BacktestTradeResult CloseTrade(BacktestOpenPosition position, DateTime exitTime, decimal exitPrice, string reason)
