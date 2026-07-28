@@ -174,6 +174,15 @@ public partial class MainWindow : Window
         window.Show();
     }
 
+    private void BtnFullBacktest_Click(object sender, RoutedEventArgs e)
+    {
+        var window = new BacktestWindow(new BinanceExchangeService(), new AssetAnalyzer())
+        {
+            Owner = this
+        };
+        window.Show();
+    }
+
     private async void btAtualizar_Click(object sender, RoutedEventArgs e) => await RunScannerAsync();
 
     private void DgRankingRow_Click(object sender, MouseButtonEventArgs e)

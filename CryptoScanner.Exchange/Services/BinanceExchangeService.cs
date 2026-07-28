@@ -1,8 +1,10 @@
-﻿using System.Collections.Generic;
+﻿using CryptoScanner.Core.Contracts;
+using CryptoScanner.Core.Models;
+using CryptoScanner.Core.Utilities;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Text.Json;
-using CryptoScanner.Core.Contracts;
-using CryptoScanner.Core.Models;
+using static System.Net.WebRequestMethods;
 
 namespace CryptoScanner.Exchange.Services;
 
@@ -205,4 +207,63 @@ public class BinanceExchangeService : IMarketDataService
             price,
             CultureInfo.InvariantCulture);
     }
+   
+
+public async Task<List<Candle>> GetHistoricalCandlesAsync(
+    string symbol,
+    string interval,
+    DateTime startUtc,
+    DateTime endUtc,
+    CancellationToken cancellationToken = default)
+{
+    long intervalMs = (long)CandleIntervalHelper.ToTimeSpan(interval).TotalMilliseconds;
+    long startMs = new DateTimeOffset(DateTime.SpecifyKind(startUtc, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
+    long endMs = new DateTimeOffset(DateTime.SpecifyKind(endUtc, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
+
+    var allCandles = new List<Candle>();
+    long currentStart = startMs;
+
+    while (currentStart < endMs)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        string url =
+            $"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&startTime={currentStart}&endTime={endMs}&limit=1000";
+
+        string json = await _http.GetStringAsync(url, cancellationToken);
+        JsonElement root = JsonSerializer.Deserialize<JsonElement>(json);
+
+        var batch = new List<Candle>();
+        foreach (JsonElement item in root.EnumerateArray())
+        {
+            batch.Add(new Candle
+            {
+                OpenTime = DateTimeOffset.FromUnixTimeMilliseconds(item[0].GetInt64()).UtcDateTime,
+                Open = decimal.Parse(item[1].GetString()!, CultureInfo.InvariantCulture),
+                High = decimal.Parse(item[2].GetString()!, CultureInfo.InvariantCulture),
+                Low = decimal.Parse(item[3].GetString()!, CultureInfo.InvariantCulture),
+                Close = decimal.Parse(item[4].GetString()!, CultureInfo.InvariantCulture),
+                Volume = decimal.Parse(item[5].GetString()!, CultureInfo.InvariantCulture)
+            });
+        }
+
+        if (batch.Count == 0)
+            break;
+
+        allCandles.AddRange(batch);
+
+        long lastOpenTimeMs = new DateTimeOffset(batch[^1].OpenTime, TimeSpan.Zero).ToUnixTimeMilliseconds();
+        long nextStart = lastOpenTimeMs + intervalMs;
+
+        if (nextStart <= currentStart)
+            break; // proteção contra loop infinito
+
+        currentStart = nextStart;
+
+        if (batch.Count < 1000)
+            break; // já era a última página
+    }
+
+    return allCandles;
+}
 }

@@ -10,6 +10,13 @@ public interface IMarketDataService
         int limit = 1000,
         CancellationToken cancellationToken = default);
 
+    Task<List<Candle>> GetHistoricalCandlesAsync(
+        string symbol,
+        string interval,
+        DateTime startUtc,
+        DateTime endUtc,
+        CancellationToken cancellationToken = default);
+
     Task<List<string>> GetUsdtSymbolsAsync(
         CancellationToken cancellationToken = default);
 

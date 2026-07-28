@@ -14,43 +14,47 @@ public static class EligibilityEvaluator
         public bool FailedResistanceDistance { get; init; }
         public bool FailedDirection { get; init; }
         public bool FailedRiskReward { get; init; }
+        public bool FailedStopDistance { get; init; }
 
         public bool IsEligible =>
             !FailedScore && !FailedBreakout && !FailedConsolidation &&
             !FailedVolumeSpike && !FailedResistanceDistance &&
-            !FailedDirection && !FailedRiskReward;
+            !FailedDirection && !FailedRiskReward && !FailedStopDistance;
     }
 
-    public static EligibilityResult Evaluate(AssetAnalysis asset, string marketRegime)
+    public static EligibilityResult Evaluate(AssetAnalysis asset, string marketRegime, EligibilityThresholds? thresholds = null)
     {
+        thresholds ??= EligibilityThresholds.Default;
+
         bool defensiveMode = marketRegime != "BULL";
 
         decimal opportunity = marketRegime switch
         {
-            "BEAR" => asset.OpportunityScore - ScannerSettings.BearRegimePenalty,
-            "LATERAL" => asset.OpportunityScore - ScannerSettings.SidewaysRegimePenalty,
+            "BEAR" => asset.OpportunityScore - thresholds.BearRegimePenalty,
+            "LATERAL" => asset.OpportunityScore - thresholds.SidewaysRegimePenalty,
             _ => asset.OpportunityScore
         };
 
-        bool failedScore = opportunity < ScannerSettings.BuyOpportunityScore;
+        bool failedScore = opportunity < thresholds.BuyOpportunityScore;
 
         bool passesBreakout = defensiveMode
             ? (asset.Setup.IsBreakout
                 || asset.Setup.IsShortTermBreakout
-                || asset.Setup.RelativeStrength >= ScannerSettings.MinRelativeStrengthPercent)
+                || asset.Setup.RelativeStrength >= thresholds.MinRelativeStrengthPercent)
             : asset.Setup.IsBreakout;
         bool failedBreakout = !passesBreakout;
 
         bool failedConsolidation = defensiveMode ? false : !asset.Setup.IsConsolidating;
 
         decimal volumeSpikeThreshold = defensiveMode
-            ? ScannerSettings.DefensiveMinVolumeSpike
-            : ScannerSettings.MinVolumeSpike;
+            ? thresholds.DefensiveMinVolumeSpike
+            : thresholds.MinVolumeSpike;
         bool failedVolumeSpike = asset.Volume.Spike < volumeSpikeThreshold;
 
-        bool failedResistanceDistance = asset.Risk.ResistanceDistancePercent < ScannerSettings.MinResistanceDistance;
+        bool failedResistanceDistance = asset.Risk.ResistanceDistancePercent < thresholds.MinResistanceDistance;
         bool failedDirection = asset.Trend.Direction != "ALTA";
-        bool failedRiskReward = asset.Risk.RiskReward < ScannerSettings.MinRiskReward;
+        bool failedRiskReward = asset.Risk.RiskReward < thresholds.MinRiskReward;
+        bool failedStopDistance = asset.Risk.SupportDistancePercent < thresholds.MinStopDistancePercent;
 
         return new EligibilityResult
         {
@@ -60,7 +64,8 @@ public static class EligibilityEvaluator
             FailedVolumeSpike = failedVolumeSpike,
             FailedResistanceDistance = failedResistanceDistance,
             FailedDirection = failedDirection,
-            FailedRiskReward = failedRiskReward
+            FailedRiskReward = failedRiskReward,
+            FailedStopDistance = failedStopDistance
         };
     }
 }

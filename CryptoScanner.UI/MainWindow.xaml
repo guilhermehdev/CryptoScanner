@@ -48,7 +48,7 @@
                FontSize="10"
                FontStyle="Italic"
                Foreground="Gray"
-               Text="*Consol.: exigido apenas quando o regime de mercado é BULL. Em BEAR/SIDEWAYS (modo defensivo), esse critério é apenas informativo."/>
+               Text="*Consol.: exigido apenas quando o regime de mercado é BULL. Em BEAR/LATERAL (modo defensivo), esse critério é apenas informativo."/>
 
         <StackPanel Grid.Row="0"
                 Orientation="Horizontal"
@@ -151,7 +151,8 @@
                 <DataGridTextColumn Header="Força Rel." Binding="{Binding RelativeStrengthText}" />
                 <DataGridCheckBoxColumn Header="Exaustão" Binding="{Binding HasExhaustion}" />
                 <DataGridTextColumn Header="Padrão" Binding="{Binding PatternName}" />
-                <DataGridTextColumn Header="Smart Money" Binding="{Binding SmartMoneyLabel}" />  
+                <DataGridTextColumn Header="Smart Money" Binding="{Binding SmartMoneyLabel}" />              
+
 
             </DataGrid.Columns>
 
@@ -206,6 +207,7 @@
         <Button Content="Backtest BTC" Click="BtnBacktest_Click" HorizontalAlignment="Left" Height="19" Margin="696,7,0,0" VerticalAlignment="Top" Width="78"/>
         <Button x:Name="btAtualizar" Content="Atualizar" HorizontalAlignment="Left" Height="19" Margin="614,7,0,0" VerticalAlignment="Top" Width="77" RenderTransformOrigin="0.509,0.601" Click="btAtualizar_Click"/>
         <Button Content="Análise" Click="BtnAnalytics_Click" HorizontalAlignment="Left" Height="19" Margin="782,7,0,0" VerticalAlignment="Top" Width="78"/>
+        <Button Content="Backtest Completo" Click="BtnFullBacktest_Click" HorizontalAlignment="Left" Height="19" Margin="868,7,0,0" VerticalAlignment="Top" Width="120"/>
 
         <Popup x:Name="popupBreakdown"
                StaysOpen="False"
