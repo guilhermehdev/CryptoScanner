@@ -15,6 +15,7 @@ public sealed class EligibilityThresholds
     // Teto de RR — valores muito altos podem indicar resistência mal-calibrada,
     // não necessariamente uma oportunidade melhor. Default = sem teto (comportamento atual).
     public required decimal MaxRiskReward { get; init; }
+    public required bool EnablePullbackBounce { get; init; }
 
     public static readonly EligibilityThresholds Default = new()
     {
@@ -27,6 +28,7 @@ public sealed class EligibilityThresholds
         MinRiskReward = ScannerSettings.MinRiskReward,
         MinRelativeStrengthPercent = ScannerSettings.MinRelativeStrengthPercent,
         MinStopDistancePercent = 0m,
-        MaxRiskReward = decimal.MaxValue
+        MaxRiskReward = decimal.MaxValue,
+        EnablePullbackBounce = false
     };
 }

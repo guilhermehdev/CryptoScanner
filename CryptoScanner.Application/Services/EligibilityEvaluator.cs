@@ -39,12 +39,15 @@ public static class EligibilityEvaluator
 
         bool failedScore = opportunity < thresholds.BuyOpportunityScore;
 
-        bool passesBreakout = defensiveMode
+        bool passesClassicPaths = defensiveMode
             ? (asset.Setup.IsBreakout
                 || asset.Setup.IsShortTermBreakout
                 || asset.Setup.RelativeStrength >= thresholds.MinRelativeStrengthPercent)
             : asset.Setup.IsBreakout;
-        bool failedBreakout = !passesBreakout;
+
+        bool passesPullbackBounce = thresholds.EnablePullbackBounce && asset.Setup.IsPullbackBounce;
+
+        bool failedBreakout = !(passesClassicPaths || passesPullbackBounce);
 
         bool failedConsolidation = defensiveMode ? false : !asset.Setup.IsConsolidating;
 

@@ -11,6 +11,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -69,18 +70,25 @@
             <TextBox x:Name="txtMaxRiskReward" Width="45" VerticalAlignment="Center"/>
         </StackPanel>
 
+        <!-- Caminho de entrada alternativo (desativado por padrão) -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,0,0,8">
+            <TextBlock Text="Caminho alternativo:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="Bold"/>
+            <CheckBox x:Name="chkPullbackBounce" Content="Caminho A — Repique de Recuo" VerticalAlignment="Center"/>
+        </StackPanel>
+
         <!-- Ações -->
-        <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,0,0,10">
+        <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,0,0,10">
             <Button x:Name="btnRun" Content="Rodar Backtest" Width="130" Height="26" Click="BtnRun_Click"/>
             <Button x:Name="btnCompare" Content="Comparar Cenários (RR)" Width="160" Height="26" Margin="8,0,0,0" Click="BtnCompareScenarios_Click"/>
             <Button x:Name="btnCompareStop" Content="Comparar Cenários (Stop)" Width="170" Height="26" Margin="8,0,0,0" Click="BtnCompareStopScenarios_Click"/>
             <Button x:Name="btnCompareMaxRR" Content="Comparar Cenários (Teto RR)" Width="180" Height="26" Margin="8,0,0,0" Click="BtnCompareMaxRRScenarios_Click"/>
+            <Button x:Name="btnCompareNewPaths" Content="Comparar Cenários (Caminhos)" Width="190" Height="26" Margin="8,0,0,0" Click="BtnCompareNewPathsScenarios_Click"/>
             <Button x:Name="btnCancel" Content="Cancelar" Width="90" Height="26" Margin="8,0,0,0" IsEnabled="False" Click="BtnCancel_Click"/>
             <TextBlock x:Name="txtStatus" VerticalAlignment="Center" Margin="15,0,0,0" Foreground="Gray"/>
         </StackPanel>
 
         <ProgressBar x:Name="pbProgress"
-                 Grid.Row="4"
+                 Grid.Row="5"
                  Height="6"
                  Margin="0,32,0,0"
                  VerticalAlignment="Top"
@@ -89,7 +97,7 @@
                  Visibility="Collapsed"/>
 
         <!-- Resultados -->
-        <Grid Grid.Row="5">
+        <Grid Grid.Row="6">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>

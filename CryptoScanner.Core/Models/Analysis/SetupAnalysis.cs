@@ -10,4 +10,7 @@ public sealed class SetupAnalysis
     public bool IsOverextended { get; init; }
     public decimal EmaDistanceAtr { get; init; }
     public decimal SwingUsageAtr { get; init; }
+
+    // Caminho A — repique dentro de tendência de alta já estabelecida.
+    public bool IsPullbackBounce { get; init; }
 }

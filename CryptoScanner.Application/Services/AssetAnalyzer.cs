@@ -18,7 +18,7 @@ public sealed class AssetAnalyzer
         var volume = AnalyzeVolume(candles);
         var candle = AnalyzeCandle(candles);
         var risk = AnalyzeRisk(candles, trend.Close);
-        var setup = AnalyzeSetup(candles, trend, risk.Resistance, btcCandles, profile);
+        var setup = AnalyzeSetup(candles, trend, risk, structure, candle, btcCandles, profile);
 
         var analysis = new AssetAnalysis
         {
@@ -83,7 +83,7 @@ public sealed class AssetAnalyzer
             HasAbsorption = result.Absorption,
             HasDistribution = result.Distribution,
             HasExhaustion = result.Exhaustion
-        };      
+        };
     }
 
     private static StructureAnalysis AnalyzeStructure(List<Candle> candles)
@@ -141,23 +141,36 @@ public sealed class AssetAnalyzer
         };
     }
 
-    private static SetupAnalysis AnalyzeSetup(List<Candle> candles, TrendAnalysis trend, decimal resistance, List<Candle> btcCandles, ScanProfile profile)
+    private static SetupAnalysis AnalyzeSetup(
+        List<Candle> candles,
+        TrendAnalysis trend,
+        RiskAnalysis risk,
+        StructureAnalysis structure,
+        CandleAnalysis candle,
+        List<Candle> btcCandles,
+        ScanProfile profile)
     {
-        decimal swingLow = candles.Skip(Math.Max(0, candles.Count - 20)).Min(candle => candle.Low);
+        decimal swingLow = candles.Skip(Math.Max(0, candles.Count - 20)).Min(c => c.Low);
         var result = SetupQualityAnalyzer.Calculate(trend.Close, trend.Ema21, trend.Atr, swingLow);
 
         decimal shortTermResistance = SupportResistanceIndicator.GetResistance(candles, profile.DefensiveBreakoutLookback);
 
+        // Caminho A — repique: tendência de alta já estabelecida, com sinal de virada no candle atual.
+        bool isPullbackBounce =
+            structure.IsUptrend &&
+            (candle.IsBullishEngulfing || candle.IsHammer || structure.LiquiditySweepLow);
+
         return new SetupAnalysis
         {
             Score = result.Score,
-            IsBreakout = BreakoutIndicator.IsBullishBreakout(candles, resistance),
+            IsBreakout = BreakoutIndicator.IsBullishBreakout(candles, risk.Resistance),
             IsShortTermBreakout = BreakoutIndicator.IsBullishBreakout(candles, shortTermResistance),
             RelativeStrength = RelativeStrengthIndicator.Calculate(candles, btcCandles, ScannerSettings.RelativeStrengthPeriodHours),
             IsConsolidating = ConsolidationIndicator.IsConsolidating(candles),
             IsOverextended = result.IsOverextended,
             EmaDistanceAtr = result.EmaDistanceAtr,
-            SwingUsageAtr = result.SwingUsageAtr
+            SwingUsageAtr = result.SwingUsageAtr,
+            IsPullbackBounce = isPullbackBounce
         };
     }
 

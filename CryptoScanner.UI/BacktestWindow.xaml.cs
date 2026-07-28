@@ -126,7 +126,8 @@ public partial class BacktestWindow : Window
             MinRiskReward = minRiskReward,
             MinRelativeStrengthPercent = ScannerSettings.MinRelativeStrengthPercent,
             MinStopDistancePercent = minStopDistance,
-            MaxRiskReward = maxRiskReward
+            MaxRiskReward = maxRiskReward,
+            EnablePullbackBounce = chkPullbackBounce.IsChecked == true
         };
 
         return true;
@@ -261,7 +262,8 @@ public partial class BacktestWindow : Window
                     MinRiskReward = rr,
                     MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
                     MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
-                    MaxRiskReward = baseThresholds.MaxRiskReward
+                    MaxRiskReward = baseThresholds.MaxRiskReward,
+                    EnablePullbackBounce = baseThresholds.EnablePullbackBounce
                 };
 
                 var summary = await backtester.RunAsync(
@@ -363,7 +365,8 @@ public partial class BacktestWindow : Window
                     MinRiskReward = baseThresholds.MinRiskReward,
                     MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
                     MinStopDistancePercent = stopMin,
-                    MaxRiskReward = baseThresholds.MaxRiskReward
+                    MaxRiskReward = baseThresholds.MaxRiskReward,
+                    EnablePullbackBounce = baseThresholds.EnablePullbackBounce
                 };
 
                 var summary = await backtester.RunAsync(
@@ -465,7 +468,8 @@ public partial class BacktestWindow : Window
                     MinRiskReward = baseThresholds.MinRiskReward,
                     MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
                     MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
-                    MaxRiskReward = maxRR
+                    MaxRiskReward = maxRR,
+                    EnablePullbackBounce = baseThresholds.EnablePullbackBounce
                 };
 
                 var summary = await backtester.RunAsync(
@@ -513,6 +517,112 @@ public partial class BacktestWindow : Window
         }
     }
 
+    private async void BtnCompareNewPathsScenarios_Click(object sender, RoutedEventArgs e)
+    {
+        if (!TryGetDateRange(out var start, out var end))
+            return;
+
+        if (!TryBuildThresholds(out var baseThresholds))
+            return;
+
+        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : ScanProfile.Swing;
+
+        List<string>? symbols;
+        try
+        {
+            symbols = await ResolveSymbolsAsync();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Não foi possível obter a lista de moedas.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
+            txtStatus.Text = "";
+            return;
+        }
+
+        if (symbols == null)
+            return;
+
+        // Dois cenários: sem o caminho novo (baseline) e com o Caminho A habilitado.
+        var pathScenarios = new (string Label, bool EnableA)[]
+        {
+            ("Baseline (sem Caminho A)", false),
+            ("+ Caminho A (Repique)", true)
+        };
+
+        SetRunningState(true);
+        dgTrades.ItemsSource = null;
+        txtSummaryResult.Text = "";
+        var results = new List<ScenarioResult>();
+        _cts = new CancellationTokenSource();
+
+        try
+        {
+            var backtester = new StrategyBacktester(_marketData, _assetAnalyzer);
+
+            foreach (var scenario in pathScenarios)
+            {
+                _cts.Token.ThrowIfCancellationRequested();
+
+                var scenarioThresholds = new EligibilityThresholds
+                {
+                    BuyOpportunityScore = baseThresholds.BuyOpportunityScore,
+                    BearRegimePenalty = baseThresholds.BearRegimePenalty,
+                    SidewaysRegimePenalty = baseThresholds.SidewaysRegimePenalty,
+                    MinVolumeSpike = baseThresholds.MinVolumeSpike,
+                    DefensiveMinVolumeSpike = baseThresholds.DefensiveMinVolumeSpike,
+                    MinResistanceDistance = baseThresholds.MinResistanceDistance,
+                    MinRiskReward = baseThresholds.MinRiskReward,
+                    MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
+                    MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
+                    MaxRiskReward = baseThresholds.MaxRiskReward,
+                    EnablePullbackBounce = scenario.EnableA
+                };
+
+                var summary = await backtester.RunAsync(
+                    symbols,
+                    start,
+                    end,
+                    profile,
+                    scenarioThresholds,
+                    onProgress: (message, percent) => Dispatcher.Invoke(() =>
+                    {
+                        txtStatus.Text = $"[{scenario.Label}] {message}";
+                        pbProgress.Value = percent;
+                    }),
+                    _cts.Token);
+
+                results.Add(new ScenarioResult
+                {
+                    Label = scenario.Label,
+                    TotalTrades = summary.TotalTrades,
+                    WinRate = summary.WinRate,
+                    TotalReturnPercent = summary.TotalReturnPercent,
+                    MaxDrawdownPercent = summary.MaxDrawdownPercent,
+                    ProfitFactor = summary.ProfitFactor
+                });
+            }
+
+            dgComparison.ItemsSource = results;
+            dgComparison.Visibility = Visibility.Visible;
+            txtSummaryResult.Text = "Comparação concluída — compare o baseline (comportamento atual do app) " +
+                                     "com a adição do Caminho A (repique dentro de tendência de alta já estabelecida).";
+            txtStatus.Text = "Concluído.";
+        }
+        catch (OperationCanceledException)
+        {
+            txtStatus.Text = "Comparação cancelada.";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Erro ao comparar cenários.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
+            txtStatus.Text = "";
+        }
+        finally
+        {
+            SetRunningState(false);
+        }
+    }
+
     private void BtnCancel_Click(object sender, RoutedEventArgs e)
     {
         _cts?.Cancel();
@@ -525,6 +635,7 @@ public partial class BacktestWindow : Window
         btnCompare.IsEnabled = !isRunning;
         btnCompareStop.IsEnabled = !isRunning;
         btnCompareMaxRR.IsEnabled = !isRunning;
+        btnCompareNewPaths.IsEnabled = !isRunning;
         btnCancel.IsEnabled = isRunning;
         pbProgress.Visibility = isRunning ? Visibility.Visible : Visibility.Collapsed;
 
