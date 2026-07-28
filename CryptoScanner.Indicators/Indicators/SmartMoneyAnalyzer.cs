@@ -16,8 +16,8 @@ namespace CryptoScanner.Indicators.Indicators
         public string Label =>
             IsBullTrap ? "BULL_Trap" :
             IsBearTrap ? "BEAR_Trap" :
-            LiquiditySweepHigh ? "FLUSH (Alta)" :
-            LiquiditySweepLow ? "FLUSH (Baixa)" :
+            LiquiditySweepHigh ? "Long Squeeze" :
+            LiquiditySweepLow ? "Short Squeeze" :
             "";
     }
 
