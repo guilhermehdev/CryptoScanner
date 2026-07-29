@@ -10,4 +10,5 @@ public sealed class ScannerRunResult
     public required double WinRate { get; init; }
     public required double AverageReturn { get; init; }
     public required FilterDiagnostics Diagnostics { get; init; }
+    public required IReadOnlyList<NewSignalAlert> NewSignals { get; init; }
 }

@@ -14,11 +14,11 @@ namespace CryptoScanner.Indicators.Indicators
         public int Bonus { get; set; }
 
         public string Label =>
-            IsBullTrap ? "BULL_Trap" :
-            IsBearTrap ? "BEAR_Trap" :
-            LiquiditySweepHigh ? "Long Squeeze" :
-            LiquiditySweepLow ? "Short Squeeze" :
-            "";
+     IsBullTrap ? "Bull Trap" :
+     IsBearTrap ? "Bear Trap" :
+     LiquiditySweepHigh ? "Rejeição de Alta" :
+     LiquiditySweepLow ? "Rejeição de Baixa" :
+     "";
     }
 
     public static class SmartMoneyAnalyzer

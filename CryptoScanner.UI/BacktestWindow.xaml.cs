@@ -8,7 +8,11 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Media;
 using MessageBox = System.Windows.MessageBox;
+using Brushes = System.Windows.Media.Brushes;
 
 namespace CryptoScanner.UI;
 
@@ -34,6 +38,27 @@ public partial class BacktestWindow : Window
         txtMinRiskReward.Text = ScannerSettings.MinRiskReward.ToString("F1");
         txtMinStopDistance.Text = "0"; // 0 = sem piso, reproduz o comportamento atual do app ao vivo
         txtMaxRiskReward.Text = "999"; // efetivamente sem teto
+
+        UpdateManualSymbolsCount();
+    }
+
+    private void TxtManualSymbols_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        // O evento pode disparar durante o InitializeComponent(), antes de
+        // txtManualSymbolsCount existir — ignora nesse caso.
+        if (txtManualSymbolsCount == null)
+            return;
+
+        UpdateManualSymbolsCount();
+    }
+
+    private void UpdateManualSymbolsCount()
+    {
+        int count = txtManualSymbols.Text
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Length;
+
+        txtManualSymbolsCount.Text = $"({count} moeda{(count == 1 ? "" : "s")})";
     }
 
     private void BtnFillYears_Click(object sender, RoutedEventArgs e)
@@ -181,6 +206,11 @@ public partial class BacktestWindow : Window
                 }),
                 _cts.Token);
 
+            string skippedInfo = summary.SkippedSymbols.Count > 0
+                ? $"\n\n⚠ {summary.SkippedSymbols.Count} de {symbols.Count} moedas não entraram no teste:\n" +
+                  string.Join("\n", summary.SkippedSymbols)
+                : "";
+
             txtSummaryResult.Text =
                 $"Operações: {summary.TotalTrades}   |   " +
                 $"Win Rate: {summary.WinRate:F1}%   |   " +
@@ -188,7 +218,11 @@ public partial class BacktestWindow : Window
                 $"Drawdown Máx.: {summary.MaxDrawdownPercent:F2}%   |   " +
                 $"Profit Factor: {summary.ProfitFactor:F2}\n" +
                 "(Retorno e Drawdown são somatórios percentuais por operação, não simulação de banca composta.)\n\n" +
-                $"Filtros (motivos de rejeição, agregado): {summary.Diagnostics.Summary}";
+                $"RR Médio de Entrada: {summary.AvgRiskRewardAtEntry:F2}   |   " +
+                $"Win Rate de Equilíbrio: {summary.BreakEvenWinRate:F1}%   |   " +
+                $"Edge: {summary.Edge:F1} pontos % ({(summary.Edge >= 0 ? "vantagem" : "desvantagem")} estatística)\n\n" +
+                $"Filtros (motivos de rejeição, agregado): {summary.Diagnostics.Summary}" +
+                skippedInfo;
 
             dgTrades.ItemsSource = summary.Trades;
             txtStatus.Text = summary.TotalTrades == 0
@@ -286,7 +320,10 @@ public partial class BacktestWindow : Window
                     WinRate = summary.WinRate,
                     TotalReturnPercent = summary.TotalReturnPercent,
                     MaxDrawdownPercent = summary.MaxDrawdownPercent,
-                    ProfitFactor = summary.ProfitFactor
+                    ProfitFactor = summary.ProfitFactor,
+                    AvgRiskRewardAtEntry = summary.AvgRiskRewardAtEntry,
+                    BreakEvenWinRate = summary.BreakEvenWinRate,
+                    Edge = summary.Edge
                 });
             }
 
@@ -389,7 +426,10 @@ public partial class BacktestWindow : Window
                     WinRate = summary.WinRate,
                     TotalReturnPercent = summary.TotalReturnPercent,
                     MaxDrawdownPercent = summary.MaxDrawdownPercent,
-                    ProfitFactor = summary.ProfitFactor
+                    ProfitFactor = summary.ProfitFactor,
+                    AvgRiskRewardAtEntry = summary.AvgRiskRewardAtEntry,
+                    BreakEvenWinRate = summary.BreakEvenWinRate,
+                    Edge = summary.Edge
                 });
             }
 
@@ -492,7 +532,10 @@ public partial class BacktestWindow : Window
                     WinRate = summary.WinRate,
                     TotalReturnPercent = summary.TotalReturnPercent,
                     MaxDrawdownPercent = summary.MaxDrawdownPercent,
-                    ProfitFactor = summary.ProfitFactor
+                    ProfitFactor = summary.ProfitFactor,
+                    AvgRiskRewardAtEntry = summary.AvgRiskRewardAtEntry,
+                    BreakEvenWinRate = summary.BreakEvenWinRate,
+                    Edge = summary.Edge
                 });
             }
 
@@ -598,7 +641,10 @@ public partial class BacktestWindow : Window
                     WinRate = summary.WinRate,
                     TotalReturnPercent = summary.TotalReturnPercent,
                     MaxDrawdownPercent = summary.MaxDrawdownPercent,
-                    ProfitFactor = summary.ProfitFactor
+                    ProfitFactor = summary.ProfitFactor,
+                    AvgRiskRewardAtEntry = summary.AvgRiskRewardAtEntry,
+                    BreakEvenWinRate = summary.BreakEvenWinRate,
+                    Edge = summary.Edge
                 });
             }
 
@@ -623,10 +669,167 @@ public partial class BacktestWindow : Window
         }
     }
 
+    private async void BtnFreezeSymbolList_Click(object sender, RoutedEventArgs e)
+    {
+        if (!int.TryParse(txtTopN.Text, out int topN) || topN <= 0)
+        {
+            MessageBox.Show("Informe um número válido em \"Top automático\" antes de congelar (ex.: 20).", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        txtStatus.Text = "Buscando lista de moedas mais líquidas para congelar...";
+
+        try
+        {
+            var allSymbols = await _marketData.GetUsdtSymbolsAsync();
+            var frozenList = allSymbols.Take(topN).ToList();
+
+            txtManualSymbols.Text = string.Join(",", frozenList);
+            rbManual.IsChecked = true;
+
+            txtStatus.Text = $"Lista congelada: {frozenList.Count} moedas copiadas para o campo Manual. " +
+                              "Os próximos testes vão usar exatamente essas moedas, independente de mudanças no volume da Binance.";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Não foi possível obter a lista de moedas.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
+            txtStatus.Text = "";
+        }
+    }
+
     private void BtnCancel_Click(object sender, RoutedEventArgs e)
     {
         _cts?.Cancel();
         txtStatus.Text = "Cancelando...";
+    }
+
+    private async void BtnComparePeriods_Click(object sender, RoutedEventArgs e)
+    {
+        if (!int.TryParse(txtPeriodYears.Text, out int periodYears) || periodYears <= 0)
+        {
+            MessageBox.Show("Informe um número válido de anos por período (ex.: 1).", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (!int.TryParse(txtPeriodCount.Text, out int periodCount) || periodCount <= 0)
+        {
+            MessageBox.Show("Informe uma quantidade válida de períodos (ex.: 4).", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var anchorEnd = dpEnd.SelectedDate ?? DateTime.Today;
+        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : ScanProfile.Swing;
+
+        List<string>? symbols;
+        try
+        {
+            symbols = await ResolveSymbolsAsync();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Não foi possível obter a lista de moedas.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
+            txtStatus.Text = "";
+            return;
+        }
+
+        if (symbols == null)
+            return;
+
+        // Ignora os campos da tela — força a configuração padrão exata do app ao vivo.
+        var defaultThresholds = EligibilityThresholds.Default;
+
+        SetRunningState(true);
+        dgTrades.ItemsSource = null;
+        txtSummaryResult.Text = "";
+        var results = new List<ScenarioResult>();
+        var allTrades = new List<BacktestTradeResult>();
+        var aggregatedDiagnostics = new FilterDiagnostics();
+        _cts = new CancellationTokenSource();
+
+        try
+        {
+            var backtester = new StrategyBacktester(_marketData, _assetAnalyzer);
+
+            for (int i = periodCount; i >= 1; i--)
+            {
+                _cts.Token.ThrowIfCancellationRequested();
+
+                var periodEnd = DateTime.SpecifyKind(anchorEnd.AddYears(-(i - 1) * periodYears), DateTimeKind.Utc);
+                var periodStart = DateTime.SpecifyKind(anchorEnd.AddYears(-i * periodYears), DateTimeKind.Utc);
+
+                string label = $"{periodStart:dd/MM/yy} – {periodEnd:dd/MM/yy}";
+
+                var summary = await backtester.RunAsync(
+                    symbols,
+                    periodStart,
+                    periodEnd,
+                    profile,
+                    defaultThresholds,
+                    onProgress: (message, percent) => Dispatcher.Invoke(() =>
+                    {
+                        txtStatus.Text = $"[{label}] {message}";
+                        pbProgress.Value = percent;
+                    }),
+                    _cts.Token);
+
+                results.Add(new ScenarioResult
+                {
+                    Label = label,
+                    TotalTrades = summary.TotalTrades,
+                    WinRate = summary.WinRate,
+                    TotalReturnPercent = summary.TotalReturnPercent,
+                    MaxDrawdownPercent = summary.MaxDrawdownPercent,
+                    ProfitFactor = summary.ProfitFactor,
+                    AvgRiskRewardAtEntry = summary.AvgRiskRewardAtEntry,
+                    BreakEvenWinRate = summary.BreakEvenWinRate,
+                    Edge = summary.Edge
+                });
+
+                allTrades.AddRange(summary.Trades);
+                StrategyBacktester.MergeDiagnostics(aggregatedDiagnostics, summary.Diagnostics);
+            }
+
+            // Junta todos os trades de todos os períodos numa amostra só — mais poder estatístico
+            // do que qualquer período isolado.
+            var pooledSummary = StrategyBacktester.BuildSummary(allTrades, aggregatedDiagnostics, new List<string>());
+            results.Add(new ScenarioResult
+            {
+                Label = "TOTAL (todos os períodos juntos)",
+                TotalTrades = pooledSummary.TotalTrades,
+                WinRate = pooledSummary.WinRate,
+                TotalReturnPercent = pooledSummary.TotalReturnPercent,
+                MaxDrawdownPercent = pooledSummary.MaxDrawdownPercent,
+                ProfitFactor = pooledSummary.ProfitFactor,
+                AvgRiskRewardAtEntry = pooledSummary.AvgRiskRewardAtEntry,
+                BreakEvenWinRate = pooledSummary.BreakEvenWinRate,
+                Edge = pooledSummary.Edge
+            });
+
+            dgComparison.ItemsSource = results;
+            dgComparison.Visibility = Visibility.Visible;
+            dgTrades.ItemsSource = allTrades.OrderBy(t => t.ExitTime).ToList();
+
+            txtSummaryResult.Text =
+                $"Teste definitivo: configuração PADRÃO do scanner ao vivo (Score≥{ScannerSettings.BuyOpportunityScore:F0}, " +
+                $"RR≥{ScannerSettings.MinRiskReward:F1} sem teto, sem caminhos alternativos), testada em {periodCount} período(s) " +
+                $"de {periodYears} ano(s) cada, não sobrepostos, com {symbols.Count} moedas. " +
+                "A linha \"TOTAL\" junta todas as operações de todos os períodos numa amostra só, pra dar mais poder estatístico à conclusão " +
+                "do que qualquer período isolado.";
+            txtStatus.Text = "Concluído.";
+        }
+        catch (OperationCanceledException)
+        {
+            txtStatus.Text = "Teste cancelado.";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Erro ao rodar o teste definitivo.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
+            txtStatus.Text = "";
+        }
+        finally
+        {
+            SetRunningState(false);
+        }
     }
 
     private void SetRunningState(bool isRunning)
@@ -636,10 +839,29 @@ public partial class BacktestWindow : Window
         btnCompareStop.IsEnabled = !isRunning;
         btnCompareMaxRR.IsEnabled = !isRunning;
         btnCompareNewPaths.IsEnabled = !isRunning;
+        btnComparePeriods.IsEnabled = !isRunning;
         btnCancel.IsEnabled = isRunning;
         pbProgress.Visibility = isRunning ? Visibility.Visible : Visibility.Collapsed;
 
         if (!isRunning)
             _cts = null;
     }
+}
+
+/// <summary>
+/// Colore o valor de Edge (WinRate real - WinRate de equilíbrio): verde quando
+/// positivo (vantagem estatística), vermelho quando negativo (desvantagem).
+/// </summary>
+public sealed class EdgeColorConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+    {
+        if (value is double edge)
+            return edge >= 0 ? Brushes.DarkGreen : Brushes.DarkRed;
+
+        return Brushes.Black;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        => throw new NotSupportedException();
 }

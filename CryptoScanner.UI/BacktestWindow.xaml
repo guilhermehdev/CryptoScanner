@@ -1,11 +1,17 @@
 <Window x:Class="CryptoScanner.UI.BacktestWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Backtest Completo" Height="720" Width="1350"
+        xmlns:local="clr-namespace:CryptoScanner.UI"
+        Title="Backtest Completo" Height="780" Width="1350"
         WindowStartupLocation="CenterOwner">
+
+    <Window.Resources>
+        <local:EdgeColorConverter x:Key="EdgeColorConverter"/>
+    </Window.Resources>
 
     <Grid Margin="10">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -40,11 +46,13 @@
             <TextBlock Text="Moedas:" VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="Bold"/>
 
             <RadioButton x:Name="rbManual" Content="Manual:" GroupName="SymbolMode" IsChecked="True" VerticalAlignment="Center" Margin="0,0,6,0"/>
-            <TextBox x:Name="txtManualSymbols" Width="280" Text="BTCUSDT,ETHUSDT,SOLUSDT" Margin="0,0,20,0" VerticalAlignment="Center"/>
+            <TextBox x:Name="txtManualSymbols" Width="280" Text="BTCUSDT,ETHUSDT,SOLUSDT" Margin="0,0,6,0" VerticalAlignment="Center" TextChanged="TxtManualSymbols_TextChanged"/>
+            <TextBlock x:Name="txtManualSymbolsCount" VerticalAlignment="Center" Foreground="Gray" FontSize="11" Margin="0,0,20,0"/>
 
             <RadioButton x:Name="rbAuto" Content="Top automático:" GroupName="SymbolMode" VerticalAlignment="Center" Margin="0,0,6,0"/>
             <TextBox x:Name="txtTopN" Width="50" Text="20" VerticalAlignment="Center"/>
             <TextBlock Text="moedas por volume atual" VerticalAlignment="Center" Margin="6,0,0,0" Foreground="Gray" FontSize="11"/>
+            <Button Content="Congelar lista em Manual" Height="22" Padding="8,0" Margin="12,0,0,0" Click="BtnFreezeSymbolList_Click"/>
         </StackPanel>
 
         <!-- Limiares (editáveis só para este backtest, não afeta o ScannerSettings real) -->
@@ -76,8 +84,28 @@
             <CheckBox x:Name="chkPullbackBounce" Content="Caminho A — Repique de Recuo" VerticalAlignment="Center"/>
         </StackPanel>
 
+        <!-- Teste definitivo: configuração padrão do app, múltiplos períodos não sobrepostos -->
+        <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,0,0,8">
+            <TextBlock Text="Teste Definitivo:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="Bold"/>
+
+            <TextBlock Text="Anos por período:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <TextBox x:Name="txtPeriodYears" Width="40" Text="1" VerticalAlignment="Center" Margin="0,0,14,0"/>
+
+            <TextBlock Text="Quantidade de períodos:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <TextBox x:Name="txtPeriodCount" Width="40" Text="4" VerticalAlignment="Center" Margin="0,0,14,0"/>
+
+            <Button x:Name="btnComparePeriods" Content="Rodar Teste Definitivo (Padrão do App)" Height="24" Padding="8,0" Click="BtnComparePeriods_Click"/>
+        </StackPanel>
+
+        <TextBlock Grid.Row="5"
+               Margin="0,26,0,0"
+               FontSize="10"
+               FontStyle="Italic"
+               Foreground="Gray"
+               Text="Ignora os limiares/caminhos configurados acima — usa sempre a configuração padrão exata do ScannerSettings (a mesma do app ao vivo)."/>
+
         <!-- Ações -->
-        <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,0,0,10">
+        <StackPanel Grid.Row="6" Orientation="Horizontal" Margin="0,0,0,10">
             <Button x:Name="btnRun" Content="Rodar Backtest" Width="130" Height="26" Click="BtnRun_Click"/>
             <Button x:Name="btnCompare" Content="Comparar Cenários (RR)" Width="160" Height="26" Margin="8,0,0,0" Click="BtnCompareScenarios_Click"/>
             <Button x:Name="btnCompareStop" Content="Comparar Cenários (Stop)" Width="170" Height="26" Margin="8,0,0,0" Click="BtnCompareStopScenarios_Click"/>
@@ -88,7 +116,7 @@
         </StackPanel>
 
         <ProgressBar x:Name="pbProgress"
-                 Grid.Row="5"
+                 Grid.Row="6"
                  Height="6"
                  Margin="0,32,0,0"
                  VerticalAlignment="Top"
@@ -97,7 +125,7 @@
                  Visibility="Collapsed"/>
 
         <!-- Resultados -->
-        <Grid Grid.Row="6">
+        <Grid Grid.Row="7">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
@@ -113,7 +141,7 @@
                   AutoGenerateColumns="False"
                   IsReadOnly="True"
                   Visibility="Collapsed"
-                  MaxHeight="160"
+                  MaxHeight="180"
                   Margin="0,0,0,10">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Cenário" Binding="{Binding Label}" Width="140"/>
@@ -122,6 +150,17 @@
                     <DataGridTextColumn Header="Retorno %" Binding="{Binding TotalReturnPercent, StringFormat=F2}" Width="90"/>
                     <DataGridTextColumn Header="Drawdown %" Binding="{Binding MaxDrawdownPercent, StringFormat=F2}" Width="100"/>
                     <DataGridTextColumn Header="Profit Factor" Binding="{Binding ProfitFactor, StringFormat=F2}" Width="100"/>
+                    <DataGridTextColumn Header="RR Médio" Binding="{Binding AvgRiskRewardAtEntry, StringFormat=F2}" Width="90"/>
+                    <DataGridTextColumn Header="Win Rate Equilíbrio %" Binding="{Binding BreakEvenWinRate, StringFormat=F1}" Width="140"/>
+
+                    <DataGridTextColumn Header="Edge (pontos %)" Binding="{Binding Edge, StringFormat=F1}" Width="120">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{Binding Edge, Converter={StaticResource EdgeColorConverter}}"/>
+                                <Setter Property="FontWeight" Value="Bold"/>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
                 </DataGrid.Columns>
             </DataGrid>
 

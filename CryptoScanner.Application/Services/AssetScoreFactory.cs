@@ -1,12 +1,13 @@
 using CryptoScanner.Core.Configuration;
 using CryptoScanner.Core.Models;
 using CryptoScanner.Core.Models.Analysis;
+using System.Collections.Generic;
 
 namespace CryptoScanner.Application.Services;
 
 public static class AssetScoreFactory
 {
-    public static AssetScore Create(AssetAnalysis analysis, string marketRegime) => new()
+    public static AssetScore Create(AssetAnalysis analysis, string marketRegime, IReadOnlySet<string> favoriteSymbols) => new()
     {
         Symbol = analysis.Symbol,
         Close = analysis.Trend.Close,
@@ -29,6 +30,11 @@ public static class AssetScoreFactory
         PatternName = analysis.Candle.PatternName,
         BreakoutSource = DetermineBreakoutSource(analysis),
         MarketRegime = marketRegime,
+        SmartMoneyLabel = analysis.Structure.SmartMoneyLabel,
+        IsBullTrap = analysis.Structure.IsBullTrap,
+        IsBearTrap = analysis.Structure.IsBearTrap,
+        IsEligible = EligibilityEvaluator.Evaluate(analysis, marketRegime).IsEligible,
+        IsFavorite = favoriteSymbols.Contains(analysis.Symbol),
         TrendScore = analysis.Trend.Score,
         StructureScore = analysis.Structure.Score,
         VolumeScore = analysis.Volume.Score,
@@ -36,10 +42,7 @@ public static class AssetScoreFactory
         SetupScore = analysis.Setup.Score,
         MomentumScore = analysis.Trend.MomentumScore,
         VolatilityScore = analysis.Trend.VolatilityScore,
-        TrendStrengthScore = analysis.Trend.TrendStrengthScore,
-        SmartMoneyLabel = analysis.Structure.SmartMoneyLabel,
-        IsBullTrap = analysis.Structure.IsBullTrap,
-        IsBearTrap = analysis.Structure.IsBearTrap,
+        TrendStrengthScore = analysis.Trend.TrendStrengthScore
     };
 
     private static string DetermineBreakoutSource(AssetAnalysis analysis)

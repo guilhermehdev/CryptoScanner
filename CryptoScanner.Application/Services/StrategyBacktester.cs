@@ -40,6 +40,7 @@ public sealed class StrategyBacktester
 
         var allTrades = new List<BacktestTradeResult>();
         var diagnostics = new FilterDiagnostics();
+        var skippedSymbols = new List<string>();
 
         int totalSymbols = symbols.Count;
         int completedSymbols = 0;
@@ -58,23 +59,29 @@ public sealed class StrategyBacktester
             {
                 candles = await _marketData.GetHistoricalCandlesAsync(symbol, profile.CandleInterval, fetchStart, endUtc, cancellationToken);
             }
-            catch
+            catch (Exception ex)
             {
+                skippedSymbols.Add($"{symbol} (erro ao buscar dados: {ex.Message})");
                 completedSymbols++;
                 continue;
             }
 
             if (candles.Count < LookbackCandles)
             {
+                skippedSymbols.Add($"{symbol} (histórico insuficiente: {candles.Count} candles)");
                 completedSymbols++;
                 continue;
             }
 
-            int completedSoFarCapture = completedSymbols; // evita captura incorreta da variável mutável no closure
+            int completedSoFarCapture = completedSymbols;
 
             var (trades, symbolDiagnostics) = await Task.Run(
                 () => SimulateSymbol(symbol, candles, btcCandles, btcDailyCandles, startUtc, profile, thresholds,
-                    (message, withinSymbolPercent) => {double overallPercent = totalSymbols > 0 ? (completedSoFarCapture + withinSymbolPercent / 100.0) * 100.0 / totalSymbols : 0;
+                    (message, withinSymbolPercent) =>
+                    {
+                        double overallPercent = totalSymbols > 0
+                            ? (completedSoFarCapture + withinSymbolPercent / 100.0) * 100.0 / totalSymbols
+                            : 0;
                         onProgress?.Invoke(message, overallPercent);
                     }),
                 cancellationToken);
@@ -82,10 +89,14 @@ public sealed class StrategyBacktester
             allTrades.AddRange(trades);
             MergeDiagnostics(diagnostics, symbolDiagnostics);
             completedSymbols++;
+
+            // Pausa curta entre símbolos para não estourar o limite de requisições da Binance
+            // (cada símbolo dispara várias chamadas paginadas em sequência).
+            await Task.Delay(200, cancellationToken);
         }
 
         onProgress?.Invoke("Calculando resumo...", 100);
-        return BuildSummary(allTrades, diagnostics);
+        return BuildSummary(allTrades, diagnostics, skippedSymbols);
     }
 
     private (List<BacktestTradeResult> Trades, FilterDiagnostics Diagnostics) SimulateSymbol(
@@ -122,6 +133,7 @@ public sealed class StrategyBacktester
             }
 
             var currentCandle = candles[i];
+            bool justClosed = false;
 
             if (openPosition != null)
             {
@@ -129,20 +141,26 @@ public sealed class StrategyBacktester
                 {
                     trades.Add(CloseTrade(openPosition, currentCandle.OpenTime, openPosition.StopLoss, "SL"));
                     openPosition = null;
+                    justClosed = true;
                 }
                 else if (currentCandle.High >= openPosition.TakeProfit)
                 {
                     trades.Add(CloseTrade(openPosition, currentCandle.OpenTime, openPosition.TakeProfit, "TP"));
                     openPosition = null;
+                    justClosed = true;
                 }
                 else if (currentCandle.OpenTime >= openPosition.EntryTime.AddHours(profile.EvaluationHours))
                 {
                     trades.Add(CloseTrade(openPosition, currentCandle.OpenTime, currentCandle.Close, "TIMEOUT"));
                     openPosition = null;
+                    justClosed = true;
                 }
             }
 
-            if (openPosition != null)
+            // Se a posição estava aberta no início da iteração OU acabou de fechar agora,
+            // não avalia uma entrada nova no MESMO candle — evita reentradas artificiais
+            // idênticas à operação que acabou de ser fechada.
+            if (openPosition != null || justClosed)
                 continue;
 
             var candlesSoFar = candles.GetRange(0, i + 1);
@@ -207,7 +225,7 @@ public sealed class StrategyBacktester
         return (trades, diagnostics);
     }
 
-    private static void MergeDiagnostics(FilterDiagnostics target, FilterDiagnostics source)
+    public static void MergeDiagnostics(FilterDiagnostics target, FilterDiagnostics source)
     {
         target.TotalAnalyzed += source.TotalAnalyzed;
         target.PassedAll += source.PassedAll;
@@ -244,7 +262,7 @@ public sealed class StrategyBacktester
         };
     }
 
-    private static BacktestSummary BuildSummary(List<BacktestTradeResult> trades, FilterDiagnostics diagnostics)
+    public static BacktestSummary BuildSummary(List<BacktestTradeResult> trades, FilterDiagnostics diagnostics, List<string> skippedSymbols)
     {
         var ordered = trades.OrderBy(t => t.ExitTime).ToList();
 
@@ -273,6 +291,12 @@ public sealed class StrategyBacktester
                 maxDrawdown = drawdown;
         }
 
+        // Win Rate de equilíbrio: dado o RR médio real de entrada, qual seria o
+        // percentual mínimo de acerto pra não ganhar nem perder dinheiro.
+        decimal avgRiskReward = total > 0 ? ordered.Average(t => t.RiskRewardAtEntry) : 0;
+        double breakEvenWinRate = avgRiskReward > 0 ? 100.0 / (1 + (double)avgRiskReward) : 0;
+        double edge = winRate - breakEvenWinRate;
+
         return new BacktestSummary
         {
             TotalTrades = total,
@@ -281,7 +305,11 @@ public sealed class StrategyBacktester
             MaxDrawdownPercent = maxDrawdown,
             ProfitFactor = profitFactor,
             Trades = ordered,
-            Diagnostics = diagnostics
+            Diagnostics = diagnostics,
+            SkippedSymbols = skippedSymbols,
+            AvgRiskRewardAtEntry = avgRiskReward,
+            BreakEvenWinRate = breakEvenWinRate,
+            Edge = edge
         };
     }
 

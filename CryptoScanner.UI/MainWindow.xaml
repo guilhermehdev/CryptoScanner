@@ -74,6 +74,30 @@
                      VerticalAlignment="Center"
                      Checked="ProfileChanged"/>
 
+            <CheckBox x:Name="chkFavoritesOnly"
+                  Content="★ Mostrar só favoritos"
+                  Margin="24,0,0,0"
+                  VerticalAlignment="Center"
+                  Checked="ChkFavoritesOnly_Changed"
+                  Unchecked="ChkFavoritesOnly_Changed"/>
+
+            <TextBlock Text="Buscar moeda:"
+                   VerticalAlignment="Center"
+                   Margin="24,0,6,0"/>
+
+            <TextBox x:Name="txtSearchSymbol"
+                 Width="120"
+                 VerticalAlignment="Center"
+                 Margin="0,0,6,0"
+                 KeyDown="TxtSearchSymbol_KeyDown"/>
+
+            <Button x:Name="btnSearch"
+                Content="Buscar"
+                Height="22"
+                Padding="8,0"
+                VerticalAlignment="Center"
+                Click="BtnSearch_Click"/>
+
         </StackPanel>
 
         <DataGrid x:Name="dgRanking"
@@ -120,14 +144,24 @@
 
             <DataGrid.Columns>
 
+                <DataGridTemplateColumn Header="★" Width="30">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <CheckBox IsChecked="{Binding IsFavorite, Mode=OneWay}"
+                                  Click="ChkFavorite_Click"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
                 <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" />
                 <DataGridTextColumn Header="Preço" Binding="{Binding CloseFormatted}" />
                 <DataGridTextColumn Header="Score" Binding="{Binding Score, StringFormat=F2}" />
-                <DataGridCheckBoxColumn Header="Elegível" Binding="{Binding IsEligible}" />
                 <DataGridTextColumn Header="Variação" Binding="{Binding VariationText}" />
                 <DataGridTextColumn Header="Elite" Binding="{Binding EliteText}" />
                 <DataGridTextColumn Header="Resistência" Binding="{Binding Resistance}" />
-                <DataGridTextColumn Header="Rompimento" Binding="{Binding BreakoutSource}" />
+                <DataGridTextColumn Header="Via Rompimento" Binding="{Binding BreakoutSource}" />
                 <DataGridTextColumn Header="Risk/Reward" Binding="{Binding RiskReward, StringFormat=F2}" />
                 <DataGridTextColumn Header="Trend" Binding="{Binding TrendDirection}" />
                 <DataGridTextColumn Header="Sinal" Binding="{Binding Signal}" />
@@ -145,13 +179,14 @@
                     </DataGridCheckBoxColumn.CellStyle>
                 </DataGridCheckBoxColumn>
 
-                <DataGridTextColumn Header="Volume" Binding="{Binding VolumeSpike, StringFormat=F2}" />
+                <DataGridTextColumn Header="Volume Spike" Binding="{Binding VolumeSpike, StringFormat=F2}" />
                 <DataGridTextColumn Header="Res %" Binding="{Binding ResistanceDistance, StringFormat=F1}" />
                 <DataGridTextColumn Header="Sup %" Binding="{Binding SupportDistance, StringFormat=F1}" />
                 <DataGridTextColumn Header="Força Rel." Binding="{Binding RelativeStrengthText}" />
                 <DataGridCheckBoxColumn Header="Exaustão" Binding="{Binding HasExhaustion}" />
                 <DataGridTextColumn Header="Padrão" Binding="{Binding PatternName}" />
-                <DataGridTextColumn Header="Smart Money" Binding="{Binding SmartMoneyLabel}" />              
+                <DataGridTextColumn Header="Smart Money" Binding="{Binding SmartMoneyLabel}" />
+                <DataGridCheckBoxColumn Header="Elegível" Binding="{Binding IsEligible}" />
 
 
             </DataGrid.Columns>
@@ -208,6 +243,7 @@
         <Button x:Name="btAtualizar" Content="Atualizar" HorizontalAlignment="Left" Height="19" Margin="614,7,0,0" VerticalAlignment="Top" Width="77" RenderTransformOrigin="0.509,0.601" Click="btAtualizar_Click"/>
         <Button Content="Análise" Click="BtnAnalytics_Click" HorizontalAlignment="Left" Height="19" Margin="782,7,0,0" VerticalAlignment="Top" Width="78"/>
         <Button Content="Backtest Completo" Click="BtnFullBacktest_Click" HorizontalAlignment="Left" Height="19" Margin="868,7,0,0" VerticalAlignment="Top" Width="120"/>
+        <Button Content="Alertas" Click="BtnAlertSettings_Click" HorizontalAlignment="Left" Height="19" Margin="994,7,0,0" VerticalAlignment="Top" Width="70"/>
 
         <Popup x:Name="popupBreakdown"
                StaysOpen="False"

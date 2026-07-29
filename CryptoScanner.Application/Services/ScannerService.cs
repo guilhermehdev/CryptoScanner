@@ -13,21 +13,25 @@ public sealed class ScannerService
 
     private readonly IMarketDataService _marketData;
     private readonly ISignalRepository _signals;
+    private readonly IWatchlistRepository _watchlist;
     private readonly AssetAnalyzer _assetAnalyzer;
 
     public ScannerService(
         IMarketDataService marketData,
         ISignalRepository signals,
+        IWatchlistRepository watchlist,
         AssetAnalyzer assetAnalyzer)
     {
         _marketData = marketData;
         _signals = signals;
+        _watchlist = watchlist;
         _assetAnalyzer = assetAnalyzer;
     }
 
     public async Task<ScannerRunResult> RunAsync(ScanProfile profile, CancellationToken cancellationToken = default)
     {
         await _signals.InitializeAsync(cancellationToken);
+        await _watchlist.InitializeAsync(cancellationToken);
 
         var btcDailyCandles = await _marketData.GetCandlesAsync("BTCUSDT", "1d", 300, cancellationToken);
         decimal btcEma200 = EmaIndicator.Calculate(btcDailyCandles, 200)[^1] ?? 0;
@@ -35,32 +39,125 @@ public sealed class ScannerService
 
         var btcCandles = await _marketData.GetCandlesAsync("BTCUSDT", profile.CandleInterval, 300, cancellationToken);
 
+        var favoriteSymbols = await _watchlist.GetAllAsync(cancellationToken);
+        var favoriteSet = new HashSet<string>(favoriteSymbols, StringComparer.OrdinalIgnoreCase);
+
         var pendingSignals = await _signals.GetPendingSignalsAsync(cancellationToken);
-        var symbols = (await _marketData.GetUsdtSymbolsAsync(cancellationToken))
+        var topSymbols = (await _marketData.GetUsdtSymbolsAsync(cancellationToken))
             .Take(ScannerSettings.MaxCoins)
+            .ToList();
+
+        // Favoritos entram na análise mesmo que não estejam entre as mais líquidas do momento.
+        var symbols = topSymbols
+            .Union(favoriteSymbols, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         using var throttle = new SemaphoreSlim(MaxConcurrentAnalyses);
         var analyses = symbols.Select(symbol => AnalyzeSymbolAsync(symbol, btcCandles, profile, throttle, cancellationToken));
-        var analysesResult = (await Task.WhenAll(analyses))
-            .OfType<AssetAnalysis>()
-            .OrderByDescending(asset => asset.OpportunityScore)
-            .Take(30)
+        var allAnalyzed = (await Task.WhenAll(analyses)).OfType<AssetAnalysis>().ToList();
+
+        var top30 = allAnalyzed.OrderByDescending(a => a.OpportunityScore).Take(30).ToList();
+        var missingFavorites = allAnalyzed
+            .Where(a => favoriteSet.Contains(a.Symbol) && !top30.Any(t => t.Symbol == a.Symbol));
+
+        // Favoritos aparecem sempre no ranking, mesmo fora do Top 30 por score.
+        var analysesResult = top30.Concat(missingFavorites)
+            .OrderByDescending(a => a.OpportunityScore)
             .ToList();
 
         await EvaluatePendingSignalsAsync(pendingSignals, profile, cancellationToken);
-        var diagnostics = await PersistEligibleSignalsAsync(analysesResult, marketRegime, profile, cancellationToken);
+        var (diagnostics, newSignals) = await PersistEligibleSignalsAsync(analysesResult, marketRegime, profile, cancellationToken);
 
         var history = await _signals.GetSignalsAsync(cancellationToken);
         return new ScannerRunResult
         {
             MarketRegime = marketRegime,
-            Ranking = analysesResult.Select(asset => AssetScoreFactory.Create(asset, marketRegime)).ToList(),
+            Ranking = analysesResult.Select(asset => AssetScoreFactory.Create(asset, marketRegime, favoriteSet)).ToList(),
             History = history,
             WinRate = await _signals.GetWinRateAsync(cancellationToken),
             AverageReturn = await _signals.GetAverageReturnAsync(cancellationToken),
-            Diagnostics = diagnostics
+            Diagnostics = diagnostics,
+            NewSignals = newSignals
         };
+    }
+
+    private async Task<(FilterDiagnostics Diagnostics, List<NewSignalAlert> NewSignals)> PersistEligibleSignalsAsync(
+    IReadOnlyList<AssetAnalysis> ranking,
+    string marketRegime,
+    ScanProfile profile,
+    CancellationToken cancellationToken)
+    {
+        var diagnostics = new FilterDiagnostics { TotalAnalyzed = ranking.Count };
+        var newSignals = new List<NewSignalAlert>();
+
+        foreach (var asset in ranking)
+        {
+            var eligibility = EligibilityEvaluator.Evaluate(asset, marketRegime);
+
+            if (eligibility.FailedScore) diagnostics.FailedScore++;
+            if (eligibility.FailedBreakout) diagnostics.FailedBreakout++;
+            if (eligibility.FailedConsolidation) diagnostics.FailedConsolidation++;
+            if (eligibility.FailedVolumeSpike) diagnostics.FailedVolumeSpike++;
+            if (eligibility.FailedResistanceDistance) diagnostics.FailedResistanceDistance++;
+            if (eligibility.FailedDirection) diagnostics.FailedDirection++;
+            if (eligibility.FailedRiskReward) diagnostics.FailedRiskReward++;
+            if (eligibility.FailedStopDistance) diagnostics.FailedStopDistance++;
+            if (eligibility.FailedRiskRewardTooHigh) diagnostics.FailedRiskRewardTooHigh++;
+
+            if (!eligibility.IsEligible)
+                continue;
+
+            if (await _signals.SignalExistsWithinWindowAsync(asset.Symbol, asset.Signal, profile.DuplicateSignalWindowDays, cancellationToken))
+            {
+                diagnostics.SkippedDuplicateToday++;
+                continue;
+            }
+
+            diagnostics.PassedAll++;
+
+            var snapshot = new SignalSnapshot
+            {
+                Symbol = asset.Symbol,
+                Price = asset.Trend.Close,
+                Score = asset.OpportunityScore,
+                Signal = asset.Signal,
+                PreviousScore = asset.PreviousScore,
+                TakeProfit = asset.Risk.Resistance,
+                StopLoss = asset.Risk.Support,
+                Profile = profile.Name,
+                MarketRegime = marketRegime,
+                Rsi = asset.Trend.Rsi,
+                Adx = asset.Trend.Adx,
+                AtrPercent = asset.Trend.AtrPercent,
+                EmaDistanceAtr = asset.Setup.EmaDistanceAtr,
+                SwingUsageAtr = asset.Setup.SwingUsageAtr,
+                VolumeSpike = asset.Volume.Spike,
+                VolumeImbalance = asset.Volume.Imbalance,
+                RelativeStrength = asset.Setup.RelativeStrength,
+                RiskReward = asset.Risk.RiskReward,
+                TrendScore = asset.Trend.Score,
+                StructureScore = asset.Structure.Score,
+                VolumeScore = asset.Volume.Score,
+                CandleScore = asset.Candle.Score,
+                SetupScore = asset.Setup.Score,
+                MomentumScore = asset.Trend.MomentumScore,
+                VolatilityScore = asset.Trend.VolatilityScore,
+                TrendStrengthScore = asset.Trend.TrendStrengthScore,
+                PatternName = asset.Candle.PatternName,
+                SmartMoneyLabel = asset.Structure.SmartMoneyLabel,
+                BreakoutSource = asset.Setup.IsBreakout ? "Clássico" :
+                                  asset.Setup.IsShortTermBreakout ? "Curto Prazo" :
+                                  asset.Setup.RelativeStrength >= ScannerSettings.MinRelativeStrengthPercent ? "Força Rel." : "",
+                IsBullTrap = asset.Structure.IsBullTrap,
+                IsBearTrap = asset.Structure.IsBearTrap
+            };
+
+            await _signals.InsertSignalAsync(snapshot, cancellationToken);
+
+            newSignals.Add(new NewSignalAlert(asset.Symbol, asset.Signal, asset.OpportunityScore, asset.Trend.Close, profile.Name));
+        }
+
+        return (diagnostics, newSignals);
     }
 
     private async Task<AssetAnalysis?> AnalyzeSymbolAsync(string symbol, List<Candle> btcCandles, ScanProfile profile, SemaphoreSlim throttle, CancellationToken cancellationToken)
@@ -89,7 +186,7 @@ public sealed class ScannerService
                 ? ScanProfile.Intraday.EvaluationHours
                 : signal.Profile == ScanProfile.Swing.Name
                     ? ScanProfile.Swing.EvaluationHours
-                    : profile.EvaluationHours; // fallback pra sinais legados sem Profile gravado
+                    : profile.EvaluationHours;
 
             if (signal.TakeProfit <= 0 || signal.StopLoss <= 0)
             {
@@ -152,131 +249,36 @@ public sealed class ScannerService
         }
     }
 
-    private async Task<FilterDiagnostics> PersistEligibleSignalsAsync(
-        IReadOnlyList<AssetAnalysis> ranking,
-        string marketRegime,
-        ScanProfile profile,
-        CancellationToken cancellationToken)
+  
+
+    public async Task<AssetScore?> LookupSymbolAsync(string symbol, ScanProfile profile, CancellationToken cancellationToken = default)
     {
-        var diagnostics = new FilterDiagnostics { TotalAnalyzed = ranking.Count };
+        await _watchlist.InitializeAsync(cancellationToken);
 
-        bool defensiveMode = marketRegime != "BULL";
-
-        foreach (var asset in ranking)
+        List<Candle> candles;
+        try
         {
-            decimal opportunity = marketRegime switch
-            {
-                "BEAR" => asset.OpportunityScore - ScannerSettings.BearRegimePenalty,
-                "LATERAL" => asset.OpportunityScore - ScannerSettings.SidewaysRegimePenalty,
-                _ => asset.OpportunityScore
-            };
-
-            bool failedScore = opportunity < ScannerSettings.BuyOpportunityScore;
-
-            bool passesBreakout = defensiveMode
-                ? (asset.Setup.IsBreakout
-                    || asset.Setup.IsShortTermBreakout
-                    || asset.Setup.RelativeStrength >= ScannerSettings.MinRelativeStrengthPercent)
-                : asset.Setup.IsBreakout;
-            bool failedBreakout = !passesBreakout;
-
-            bool failedConsolidation = defensiveMode ? false : !asset.Setup.IsConsolidating;
-
-            decimal volumeSpikeThreshold = defensiveMode
-                ? ScannerSettings.DefensiveMinVolumeSpike
-                : ScannerSettings.MinVolumeSpike;
-            bool failedVolumeSpike = asset.Volume.Spike < volumeSpikeThreshold;
-
-            bool failedResistanceDistance = asset.Risk.ResistanceDistancePercent < ScannerSettings.MinResistanceDistance;
-            bool failedDirection = asset.Trend.Direction != "ALTA";
-            bool failedRiskReward = asset.Risk.RiskReward < ScannerSettings.MinRiskReward;
-
-            if (failedScore) diagnostics.FailedScore++;
-            if (failedBreakout) diagnostics.FailedBreakout++;
-            if (failedConsolidation) diagnostics.FailedConsolidation++;
-            if (failedVolumeSpike) diagnostics.FailedVolumeSpike++;
-            if (failedResistanceDistance) diagnostics.FailedResistanceDistance++;
-            if (failedDirection) diagnostics.FailedDirection++;
-            if (failedRiskReward) diagnostics.FailedRiskReward++;
-
-            bool eligible = !failedScore && !failedBreakout && !failedConsolidation &&
-                             !failedVolumeSpike && !failedResistanceDistance &&
-                             !failedDirection && !failedRiskReward;
-
-            if (!eligible)
-                continue;
-
-            if (await _signals.SignalExistsWithinWindowAsync(asset.Symbol, asset.Signal, profile.DuplicateSignalWindowDays, cancellationToken))
-            {
-                diagnostics.SkippedDuplicateToday++;
-                continue;
-            }
-
-            var eligibility = EligibilityEvaluator.Evaluate(asset, marketRegime);
-
-            if (eligibility.FailedScore) diagnostics.FailedScore++;
-            if (eligibility.FailedBreakout) diagnostics.FailedBreakout++;
-            if (eligibility.FailedConsolidation) diagnostics.FailedConsolidation++;
-            if (eligibility.FailedVolumeSpike) diagnostics.FailedVolumeSpike++;
-            if (eligibility.FailedResistanceDistance) diagnostics.FailedResistanceDistance++;
-            if (eligibility.FailedDirection) diagnostics.FailedDirection++;
-            if (eligibility.FailedRiskReward) diagnostics.FailedRiskReward++;
-
-            if (!eligibility.IsEligible)
-                continue;
-
-            if (await _signals.SignalExistsWithinWindowAsync(asset.Symbol, asset.Signal, profile.DuplicateSignalWindowDays, cancellationToken))
-            {
-                diagnostics.SkippedDuplicateToday++;
-                continue;
-            }
-
-            diagnostics.PassedAll++;
-
-            var snapshot = new SignalSnapshot
-            {
-                Symbol = asset.Symbol,
-                Price = asset.Trend.Close,
-                Score = asset.OpportunityScore,
-                Signal = asset.Signal,
-                PreviousScore = asset.PreviousScore,
-                TakeProfit = asset.Risk.Resistance,
-                StopLoss = asset.Risk.Support,
-                Profile = profile.Name,
-                MarketRegime = marketRegime,
-
-                Rsi = asset.Trend.Rsi,
-                Adx = asset.Trend.Adx,
-                AtrPercent = asset.Trend.AtrPercent,
-                EmaDistanceAtr = asset.Setup.EmaDistanceAtr,
-                SwingUsageAtr = asset.Setup.SwingUsageAtr,
-                VolumeSpike = asset.Volume.Spike,
-                VolumeImbalance = asset.Volume.Imbalance,
-                RelativeStrength = asset.Setup.RelativeStrength,
-                RiskReward = asset.Risk.RiskReward,
-
-                TrendScore = asset.Trend.Score,
-                StructureScore = asset.Structure.Score,
-                VolumeScore = asset.Volume.Score,
-                CandleScore = asset.Candle.Score,
-                SetupScore = asset.Setup.Score,
-                MomentumScore = asset.Trend.MomentumScore,
-                VolatilityScore = asset.Trend.VolatilityScore,
-                TrendStrengthScore = asset.Trend.TrendStrengthScore,
-
-                PatternName = asset.Candle.PatternName,
-                SmartMoneyLabel = asset.Structure.SmartMoneyLabel,
-                BreakoutSource = asset.Setup.IsBreakout ? "Clássico" :
-                                  asset.Setup.IsShortTermBreakout ? "Curto Prazo" :
-                                  asset.Setup.RelativeStrength >= ScannerSettings.MinRelativeStrengthPercent ? "Força Rel." : "",
-                IsBullTrap = asset.Structure.IsBullTrap,
-                IsBearTrap = asset.Structure.IsBearTrap
-            };
-
-            await _signals.InsertSignalAsync(snapshot, cancellationToken);
+            candles = await _marketData.GetCandlesAsync(symbol, profile.CandleInterval, 300, cancellationToken);
+        }
+        catch
+        {
+            return null;
         }
 
-        return diagnostics;
+        if (candles.Count < 200)
+            return null;
+
+        var btcDailyCandles = await _marketData.GetCandlesAsync("BTCUSDT", "1d", 300, cancellationToken);
+        decimal btcEma200 = EmaIndicator.Calculate(btcDailyCandles, 200)[^1] ?? 0;
+        string marketRegime = MarketRegimeIndicator.Calculate(btcDailyCandles[^1].Close, btcEma200);
+
+        var btcCandles = await _marketData.GetCandlesAsync("BTCUSDT", profile.CandleInterval, 300, cancellationToken);
+
+        var favoriteSymbols = await _watchlist.GetAllAsync(cancellationToken);
+        var favoriteSet = new HashSet<string>(favoriteSymbols, StringComparer.OrdinalIgnoreCase);
+
+        var analysis = _assetAnalyzer.Analyze(symbol, candles, btcCandles, profile);
+
+        return AssetScoreFactory.Create(analysis, marketRegime, favoriteSet);
     }
 }
-    

@@ -8,4 +8,7 @@ public sealed class ScenarioResult
     public required decimal TotalReturnPercent { get; init; }
     public required decimal MaxDrawdownPercent { get; init; }
     public required decimal ProfitFactor { get; init; }
+    public required decimal AvgRiskRewardAtEntry { get; init; }
+    public required double BreakEvenWinRate { get; init; }
+    public required double Edge { get; init; }
 }

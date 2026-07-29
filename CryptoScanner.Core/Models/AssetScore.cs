@@ -36,6 +36,7 @@ public sealed class AssetScore
     public bool IsBullTrap { get; init; }
     public bool IsBearTrap { get; init; }
     public bool IsEligible { get; init; }
+    public bool IsFavorite { get; set; }
     public string CloseFormatted => Close >= 1 ? Close.ToString("N2") : Close.ToString("N8");
     public string Signal => OpportunityScore >= 70 ? "COMPRA+" :
                         OpportunityScore >= 55 ? "COMPRA" :
