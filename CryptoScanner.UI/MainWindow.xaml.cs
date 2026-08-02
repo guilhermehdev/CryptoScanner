@@ -12,11 +12,13 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Forms = System.Windows.Forms;
 using MessageBox = System.Windows.MessageBox;
 using CheckBox = System.Windows.Controls.CheckBox;
+using Brushes = System.Windows.Media.Brushes;
 
 namespace CryptoScanner.UI;
 
@@ -25,6 +27,8 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _timer = new();
     private readonly ScannerService _scanner;
     private readonly IWatchlistRepository _watchlistRepository;
+    private readonly ISimulatedTradeRepository _simulatedTradeRepository;
+    private readonly BinanceExchangeService _priceCheckService = new();
     private readonly IAlertSettingsRepository _alertSettingsRepository;
     private bool _isScanning;
     private bool _isWindowLoaded;
@@ -39,6 +43,7 @@ public partial class MainWindow : Window
 
         var databasePath = GetDatabasePath();
         _watchlistRepository = new SqliteWatchlistRepository(databasePath);
+        _simulatedTradeRepository = new SqliteSimulatedTradeRepository(databasePath);
         _alertSettingsRepository = new SqliteAlertSettingsRepository(databasePath);
 
         _scanner = new ScannerService(
@@ -126,6 +131,7 @@ public partial class MainWindow : Window
             _lastRanking = result.Ranking;
             ApplyRankingFilter();
             await DispatchAlertsAsync(result.NewSignals);
+            await EvaluateSimulatedTradesAsync();
             dgHistory.ItemsSource = result.History;
             txtWinRate.Text = $"Win Rate: {result.WinRate:F1}%";
             txtAvgReturn.Text = $"Retorno Médio: {result.AverageReturn:F2}%";
@@ -149,6 +155,7 @@ public partial class MainWindow : Window
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         _isWindowLoaded = true;
+        await LoadSimulatedTradesAsync();
         await RunScannerAsync();
     }
 
@@ -187,7 +194,11 @@ public partial class MainWindow : Window
 
     private void BtnFullBacktest_Click(object sender, RoutedEventArgs e)
     {
-        var window = new BacktestWindow(new BinanceExchangeService(), new AssetAnalyzer())
+        var databasePath = GetDatabasePath();
+        var cacheRepository = new SqliteCandleCacheRepository(databasePath);
+        var cachingMarketData = new CachingMarketDataService(new BinanceExchangeService(), cacheRepository);
+
+        var window = new BacktestWindow(cachingMarketData, new AssetAnalyzer(), databasePath)
         {
             Owner = this
         };
@@ -301,6 +312,163 @@ public partial class MainWindow : Window
         }
     }
 
+    private void BtnSimulateTrade_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button button || button.DataContext is not AssetScore asset)
+            return;
+
+        var window = new SimulateTradeWindow(_simulatedTradeRepository, asset, _currentProfile.Name)
+        {
+            Owner = this
+        };
+
+        window.ShowDialog();
+
+        if (window.Saved)
+            _ = LoadSimulatedTradesAsync();
+    }
+
+    private async Task LoadSimulatedTradesAsync()
+    {
+        try
+        {
+            await _simulatedTradeRepository.InitializeAsync();
+            var trades = await _simulatedTradeRepository.GetAllAsync();
+
+            // Pros trades ainda abertos, busca o preço atual e calcula o P/L não-realizado.
+            // Trades fechados não precisam disso — já têm o resultado final gravado.
+            foreach (var trade in trades.Where(t => !t.Closed))
+            {
+                try
+                {
+                    decimal currentPrice = await _priceCheckService.GetCurrentPriceAsync(trade.Symbol);
+                    trade.CurrentPrice = currentPrice;
+                    trade.UnrealizedPnLPercent = ((currentPrice - trade.EntryPrice) / trade.EntryPrice) * 100m;
+                }
+                catch
+                {
+                    // Símbolo com erro momentâneo — deixa em branco, tenta de novo na próxima atualização.
+                }
+            }
+
+            dgSimulatedTrades.ItemsSource = trades;
+
+            int totalClosed = trades.Count(t => t.Closed);
+            int wins = trades.Count(t => t.Closed && t.OutcomePercent > 0);
+            double winRate = totalClosed > 0 ? wins * 100.0 / totalClosed : 0;
+            decimal totalReturn = trades.Where(t => t.Closed).Sum(t => t.OutcomePercent ?? 0);
+            int openCount = trades.Count(t => !t.Closed);
+
+            txtSimulatedSummary.Text = $"Trades: {trades.Count} total ({openCount} em aberto, {totalClosed} fechados)   |   " +
+                                        $"Win Rate: {winRate:F1}%   |   Retorno Acumulado: {totalReturn:F2}%";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Não foi possível carregar o diário de trades.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void DgSimulatedTrades_RowEditEnding(object sender, DataGridRowEditEndingEventArgs e)
+    {
+        if (e.EditAction != DataGridEditAction.Commit)
+            return;
+
+        if (e.Row.Item is not SimulatedTrade trade)
+            return;
+
+        if (trade.Closed)
+        {
+            // Edição em trade já fechado não faz sentido — a próxima atualização do
+            // diário vai reverter visualmente pro valor real gravado no banco.
+            return;
+        }
+
+        try
+        {
+            // WPF já aplicou os valores editados no objeto (TakeProfit/StopLoss/Note)
+            // antes desse evento disparar, então só precisamos persistir.
+            await _simulatedTradeRepository.UpdateTradeDetailsAsync(trade.Id, trade.TakeProfit, trade.StopLoss, trade.Note);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Não foi possível salvar a alteração.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void BtnRefreshSimulatedTrades_Click(object sender, RoutedEventArgs e) => await LoadSimulatedTradesAsync();
+
+    private async void BtnCloseSimulatedTradeRow_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button button || button.DataContext is not SimulatedTrade trade)
+            return;
+
+        if (trade.Closed)
+            return; // já fechado — não deveria nem aparecer o botão, mas por segurança
+
+        var confirm = MessageBox.Show($"Fechar manualmente o trade de {trade.Symbol}?", "CryptoScanner", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (confirm != MessageBoxResult.Yes)
+            return;
+
+        try
+        {
+            decimal currentPrice = await _priceCheckService.GetCurrentPriceAsync(trade.Symbol);
+            decimal outcomePercent = ((currentPrice - trade.EntryPrice) / trade.EntryPrice) * 100m;
+            await _simulatedTradeRepository.CloseTradeAsync(trade.Id, currentPrice, outcomePercent, "Manual");
+            await LoadSimulatedTradesAsync();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Não foi possível fechar o trade.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async Task EvaluateSimulatedTradesAsync()
+    {
+        IReadOnlyList<SimulatedTrade> openTrades;
+        try
+        {
+            await _simulatedTradeRepository.InitializeAsync();
+            openTrades = await _simulatedTradeRepository.GetOpenAsync();
+        }
+        catch
+        {
+            return; // não deixa falha de leitura derrubar o scan
+        }
+
+        if (openTrades.Count == 0)
+            return;
+
+        bool anyClosed = false;
+
+        foreach (var trade in openTrades)
+        {
+            try
+            {
+                decimal currentPrice = await _priceCheckService.GetCurrentPriceAsync(trade.Symbol);
+
+                if (currentPrice <= trade.StopLoss)
+                {
+                    decimal outcome = ((trade.StopLoss - trade.EntryPrice) / trade.EntryPrice) * 100m;
+                    await _simulatedTradeRepository.CloseTradeAsync(trade.Id, trade.StopLoss, outcome, "SL");
+                    anyClosed = true;
+                }
+                else if (currentPrice >= trade.TakeProfit)
+                {
+                    decimal outcome = ((trade.TakeProfit - trade.EntryPrice) / trade.EntryPrice) * 100m;
+                    await _simulatedTradeRepository.CloseTradeAsync(trade.Id, trade.TakeProfit, outcome, "TP");
+                    anyClosed = true;
+                }
+            }
+            catch
+            {
+                // símbolo com erro momentâneo — tenta de novo no próximo scan
+            }
+        }
+
+        if (anyClosed)
+            await LoadSimulatedTradesAsync();
+    }
+
     private void ApplyRankingFilter()
     {
         dgRanking.ItemsSource = chkFavoritesOnly.IsChecked == true
@@ -369,4 +537,25 @@ public partial class MainWindow : Window
 
         return databasePath;
     }
+}
+
+/// <summary>
+/// Colore o P/L: verde quando positivo, vermelho quando negativo, preto quando
+/// zero ou ainda não calculado (trade recém-criado, sem preço atual buscado ainda).
+/// </summary>
+public sealed class PnLColorConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+    {
+        if (value is decimal pnl)
+        {
+            if (pnl > 0) return Brushes.DarkGreen;
+            if (pnl < 0) return Brushes.DarkRed;
+        }
+
+        return Brushes.Black;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        => throw new NotSupportedException();
 }

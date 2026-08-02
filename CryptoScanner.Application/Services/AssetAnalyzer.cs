@@ -11,13 +11,13 @@ namespace CryptoScanner.Application.Services;
 
 public sealed class AssetAnalyzer
 {
-    public AssetAnalysis Analyze(string symbol, List<Candle> candles, List<Candle> btcCandles, ScanProfile profile)
+    public AssetAnalysis Analyze(string symbol, List<Candle> candles, List<Candle> btcCandles, ScanProfile profile, RiskCalculationMode riskMode = RiskCalculationMode.SwingBased)
     {
         var structure = AnalyzeStructure(candles);
         var trend = AnalyzeTrend(candles, structure);
         var volume = AnalyzeVolume(candles);
         var candle = AnalyzeCandle(candles);
-        var risk = AnalyzeRisk(candles, trend.Close);
+        var risk = AnalyzeRisk(candles, trend.Close, trend.Atr, riskMode);
         var setup = AnalyzeSetup(candles, trend, risk, structure, candle, btcCandles, profile);
 
         var analysis = new AssetAnalysis
@@ -174,20 +174,62 @@ public sealed class AssetAnalyzer
         };
     }
 
-    private static RiskAnalysis AnalyzeRisk(List<Candle> candles, decimal close)
+    private static RiskAnalysis AnalyzeRisk(List<Candle> candles, decimal close, decimal atr, RiskCalculationMode mode)
     {
-        decimal resistance = SupportResistanceIndicator.GetResistance(candles);
-        decimal support = SupportResistanceIndicator.GetSupport(candles);
-        decimal resistanceDistance = (resistance - close) / close * 100m;
-        decimal supportDistance = (close - support) / close * 100m;
+        if (mode == RiskCalculationMode.AtrBased)
+        {
+            decimal resistance = close + (atr * ScannerSettings.AtrTargetMultiplier);
+            decimal support = close - (atr * ScannerSettings.AtrStopMultiplier);
+            decimal resistanceDistance = (resistance - close) / close * 100m;
+            decimal supportDistance = (close - support) / close * 100m;
+
+            return new RiskAnalysis
+            {
+                Resistance = resistance,
+                Support = support,
+                ResistanceDistancePercent = resistanceDistance,
+                SupportDistancePercent = supportDistance,
+                RiskReward = supportDistance > 0 ? resistanceDistance / supportDistance : 0,
+                Mode = RiskCalculationMode.AtrBased
+            };
+        }
+
+        if (mode == RiskCalculationMode.SwingWithAtrBuffer)
+        {
+            decimal swingResistance = SupportResistanceIndicator.GetResistance(candles);
+            decimal swingSupport = SupportResistanceIndicator.GetSupport(candles);
+
+            // Alvo continua sendo a resistência estrutural real — só o stop ganha a folga extra.
+            decimal bufferedSupport = swingSupport - (atr * ScannerSettings.AtrBufferMultiplier);
+
+            decimal resistanceDistance = (swingResistance - close) / close * 100m;
+            decimal supportDistance = (close - bufferedSupport) / close * 100m;
+
+            return new RiskAnalysis
+            {
+                Resistance = swingResistance,
+                Support = bufferedSupport,
+                ResistanceDistancePercent = resistanceDistance,
+                SupportDistancePercent = supportDistance,
+                RiskReward = supportDistance > 0 ? resistanceDistance / supportDistance : 0,
+                Mode = RiskCalculationMode.SwingWithAtrBuffer
+            };
+        }
+
+        // Comportamento original (padrão do app ao vivo hoje) — inalterado.
+        decimal originalResistance = SupportResistanceIndicator.GetResistance(candles);
+        decimal originalSupport = SupportResistanceIndicator.GetSupport(candles);
+        decimal originalResistanceDistance = (originalResistance - close) / close * 100m;
+        decimal originalSupportDistance = (close - originalSupport) / close * 100m;
 
         return new RiskAnalysis
         {
-            Resistance = resistance,
-            Support = support,
-            ResistanceDistancePercent = resistanceDistance,
-            SupportDistancePercent = supportDistance,
-            RiskReward = supportDistance > 0 ? resistanceDistance / supportDistance : 0
+            Resistance = originalResistance,
+            Support = originalSupport,
+            ResistanceDistancePercent = originalResistanceDistance,
+            SupportDistancePercent = originalSupportDistance,
+            RiskReward = originalSupportDistance > 0 ? originalResistanceDistance / originalSupportDistance : 0,
+            Mode = RiskCalculationMode.SwingBased
         };
     }
 }

@@ -42,7 +42,14 @@ public static class AssetScoreFactory
         SetupScore = analysis.Setup.Score,
         MomentumScore = analysis.Trend.MomentumScore,
         VolatilityScore = analysis.Trend.VolatilityScore,
-        TrendStrengthScore = analysis.Trend.TrendStrengthScore
+        TrendStrengthScore = analysis.Trend.TrendStrengthScore,
+        Support = analysis.Risk.Support,
+        Rsi = analysis.Trend.Rsi,
+        Adx = analysis.Trend.Adx,
+        AtrPercent = analysis.Trend.AtrPercent,
+        EmaDistanceAtr = analysis.Setup.EmaDistanceAtr,
+        SwingUsageAtr = analysis.Setup.SwingUsageAtr,
+        VolumeImbalance = analysis.Volume.Imbalance,
     };
 
     private static string DetermineBreakoutSource(AssetAnalysis analysis)

@@ -56,7 +56,10 @@ public static class EligibilityEvaluator
             : thresholds.MinVolumeSpike;
         bool failedVolumeSpike = asset.Volume.Spike < volumeSpikeThreshold;
 
-        bool failedResistanceDistance = asset.Risk.ResistanceDistancePercent < thresholds.MinResistanceDistance;
+        decimal effectiveMinResistanceDistance = asset.Risk.Mode == RiskCalculationMode.AtrBased
+     ? thresholds.MinResistanceDistanceAtrMode
+     : thresholds.MinResistanceDistance;
+        bool failedResistanceDistance = asset.Risk.ResistanceDistancePercent < effectiveMinResistanceDistance;
         bool failedDirection = asset.Trend.Direction != "ALTA";
         bool failedRiskReward = asset.Risk.RiskReward < thresholds.MinRiskReward;
         bool failedStopDistance = asset.Risk.SupportDistancePercent < thresholds.MinStopDistancePercent;

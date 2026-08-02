@@ -15,6 +15,10 @@ public static class ScannerSettings
     public const decimal MomentumWeight = 0.05m;
     public const decimal VolatilityWeight = 0.05m;
     public const decimal TrendStrengthWeight = 0.05m;
+    // Modo ATR de cálculo de risco (ainda não usado ao vivo — só testável no backtest).
+    // Convenção comum de mercado: alvo = 2x o stop, garantindo RR=2 fixo por construção.
+    public const decimal AtrStopMultiplier = 1.5m;
+    public const decimal AtrTargetMultiplier = 5.0m;
 
     // Scores
     public const decimal EliteOpportunityScore = 85m;
@@ -54,5 +58,10 @@ public static class ScannerSettings
 
     // Penalidade aplicada ao Opportunity Score conforme o regime de mercado.
     public const decimal BearRegimePenalty = 10m;
+
     public const decimal SidewaysRegimePenalty = 8m;
+
+    // Buffer adicional (em múltiplos de ATR) afastando o stop do nível de suporte óbvio,
+    // evitando ser stopado exatamente onde todo mundo já colocaria ordem de venda.
+    public const decimal AtrBufferMultiplier = 0.5m;
 }

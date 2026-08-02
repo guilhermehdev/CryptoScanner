@@ -5,13 +5,19 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:CryptoScanner.UI"
         mc:Ignorable="d"
-        Title="ScannerCripto" Height="600" Width="1250"
+        Title="ScannerCripto" Height="800" Width="1250"
         WindowStartupLocation="CenterScreen">
+
+    <Window.Resources>
+        <local:PnLColorConverter x:Key="PnLColorConverter"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+    </Window.Resources>
+
     <Grid>
 
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="2*" />
+            <RowDefinition Height="*" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -155,13 +161,24 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
+                <DataGridTemplateColumn Header="" Width="70">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Button Content="Simular"
+                                FontSize="10"
+                                Padding="4,1"
+                                Click="BtnSimulateTrade_Click"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
                 <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" />
                 <DataGridTextColumn Header="Preço" Binding="{Binding CloseFormatted}" />
                 <DataGridTextColumn Header="Score" Binding="{Binding Score, StringFormat=F2}" />
                 <DataGridTextColumn Header="Variação" Binding="{Binding VariationText}" />
                 <DataGridTextColumn Header="Elite" Binding="{Binding EliteText}" />
                 <DataGridTextColumn Header="Resistência" Binding="{Binding Resistance}" />
-                <DataGridTextColumn Header="Via Rompimento" Binding="{Binding BreakoutSource}" />
+                <DataGridTextColumn Header="Rompimento" Binding="{Binding BreakoutSource}" />
                 <DataGridTextColumn Header="Risk/Reward" Binding="{Binding RiskReward, StringFormat=F2}" />
                 <DataGridTextColumn Header="Trend" Binding="{Binding TrendDirection}" />
                 <DataGridTextColumn Header="Sinal" Binding="{Binding Signal}" />
@@ -179,7 +196,7 @@
                     </DataGridCheckBoxColumn.CellStyle>
                 </DataGridCheckBoxColumn>
 
-                <DataGridTextColumn Header="Volume Spike" Binding="{Binding VolumeSpike, StringFormat=F2}" />
+                <DataGridTextColumn Header="Volume" Binding="{Binding VolumeSpike, StringFormat=F2}" />
                 <DataGridTextColumn Header="Res %" Binding="{Binding ResistanceDistance, StringFormat=F1}" />
                 <DataGridTextColumn Header="Sup %" Binding="{Binding SupportDistance, StringFormat=F1}" />
                 <DataGridTextColumn Header="Força Rel." Binding="{Binding RelativeStrengthText}" />
@@ -193,52 +210,131 @@
 
         </DataGrid>
 
-        <DataGrid x:Name="dgHistory"
-              Grid.Row="2"
-              AutoGenerateColumns="False"
-              IsReadOnly="True">
+        <TabControl Grid.Row="2">
 
-            <DataGrid.RowStyle>
-                <Style TargetType="DataGridRow">
+            <TabItem Header="Histórico de Sinais">
+                <DataGrid x:Name="dgHistory"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True">
 
-                    <Style.Triggers>
+                    <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow">
 
-                        <DataTrigger Binding="{Binding ExitReason}"
-                                 Value="TP">
-                            <Setter Property="Background"
-                                Value="LightGreen"/>
-                        </DataTrigger>
+                            <Style.Triggers>
 
-                        <DataTrigger Binding="{Binding ExitReason}"
-                                 Value="SL">
-                            <Setter Property="Background"
-                                Value="LightSalmon"/>
-                        </DataTrigger>
+                                <DataTrigger Binding="{Binding ExitReason}"
+                                         Value="TP">
+                                    <Setter Property="Background"
+                                        Value="LightGreen"/>
+                                </DataTrigger>
 
-                        <DataTrigger Binding="{Binding ExitReason}"
-                                 Value="TIMEOUT">
-                            <Setter Property="Background"
-                                Value="LightGray"/>
-                        </DataTrigger>
+                                <DataTrigger Binding="{Binding ExitReason}"
+                                         Value="SL">
+                                    <Setter Property="Background"
+                                        Value="LightSalmon"/>
+                                </DataTrigger>
 
-                    </Style.Triggers>
+                                <DataTrigger Binding="{Binding ExitReason}"
+                                         Value="TIMEOUT">
+                                    <Setter Property="Background"
+                                        Value="LightGray"/>
+                                </DataTrigger>
 
-                </Style>
-            </DataGrid.RowStyle>
+                            </Style.Triggers>
 
-            <DataGrid.Columns>
+                        </Style>
+                    </DataGrid.RowStyle>
 
-                <DataGridTextColumn Header="Data" Binding="{Binding Timestamp, StringFormat=dd/MM HH:mm}" />
-                <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" />
-                <DataGridTextColumn Header="Entrada" Binding="{Binding Price}" />
-                <DataGridTextColumn Header="Score" Binding="{Binding FinalScore}" />
-                <DataGridTextColumn Header="Resultado %" Binding="{Binding OutcomePercent, StringFormat=F2}" />
-                <DataGridTextColumn Header="Motivo" Binding="{Binding ExitReason}" />
-                <DataGridCheckBoxColumn Header="Avaliado" Binding="{Binding Evaluated}" />
+                    <DataGrid.Columns>
 
-            </DataGrid.Columns>
+                        <DataGridTextColumn Header="Data" Binding="{Binding Timestamp, StringFormat=dd/MM HH:mm}" />
+                        <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" />
+                        <DataGridTextColumn Header="Entrada" Binding="{Binding Price}" />
+                        <DataGridTextColumn Header="Score" Binding="{Binding FinalScore}" />
+                        <DataGridTextColumn Header="Resultado %" Binding="{Binding OutcomePercent, StringFormat=F2}" />
+                        <DataGridTextColumn Header="Motivo" Binding="{Binding ExitReason}" />
+                        <DataGridCheckBoxColumn Header="Avaliado" Binding="{Binding Evaluated}" />
 
-        </DataGrid>
+                    </DataGrid.Columns>
+
+                </DataGrid>
+            </TabItem>
+
+            <TabItem Header="Diário de Trades Simulados">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock x:Name="txtSimulatedSummary" Grid.Row="0" Margin="4" FontWeight="Bold"/>
+
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="4,0,4,4">
+                        <Button Content="Atualizar Diário" Click="BtnRefreshSimulatedTrades_Click" Padding="8,3"/>
+                    </StackPanel>
+
+                    <DataGrid x:Name="dgSimulatedTrades" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="False" RowEditEnding="DgSimulatedTrades_RowEditEnding">
+
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ExitReason}" Value="TP">
+                                        <Setter Property="Background" Value="LightGreen"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding ExitReason}" Value="SL">
+                                        <Setter Property="Background" Value="LightSalmon"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding ExitReason}" Value="Manual">
+                                        <Setter Property="Background" Value="LightGray"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Closed}" Value="False">
+                                        <Setter Property="Background" Value="LightYellow"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.RowStyle>
+
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Header="" Width="30">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="X"
+                                            FontSize="10"
+                                            Padding="4,1"
+                                            Foreground="DarkRed"
+                                            Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisibilityConverter}}"
+                                            Click="BtnCloseSimulatedTradeRow_Click"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Entrada" Binding="{Binding EntryTime, StringFormat=dd/MM HH:mm}" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Preço Entrada" Binding="{Binding EntryPrice}" IsReadOnly="True" />
+                            <DataGridTextColumn Header="TP" Binding="{Binding TakeProfit, Mode=TwoWay}" IsReadOnly="False" />
+                            <DataGridTextColumn Header="SL" Binding="{Binding StopLoss, Mode=TwoWay}" IsReadOnly="False" />
+                            <DataGridTextColumn Header="Score" Binding="{Binding ScoreAtEntry, StringFormat=F2}" IsReadOnly="True" />
+                            <DataGridCheckBoxColumn Header="Aberto?" Binding="{Binding IsOpen, Mode=OneWay}" IsReadOnly="True" />
+                            <DataGridTextColumn Header="P/L Atual %" Binding="{Binding UnrealizedPnLPercent, StringFormat='+0.00;-0.00;0.00'}" IsReadOnly="True">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{Binding UnrealizedPnLPercent, Converter={StaticResource PnLColorConverter}}"/>
+                                        <Setter Property="FontWeight" Value="Bold"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Saída" Binding="{Binding ExitTime, StringFormat=dd/MM HH:mm}" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Resultado %" Binding="{Binding OutcomePercent, StringFormat=F2}" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Motivo" Binding="{Binding ExitReason}" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Observação" Binding="{Binding Note, Mode=TwoWay}" IsReadOnly="False" Width="*" />
+                        </DataGrid.Columns>
+
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+        </TabControl>
+
         <Button Content="Backtest BTC" Click="BtnBacktest_Click" HorizontalAlignment="Left" Height="19" Margin="696,7,0,0" VerticalAlignment="Top" Width="78"/>
         <Button x:Name="btAtualizar" Content="Atualizar" HorizontalAlignment="Left" Height="19" Margin="614,7,0,0" VerticalAlignment="Top" Width="77" RenderTransformOrigin="0.509,0.601" Click="btAtualizar_Click"/>
         <Button Content="Análise" Click="BtnAnalytics_Click" HorizontalAlignment="Left" Height="19" Margin="782,7,0,0" VerticalAlignment="Top" Width="78"/>

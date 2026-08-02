@@ -26,6 +26,8 @@ public sealed class StrategyBacktester
      DateTime endUtc,
      ScanProfile profile,
      EligibilityThresholds? thresholds = null,
+     RiskCalculationMode riskMode = RiskCalculationMode.SwingBased,
+     int? evaluationHoursOverride = null,
      Action<string, double>? onProgress = null,
      CancellationToken cancellationToken = default)
     {
@@ -76,7 +78,7 @@ public sealed class StrategyBacktester
             int completedSoFarCapture = completedSymbols;
 
             var (trades, symbolDiagnostics) = await Task.Run(
-                () => SimulateSymbol(symbol, candles, btcCandles, btcDailyCandles, startUtc, profile, thresholds,
+                () => SimulateSymbol(symbol, candles, btcCandles, btcDailyCandles, startUtc, profile, thresholds, riskMode, evaluationHoursOverride,
                     (message, withinSymbolPercent) =>
                     {
                         double overallPercent = totalSymbols > 0
@@ -90,8 +92,6 @@ public sealed class StrategyBacktester
             MergeDiagnostics(diagnostics, symbolDiagnostics);
             completedSymbols++;
 
-            // Pausa curta entre símbolos para não estourar o limite de requisições da Binance
-            // (cada símbolo dispara várias chamadas paginadas em sequência).
             await Task.Delay(200, cancellationToken);
         }
 
@@ -107,6 +107,8 @@ public sealed class StrategyBacktester
      DateTime startUtc,
      ScanProfile profile,
      EligibilityThresholds? thresholds,
+     RiskCalculationMode riskMode,
+     int? evaluationHoursOverride,
      Action<string, double>? onProgress)
     {
         var trades = new List<BacktestTradeResult>();
@@ -120,7 +122,7 @@ public sealed class StrategyBacktester
 
         int totalToProcess = candles.Count - startIndex;
         const int progressReportInterval = 200;
-
+        int effectiveEvaluationHours = evaluationHoursOverride ?? profile.EvaluationHours;
         int skippedInsufficientData = 0;
 
         for (int i = startIndex; i < candles.Count; i++)
@@ -149,7 +151,7 @@ public sealed class StrategyBacktester
                     openPosition = null;
                     justClosed = true;
                 }
-                else if (currentCandle.OpenTime >= openPosition.EntryTime.AddHours(profile.EvaluationHours))
+                else if (currentCandle.OpenTime >= openPosition.EntryTime.AddHours(effectiveEvaluationHours))
                 {
                     trades.Add(CloseTrade(openPosition, currentCandle.OpenTime, currentCandle.Close, "TIMEOUT"));
                     openPosition = null;
@@ -157,9 +159,6 @@ public sealed class StrategyBacktester
                 }
             }
 
-            // Se a posição estava aberta no início da iteração OU acabou de fechar agora,
-            // não avalia uma entrada nova no MESMO candle — evita reentradas artificiais
-            // idênticas à operação que acabou de ser fechada.
             if (openPosition != null || justClosed)
                 continue;
 
@@ -176,7 +175,7 @@ public sealed class StrategyBacktester
             decimal btcEma200 = EmaIndicator.Calculate(btcDailySoFar, 200)[^1] ?? 0;
             string marketRegime = MarketRegimeIndicator.Calculate(btcDailySoFar[^1].Close, btcEma200);
 
-            var analysis = _assetAnalyzer.Analyze(symbol, candlesSoFar, btcCandlesSoFar, profile);
+            var analysis = _assetAnalyzer.Analyze(symbol, candlesSoFar, btcCandlesSoFar, profile, riskMode);
             var eligibility = EligibilityEvaluator.Evaluate(analysis, marketRegime, thresholds);
 
             diagnostics.TotalAnalyzed++;
@@ -225,6 +224,7 @@ public sealed class StrategyBacktester
         return (trades, diagnostics);
     }
 
+    
     public static void MergeDiagnostics(FilterDiagnostics target, FilterDiagnostics source)
     {
         target.TotalAnalyzed += source.TotalAnalyzed;

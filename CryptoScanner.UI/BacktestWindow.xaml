@@ -52,7 +52,12 @@
             <RadioButton x:Name="rbAuto" Content="Top automático:" GroupName="SymbolMode" VerticalAlignment="Center" Margin="0,0,6,0"/>
             <TextBox x:Name="txtTopN" Width="50" Text="20" VerticalAlignment="Center"/>
             <TextBlock Text="moedas por volume atual" VerticalAlignment="Center" Margin="6,0,0,0" Foreground="Gray" FontSize="11"/>
-            <Button Content="Congelar lista em Manual" Height="22" Padding="8,0" Margin="12,0,0,0" Click="BtnFreezeSymbolList_Click"/>
+            <Button Content="Congelar lista em Manual" Height="22" Padding="8,0" Margin="12,0,20,0" Click="BtnFreezeSymbolList_Click"/>
+
+            <TextBlock Text="Histórico mín. (anos):" VerticalAlignment="Center" Margin="0,0,4,0" Foreground="Gray"/>
+            <TextBox x:Name="txtHistoryYears" Width="35" Text="5" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <Button Content="Congelar com Histórico Garantido" Height="22" Padding="8,0" Margin="0,0,20,0" Click="BtnFreezeWithFullHistory_Click"/>
+            <Button Content="Histórico de Testes" Height="22" Padding="8,0" Click="BtnBacktestHistory_Click"/>
         </StackPanel>
 
         <!-- Limiares (editáveis só para este backtest, não afeta o ScannerSettings real) -->
@@ -62,8 +67,11 @@
             <TextBlock Text="Score mín.:" VerticalAlignment="Center" Margin="0,0,4,0"/>
             <TextBox x:Name="txtMinScore" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
 
-            <TextBlock Text="Dist. Resist. mín. %:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <TextBlock Text="Dist. Resist. mín. Swing %:" VerticalAlignment="Center" Margin="0,0,4,0"/>
             <TextBox x:Name="txtMinResistDistance" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
+
+            <TextBlock Text="Dist. Resist. mín. ATR %:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <TextBox x:Name="txtMinResistDistanceAtr" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
 
             <TextBlock Text="Volume Spike mín.:" VerticalAlignment="Center" Margin="0,0,4,0"/>
             <TextBox x:Name="txtMinVolumeSpike" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
@@ -75,13 +83,21 @@
             <TextBox x:Name="txtMinStopDistance" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
 
             <TextBlock Text="Risk/Reward máx.:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-            <TextBox x:Name="txtMaxRiskReward" Width="45" VerticalAlignment="Center"/>
+            <TextBox x:Name="txtMaxRiskReward" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
+
+            <TextBlock Text="Timeout (h, vazio=padrão):" VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <TextBox x:Name="txtEvaluationHoursOverride" Width="55" VerticalAlignment="Center"/>
         </StackPanel>
 
         <!-- Caminho de entrada alternativo (desativado por padrão) -->
         <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,0,0,8">
             <TextBlock Text="Caminho alternativo:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="Bold"/>
-            <CheckBox x:Name="chkPullbackBounce" Content="Caminho A — Repique de Recuo" VerticalAlignment="Center"/>
+            <CheckBox x:Name="chkPullbackBounce" Content="Caminho A — Repique de Recuo" VerticalAlignment="Center" Margin="0,0,24,0"/>
+
+            <TextBlock Text="Cálculo de Risco:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="Bold"/>
+            <RadioButton x:Name="rbRiskSwing" Content="Swing (atual)" GroupName="RiskMode" IsChecked="True" VerticalAlignment="Center" Margin="0,0,12,0"/>
+            <RadioButton x:Name="rbRiskAtr" Content="ATR (novo)" GroupName="RiskMode" VerticalAlignment="Center" Margin="0,0,12,0"/>
+            <RadioButton x:Name="rbRiskSwingBuffer" Content="Swing + Buffer ATR (novo)" GroupName="RiskMode" VerticalAlignment="Center"/>
         </StackPanel>
 
         <!-- Teste definitivo: configuração padrão do app, múltiplos períodos não sobrepostos -->
@@ -95,6 +111,9 @@
             <TextBox x:Name="txtPeriodCount" Width="40" Text="4" VerticalAlignment="Center" Margin="0,0,14,0"/>
 
             <Button x:Name="btnComparePeriods" Content="Rodar Teste Definitivo (Padrão do App)" Height="24" Padding="8,0" Click="BtnComparePeriods_Click"/>
+            <Button x:Name="btnCompareRiskMode" Content="Comparar Swing vs ATR (Definitivo)" Height="24" Padding="8,0" Margin="0,0,8,0" Click="BtnCompareRiskMode_Click"/>
+            <Button x:Name="btnCompareAtrDistance" Content="Comparar Dist. Resist. (ATR)" Height="24" Padding="8,0" Margin="0,0,8,0" Click="BtnCompareAtrDistanceScenarios_Click"/>
+            <Button x:Name="btnCompareTimeout" Content="Comparar Cenários (Timeout)" Height="24" Padding="8,0" Click="BtnCompareTimeoutScenarios_Click"/>
         </StackPanel>
 
         <TextBlock Grid.Row="5"
@@ -129,11 +148,14 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <Border Grid.Row="0" Background="WhiteSmoke" BorderBrush="LightGray" BorderThickness="1" Padding="10" Margin="0,0,0,10">
-                <TextBlock x:Name="txtSummaryResult" FontWeight="Bold" TextWrapping="Wrap"/>
+            <Border Grid.Row="0" Background="WhiteSmoke" BorderBrush="LightGray" BorderThickness="1" Padding="10" Margin="0,0,0,10" MaxHeight="180">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <TextBlock x:Name="txtSummaryResult" FontWeight="Bold" TextWrapping="Wrap"/>
+                </ScrollViewer>
             </Border>
 
             <DataGrid x:Name="dgComparison"
@@ -164,7 +186,15 @@
                 </DataGrid.Columns>
             </DataGrid>
 
-            <DataGrid x:Name="dgTrades" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True">
+            <Border Grid.Row="2" BorderBrush="LightGray" BorderThickness="1" Background="White" Margin="0,0,0,10">
+                <StackPanel>
+                    <TextBlock Text="Curva de Retorno Acumulado (por ordem cronológica de saída)"
+                           FontWeight="Bold" FontSize="11" Margin="6,4,0,0"/>
+                    <Canvas x:Name="cnvEquityCurve" Height="170" Margin="4" SizeChanged="CnvEquityCurve_SizeChanged"/>
+                </StackPanel>
+            </Border>
+
+            <DataGrid x:Name="dgTrades" Grid.Row="3" AutoGenerateColumns="False" IsReadOnly="True">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" Width="90"/>
                     <DataGridTextColumn Header="Entrada" Binding="{Binding EntryTime, StringFormat=dd/MM/yy HH:mm}" Width="120"/>

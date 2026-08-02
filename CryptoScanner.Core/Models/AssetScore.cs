@@ -9,6 +9,7 @@ public sealed class AssetScore
     public decimal PreviousScore { get; init; }
     public decimal ScoreVariation { get; init; }
     public decimal Resistance { get; init; }
+    public decimal Support { get; init; }
     public decimal VolumeSpike { get; init; }
     public decimal ResistanceDistance { get; init; }
     public decimal SupportDistance { get; init; }
@@ -23,7 +24,12 @@ public sealed class AssetScore
     public string PatternName { get; init; } = "";
     public string BreakoutSource { get; init; } = "";
     public string MarketRegime { get; init; } = "";
-
+    public decimal Rsi { get; init; }
+    public decimal Adx { get; init; }
+    public decimal AtrPercent { get; init; }
+    public decimal EmaDistanceAtr { get; init; }
+    public decimal SwingUsageAtr { get; init; }
+    public decimal VolumeImbalance { get; init; }
     public int TrendScore { get; init; }
     public int StructureScore { get; init; }
     public int VolumeScore { get; init; }

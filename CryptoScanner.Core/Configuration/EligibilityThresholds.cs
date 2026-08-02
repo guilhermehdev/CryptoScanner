@@ -8,12 +8,14 @@ public sealed class EligibilityThresholds
     public required decimal MinVolumeSpike { get; init; }
     public required decimal DefensiveMinVolumeSpike { get; init; }
     public required decimal MinResistanceDistance { get; init; }
+
+    // Limiar separado pro modo ATR — Res% aqui mede volatilidade (ATR% × multiplicador),
+    // não distância estrutural até um topo real. Precisa de escala diferente.
+    public required decimal MinResistanceDistanceAtrMode { get; init; }
+
     public required decimal MinRiskReward { get; init; }
     public required decimal MinRelativeStrengthPercent { get; init; }
     public required decimal MinStopDistancePercent { get; init; }
-
-    // Teto de RR — valores muito altos podem indicar resistência mal-calibrada,
-    // não necessariamente uma oportunidade melhor. Default = sem teto (comportamento atual).
     public required decimal MaxRiskReward { get; init; }
     public required bool EnablePullbackBounce { get; init; }
 
@@ -25,6 +27,7 @@ public sealed class EligibilityThresholds
         MinVolumeSpike = ScannerSettings.MinVolumeSpike,
         DefensiveMinVolumeSpike = ScannerSettings.DefensiveMinVolumeSpike,
         MinResistanceDistance = ScannerSettings.MinResistanceDistance,
+        MinResistanceDistanceAtrMode = ScannerSettings.MinResistanceDistance, // provisório — modo ATR ainda não é usado ao vivo
         MinRiskReward = ScannerSettings.MinRiskReward,
         MinRelativeStrengthPercent = ScannerSettings.MinRelativeStrengthPercent,
         MinStopDistancePercent = 0m,
