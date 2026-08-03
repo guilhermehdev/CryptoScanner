@@ -2,6 +2,7 @@
 using CryptoScanner.Core.Configuration;
 using CryptoScanner.Core.Contracts;
 using CryptoScanner.Core.Models;
+using CryptoScanner.Core.Models.Analysis;
 using CryptoScanner.Core.Utilities;
 using CryptoScanner.Indicators.Indicators;
 
@@ -19,6 +20,8 @@ public sealed class StrategyBacktester
         _marketData = marketData;
         _assetAnalyzer = assetAnalyzer;
     }
+
+    private const int MaxConcurrentSymbols = 6;
 
     public async Task<BacktestSummary> RunAsync(
      IReadOnlyList<string> symbols,
@@ -44,72 +47,82 @@ public sealed class StrategyBacktester
         var diagnostics = new FilterDiagnostics();
         var skippedSymbols = new List<string>();
 
+        var tradesLock = new object();
+        var diagnosticsLock = new object();
+        var progressLock = new object();
+
         int totalSymbols = symbols.Count;
         int completedSymbols = 0;
-        int index = 0;
 
-        foreach (var symbol in symbols)
+        using var throttle = new SemaphoreSlim(MaxConcurrentSymbols);
+
+        var tasks = symbols.Select(async symbol =>
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            index++;
-
-            double baseProgress = totalSymbols > 0 ? completedSymbols * 100.0 / totalSymbols : 0;
-            onProgress?.Invoke($"Testando {symbol} ({index}/{totalSymbols})...", baseProgress);
-
-            List<Candle> candles;
+            await throttle.WaitAsync(cancellationToken);
             try
             {
-                candles = await _marketData.GetHistoricalCandlesAsync(symbol, profile.CandleInterval, fetchStart, endUtc, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+
+                List<Candle> candles;
+                try
+                {
+                    candles = await _marketData.GetHistoricalCandlesAsync(symbol, profile.CandleInterval, fetchStart, endUtc, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    lock (tradesLock) { skippedSymbols.Add($"{symbol} (erro ao buscar dados: {ex.Message})"); }
+                    return;
+                }
+                finally
+                {
+                    // Pausa por moeda individual, mesmo em paralelo — mitiga rate limit da Binance
+                    // sem exigir que tudo rode em sequência única.
+                    await Task.Delay(200, cancellationToken);
+                }
+
+                if (candles.Count < LookbackCandles)
+                {
+                    lock (tradesLock) { skippedSymbols.Add($"{symbol} (histórico insuficiente: {candles.Count} candles)"); }
+                    return;
+                }
+
+                var (trades, symbolDiagnostics) = await Task.Run(
+                    () => SimulateSymbol(symbol, candles, btcCandles, btcDailyCandles, startUtc, profile, thresholds, riskMode, evaluationHoursOverride,
+                        (message, _) => { }),
+                    cancellationToken);
+
+                lock (tradesLock) { allTrades.AddRange(trades); }
+                lock (diagnosticsLock) { MergeDiagnostics(diagnostics, symbolDiagnostics); }
             }
-            catch (Exception ex)
+            finally
             {
-                skippedSymbols.Add($"{symbol} (erro ao buscar dados: {ex.Message})");
-                completedSymbols++;
-                continue;
+                int done;
+                lock (progressLock) { done = ++completedSymbols; }
+
+                double overallPercent = totalSymbols > 0 ? done * 100.0 / totalSymbols : 0;
+                onProgress?.Invoke($"Concluídas {done}/{totalSymbols} moedas...", overallPercent);
+
+                throttle.Release();
             }
+        });
 
-            if (candles.Count < LookbackCandles)
-            {
-                skippedSymbols.Add($"{symbol} (histórico insuficiente: {candles.Count} candles)");
-                completedSymbols++;
-                continue;
-            }
-
-            int completedSoFarCapture = completedSymbols;
-
-            var (trades, symbolDiagnostics) = await Task.Run(
-                () => SimulateSymbol(symbol, candles, btcCandles, btcDailyCandles, startUtc, profile, thresholds, riskMode, evaluationHoursOverride,
-                    (message, withinSymbolPercent) =>
-                    {
-                        double overallPercent = totalSymbols > 0
-                            ? (completedSoFarCapture + withinSymbolPercent / 100.0) * 100.0 / totalSymbols
-                            : 0;
-                        onProgress?.Invoke(message, overallPercent);
-                    }),
-                cancellationToken);
-
-            allTrades.AddRange(trades);
-            MergeDiagnostics(diagnostics, symbolDiagnostics);
-            completedSymbols++;
-
-            await Task.Delay(200, cancellationToken);
-        }
+        await Task.WhenAll(tasks);
 
         onProgress?.Invoke("Calculando resumo...", 100);
         return BuildSummary(allTrades, diagnostics, skippedSymbols);
     }
 
     private (List<BacktestTradeResult> Trades, FilterDiagnostics Diagnostics) SimulateSymbol(
-     string symbol,
-     List<Candle> candles,
-     List<Candle> btcCandles,
-     List<Candle> btcDailyCandles,
-     DateTime startUtc,
-     ScanProfile profile,
-     EligibilityThresholds? thresholds,
-     RiskCalculationMode riskMode,
-     int? evaluationHoursOverride,
-     Action<string, double>? onProgress)
+        string symbol,
+        List<Candle> candles,
+        List<Candle> btcCandles,
+        List<Candle> btcDailyCandles,
+        DateTime startUtc,
+        ScanProfile profile,
+        EligibilityThresholds? thresholds,
+        RiskCalculationMode riskMode,
+        int? evaluationHoursOverride,
+        Action<string, double>? onProgress)
     {
         var trades = new List<BacktestTradeResult>();
         var diagnostics = new FilterDiagnostics();
@@ -122,8 +135,15 @@ public sealed class StrategyBacktester
 
         int totalToProcess = candles.Count - startIndex;
         const int progressReportInterval = 200;
-        int effectiveEvaluationHours = evaluationHoursOverride ?? profile.EvaluationHours;
+
         int skippedInsufficientData = 0;
+        int effectiveEvaluationHours = evaluationHoursOverride ?? profile.EvaluationHours;
+
+        // Ponteiros que só avançam — como as três listas estão em ordem cronológica,
+        // dá pra manter a janela dos últimos 300 candles de cada uma sem reescanear
+        // do início a cada iteração (o que tornava o teste quadrático em vez de linear).
+        int btcIndex = 0;
+        int btcDailyIndex = 0;
 
         for (int i = startIndex; i < candles.Count; i++)
         {
@@ -162,9 +182,24 @@ public sealed class StrategyBacktester
             if (openPosition != null || justClosed)
                 continue;
 
-            var candlesSoFar = candles.GetRange(0, i + 1);
-            var btcCandlesSoFar = btcCandles.Where(c => c.OpenTime <= currentCandle.OpenTime).ToList();
-            var btcDailySoFar = btcDailyCandles.Where(c => c.OpenTime <= currentCandle.OpenTime).ToList();
+            // Janela deslizante dos últimos até 300 candles do próprio ativo — mesmo lookback
+            // que o scanner ao vivo usa (nunca vê mais que 300 candles de contexto real).
+            int assetWindowStart = Math.Max(0, i + 1 - LookbackCandles);
+            var candlesSoFar = candles.GetRange(assetWindowStart, i + 1 - assetWindowStart);
+
+            // Avança os ponteiros do BTC até o instante atual, sem reescanear do início —
+            // seguro porque candles[] e btcCandles[]/btcDailyCandles[] estão em ordem crescente de tempo.
+            while (btcIndex < btcCandles.Count && btcCandles[btcIndex].OpenTime <= currentCandle.OpenTime)
+                btcIndex++;
+
+            while (btcDailyIndex < btcDailyCandles.Count && btcDailyCandles[btcDailyIndex].OpenTime <= currentCandle.OpenTime)
+                btcDailyIndex++;
+
+            int btcWindowStart = Math.Max(0, btcIndex - LookbackCandles);
+            var btcCandlesSoFar = btcCandles.GetRange(btcWindowStart, btcIndex - btcWindowStart);
+
+            int btcDailyWindowStart = Math.Max(0, btcDailyIndex - LookbackCandles);
+            var btcDailySoFar = btcDailyCandles.GetRange(btcDailyWindowStart, btcDailyIndex - btcDailyWindowStart);
 
             if (btcCandlesSoFar.Count < 60 || btcDailySoFar.Count < 200)
             {
@@ -176,6 +211,91 @@ public sealed class StrategyBacktester
             string marketRegime = MarketRegimeIndicator.Calculate(btcDailySoFar[^1].Close, btcEma200);
 
             var analysis = _assetAnalyzer.Analyze(symbol, candlesSoFar, btcCandlesSoFar, profile, riskMode);
+
+            if (thresholds?.EnableBollingerScoring == true)
+            {
+                var (bbMiddle, bbUpper, bbLower, bbWidth) = BollingerBandsIndicator.Calculate(candlesSoFar);
+
+                var scoringContext = new ScoringContext
+                {
+                    Candles = candlesSoFar,
+                    Trend = analysis.Trend,
+                    Volume = analysis.Volume,
+                    Structure = analysis.Structure,
+                    Risk = analysis.Risk,
+                    BollingerMiddle = bbMiddle,
+                    BollingerUpper = bbUpper,
+                    BollingerLower = bbLower,
+                    BollingerBandWidth = bbWidth,
+                    AtrPercentSeries = new List<decimal?>(),
+                    AdxSlope = null,
+                    CandleRangePercentSeries = new List<decimal?>()
+                };
+
+                var scoringEngine = new ScoringEngine(new List<IScoringRule> { new BandWidthPercentileRule() });
+                var (adjustment, _) = scoringEngine.Evaluate(scoringContext);
+
+                analysis.OpportunityScore += adjustment;
+            }
+
+            if (thresholds?.EnableVolatilityScoringPhaseB == true)
+            {
+                var (bbMiddle, bbUpper, bbLower, bbWidth) = BollingerBandsIndicator.Calculate(candlesSoFar);
+
+                var atrAbsoluteSeries = AtrSeriesCalculator.Calculate(candlesSoFar);
+                var atrPercentSeries = atrAbsoluteSeries
+                    .Select((v, i) => v.HasValue && candlesSoFar[i].Close != 0
+                        ? (decimal?)(v.Value / candlesSoFar[i].Close * 100m)
+                        : null)
+                    .ToList();
+
+                // ADX só precisa de 2 pontos (agora e N candles atrás) pra medir inclinação —
+                // chama o indicador existente (que só retorna o valor mais recente) só duas
+                // vezes, não recalcula uma série inteira candle a candle.
+                const int adxSlopeLookback = 5;
+                decimal? adxSlope = null;
+                if (candlesSoFar.Count > adxSlopeLookback + 15) // margem de segurança pro período do ADX
+                {
+                    decimal currentAdx = AdxIndicator.Calculate(candlesSoFar);
+                    var pastCandles = candlesSoFar.GetRange(0, candlesSoFar.Count - adxSlopeLookback);
+                    decimal pastAdx = AdxIndicator.Calculate(pastCandles);
+                    adxSlope = currentAdx - pastAdx;
+                }
+
+                var candleRangePercentSeries = candlesSoFar
+                    .Select(c => c.Close != 0 ? (decimal?)((c.High - c.Low) / c.Close * 100m) : null)
+                    .ToList();
+
+                var phaseBContext = new ScoringContext
+                {
+                    Candles = candlesSoFar,
+                    Trend = analysis.Trend,
+                    Volume = analysis.Volume,
+                    Structure = analysis.Structure,
+                    Risk = analysis.Risk,
+                    BollingerMiddle = bbMiddle,
+                    BollingerUpper = bbUpper,
+                    BollingerLower = bbLower,
+                    BollingerBandWidth = bbWidth,
+                    AtrPercentSeries = atrPercentSeries,
+                    AdxSlope = adxSlope,
+                    CandleRangePercentSeries = candleRangePercentSeries
+                };
+
+                var phaseBEngine = new ScoringEngine(new List<IScoringRule>
+                {
+                    new AtrLevelRule(),
+                    new AtrSlopeRule(),
+                    new BandExpansionRule(),
+                    new CandleRangeRule(),
+                    new StructureDistanceRule(),
+                    new LiquidityRule()
+                });
+
+                var (phaseBAdjustment, _) = phaseBEngine.Evaluate(phaseBContext);
+                analysis.OpportunityScore += phaseBAdjustment;
+            }
+
             var eligibility = EligibilityEvaluator.Evaluate(analysis, marketRegime, thresholds);
 
             diagnostics.TotalAnalyzed++;
@@ -218,13 +338,22 @@ public sealed class StrategyBacktester
             };
         }
 
+        // Se os dados acabaram com uma posição ainda aberta (nunca bateu TP, SL nem timeout),
+        // fecha ela a mercado no último candle disponível — sem isso, o trade some silenciosamente
+        // do resultado, mesmo que estivesse com lucro no momento em que o teste terminou.
+        if (openPosition != null)
+        {
+            var lastCandle = candles[^1];
+            trades.Add(CloseTrade(openPosition, lastCandle.OpenTime, lastCandle.Close, "EOT"));
+        }
+
         if (skippedInsufficientData > 0 && diagnostics.TotalAnalyzed == 0)
             System.Diagnostics.Debug.WriteLine($"[Backtest] {symbol}: todas as {skippedInsufficientData} janelas puladas por falta de candles de BTC suficientes.");
 
         return (trades, diagnostics);
     }
 
-    
+
     public static void MergeDiagnostics(FilterDiagnostics target, FilterDiagnostics source)
     {
         target.TotalAnalyzed += source.TotalAnalyzed;

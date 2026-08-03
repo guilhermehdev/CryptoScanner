@@ -21,7 +21,7 @@ public sealed class BacktestRunResult
     public decimal MaxRiskReward { get; set; }
     public bool EnablePullbackBounce { get; set; }
     public int? EvaluationHoursOverride { get; set; }
-
+    public bool EnableBollingerScoring { get; set; }
     public int TotalTrades { get; set; }
     public double WinRate { get; set; }
     public decimal TotalReturnPercent { get; set; }
@@ -30,4 +30,5 @@ public sealed class BacktestRunResult
     public decimal AvgRiskRewardAtEntry { get; set; }
     public double BreakEvenWinRate { get; set; }
     public double Edge { get; set; }
+    public bool EnableVolatilityScoringPhaseB { get; set; }
 }

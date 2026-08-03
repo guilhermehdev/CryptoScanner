@@ -1,5 +1,4 @@
 using CryptoScanner.Application.Services;
-using CryptoScanner.Backtest.Services;
 using CryptoScanner.Core.Configuration;
 using CryptoScanner.Core.Contracts;
 using CryptoScanner.Core.Models;
@@ -28,6 +27,7 @@ public partial class MainWindow : Window
     private readonly ScannerService _scanner;
     private readonly IWatchlistRepository _watchlistRepository;
     private readonly ISimulatedTradeRepository _simulatedTradeRepository;
+    private readonly IBacktestRunResultRepository _runResultRepository;
     private readonly BinanceExchangeService _priceCheckService = new();
     private readonly IAlertSettingsRepository _alertSettingsRepository;
     private bool _isScanning;
@@ -44,6 +44,7 @@ public partial class MainWindow : Window
         var databasePath = GetDatabasePath();
         _watchlistRepository = new SqliteWatchlistRepository(databasePath);
         _simulatedTradeRepository = new SqliteSimulatedTradeRepository(databasePath);
+        _runResultRepository = new SqliteBacktestRunResultRepository(databasePath);
         _alertSettingsRepository = new SqliteAlertSettingsRepository(databasePath);
 
         _scanner = new ScannerService(
@@ -175,12 +176,13 @@ public partial class MainWindow : Window
         await RunScannerAsync();
     }
 
-    private async void BtnBacktest_Click(object sender, RoutedEventArgs e)
+    private void BtnBacktestHistory_Click(object sender, RoutedEventArgs e)
     {
-        var service = new BinanceExchangeService();
-        var candles = await service.GetCandlesAsync("BTCUSDT", "1h", 1000);
-        var result = new BacktestEngine().Run(candles);
-        MessageBox.Show($"Trades: {result.Trades}\n\nWinRate: {result.WinRate:F2}%\n\nLucro: {result.NetProfit:F2}%");
+        var window = new BacktestHistoryWindow(_runResultRepository)
+        {
+            Owner = this
+        };
+        window.Show();
     }
 
     private void BtnAnalytics_Click(object sender, RoutedEventArgs e)

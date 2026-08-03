@@ -7,9 +7,7 @@ namespace CryptoScanner.Indicators.Indicators;
 
 public static class AtrIndicator
 {
-    public static decimal Calculate(
-        List<Candle> candles,
-        int period = 14)
+    public static decimal Calculate(List<Candle> candles, int period = 14)
     {
         if (candles.Count < period + 1)
             return 0;

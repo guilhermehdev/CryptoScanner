@@ -7,13 +7,18 @@
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0" Margin="0,0,0,10" FontSize="11" Foreground="Gray" TextWrapping="Wrap"
-                   Text="Todo teste rodado no Backtest Completo é salvo automaticamente aqui — configurações idênticas não duplicam. Clique nos cabeçalhos das colunas para ordenar."/>
+                   Text="Todo teste rodado no Backtest Completo é salvo automaticamente aqui — configurações idênticas não duplicam. Clique nos cabeçalhos das colunas para ordenar. Segure Ctrl/Shift para selecionar várias linhas."/>
 
-        <DataGrid x:Name="dgResults" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True">
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
+            <Button Content="Exportar TXT (selecionados, ou todos se nenhum selecionado)" Padding="8,4" Click="BtnExportTxt_Click"/>
+        </StackPanel>
+
+        <DataGrid x:Name="dgResults" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True">
             <DataGrid.Columns>
                 <DataGridTemplateColumn Header="" Width="30">
                     <DataGridTemplateColumn.CellTemplate>
@@ -32,6 +37,8 @@
                 <DataGridTextColumn Header="Score min." Binding="{Binding MinScore, StringFormat=F0}" Width="70"/>
                 <DataGridTextColumn Header="RR min." Binding="{Binding MinRiskReward, StringFormat=F1}" Width="60"/>
                 <DataGridTextColumn Header="RR max." Binding="{Binding MaxRiskReward, StringFormat=F0}" Width="60"/>
+                <DataGridCheckBoxColumn Header="Bollinger" Binding="{Binding EnableBollingerScoring}" Width="65"/>
+                <DataGridCheckBoxColumn Header="Vol. Fase B" Binding="{Binding EnableVolatilityScoringPhaseB}" Width="75"/>
                 <DataGridTextColumn Header="Timeout(h)" Binding="{Binding EvaluationHoursOverride}" Width="80"/>
                 <DataGridTextColumn Header="Operações" Binding="{Binding TotalTrades}" Width="80"/>
                 <DataGridTextColumn Header="Win Rate %" Binding="{Binding WinRate, StringFormat=F1}" Width="80"/>

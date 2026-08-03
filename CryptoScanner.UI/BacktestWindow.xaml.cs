@@ -132,6 +132,8 @@ public partial class BacktestWindow : Window
         sb.Append(thresholds.MinStopDistancePercent).Append('|');
         sb.Append(thresholds.MaxRiskReward).Append('|');
         sb.Append(thresholds.EnablePullbackBounce).Append('|');
+        sb.Append(thresholds.EnableBollingerScoring).Append('|');
+        sb.Append(thresholds.EnableVolatilityScoringPhaseB).Append('|');
         sb.Append(evaluationHoursOverride?.ToString() ?? "default");
 
         byte[] hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()));
@@ -170,6 +172,8 @@ public partial class BacktestWindow : Window
                 MinStopDistancePercent = thresholds.MinStopDistancePercent,
                 MaxRiskReward = thresholds.MaxRiskReward,
                 EnablePullbackBounce = thresholds.EnablePullbackBounce,
+                EnableBollingerScoring = thresholds.EnableBollingerScoring,
+                EnableVolatilityScoringPhaseB = thresholds.EnableVolatilityScoringPhaseB,
                 EvaluationHoursOverride = evaluationHoursOverride,
                 TotalTrades = summary.TotalTrades,
                 WinRate = summary.WinRate,
@@ -214,7 +218,9 @@ public partial class BacktestWindow : Window
             MinRelativeStrengthPercent = EligibilityThresholds.Default.MinRelativeStrengthPercent,
             MinStopDistancePercent = EligibilityThresholds.Default.MinStopDistancePercent,
             MaxRiskReward = EligibilityThresholds.Default.MaxRiskReward,
-            EnablePullbackBounce = EligibilityThresholds.Default.EnablePullbackBounce
+            EnablePullbackBounce = EligibilityThresholds.Default.EnablePullbackBounce,
+            EnableBollingerScoring = EligibilityThresholds.Default.EnableBollingerScoring,
+            EnableVolatilityScoringPhaseB = EligibilityThresholds.Default.EnableVolatilityScoringPhaseB
         };
     }
 
@@ -298,7 +304,9 @@ public partial class BacktestWindow : Window
             MinRelativeStrengthPercent = ScannerSettings.MinRelativeStrengthPercent,
             MinStopDistancePercent = minStopDistance,
             MaxRiskReward = maxRiskReward,
-            EnablePullbackBounce = chkPullbackBounce.IsChecked == true
+            EnablePullbackBounce = false, // Caminho A escondido da tela — lógica preservada, mas sempre desligada por padrão
+            EnableBollingerScoring = chkEnableBollingerScoring.IsChecked == true,
+            EnableVolatilityScoringPhaseB = chkEnableVolatilityScoringPhaseB.IsChecked == true
         };
 
         return true;
@@ -457,7 +465,9 @@ public partial class BacktestWindow : Window
                     MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
                     MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
                     MaxRiskReward = baseThresholds.MaxRiskReward,
-                    EnablePullbackBounce = baseThresholds.EnablePullbackBounce
+                    EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
+                    EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
+                    EnableVolatilityScoringPhaseB = baseThresholds.EnableVolatilityScoringPhaseB
                 };
 
                 var summary = await backtester.RunAsync(
@@ -569,7 +579,9 @@ public partial class BacktestWindow : Window
                     MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
                     MinStopDistancePercent = stopMin,
                     MaxRiskReward = baseThresholds.MaxRiskReward,
-                    EnablePullbackBounce = baseThresholds.EnablePullbackBounce
+                    EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
+                    EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
+                    EnableVolatilityScoringPhaseB = baseThresholds.EnableVolatilityScoringPhaseB
                 };
 
                 var summary = await backtester.RunAsync(
@@ -681,7 +693,9 @@ public partial class BacktestWindow : Window
                     MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
                     MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
                     MaxRiskReward = maxRR,
-                    EnablePullbackBounce = baseThresholds.EnablePullbackBounce
+                    EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
+                    EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
+                    EnableVolatilityScoringPhaseB = baseThresholds.EnableVolatilityScoringPhaseB
                 };
 
                 var summary = await backtester.RunAsync(
@@ -798,7 +812,9 @@ public partial class BacktestWindow : Window
                     MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
                     MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
                     MaxRiskReward = baseThresholds.MaxRiskReward,
-                    EnablePullbackBounce = scenario.EnableA
+                    EnablePullbackBounce = scenario.EnableA,
+                    EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
+                    EnableVolatilityScoringPhaseB = baseThresholds.EnableVolatilityScoringPhaseB
                 };
 
                 var summary = await backtester.RunAsync(
@@ -936,35 +952,6 @@ public partial class BacktestWindow : Window
         }
     }
 
-    private async void BtnFreezeSymbolList_Click(object sender, RoutedEventArgs e)
-    {
-        if (!int.TryParse(txtTopN.Text, out int topN) || topN <= 0)
-        {
-            MessageBox.Show("Informe um número válido em \"Top automático\" antes de congelar (ex.: 20).", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        txtStatus.Text = "Buscando lista de moedas mais líquidas para congelar...";
-
-        try
-        {
-            var allSymbols = await _marketData.GetUsdtSymbolsAsync();
-            var frozenList = allSymbols.Take(topN).ToList();
-
-            txtManualSymbols.Text = string.Join(",", frozenList);
-            rbManual.IsChecked = true;
-            await _settingsRepository.SaveManualSymbolListAsync(txtManualSymbols.Text);
-
-            txtStatus.Text = $"Lista congelada: {frozenList.Count} moedas copiadas para o campo Manual. " +
-                              "Os próximos testes vão usar exatamente essas moedas, independente de mudanças no volume da Binance.";
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Não foi possível obter a lista de moedas.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
-            txtStatus.Text = "";
-        }
-    }
-
     private void BtnCancel_Click(object sender, RoutedEventArgs e)
     {
         _cts?.Cancel();
@@ -1089,7 +1076,7 @@ public partial class BacktestWindow : Window
             DrawEquityCurve(orderedAllTrades);
 
             txtSummaryResult.Text =
-                $"Teste definitivo: configuração PADRÃO do scanner ao vivo (Score≥{ScannerSettings.BuyOpportunityScore:F0}, " +
+                $"Padrão Scanner: configuração PADRÃO do scanner ao vivo (Score≥{ScannerSettings.BuyOpportunityScore:F0}, " +
                 $"RR≥{ScannerSettings.MinRiskReward:F1} sem teto, sem caminhos alternativos), testada em {periodCount} período(s) " +
                 $"de {periodYears} ano(s) cada, não sobrepostos, com {symbols.Count} moedas. " +
                 "A linha \"TOTAL\" junta todas as operações de todos os períodos numa amostra só, pra dar mais poder estatístico à conclusão " +
@@ -1312,7 +1299,9 @@ public partial class BacktestWindow : Window
                     MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
                     MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
                     MaxRiskReward = baseThresholds.MaxRiskReward,
-                    EnablePullbackBounce = baseThresholds.EnablePullbackBounce
+                    EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
+                    EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
+                    EnableVolatilityScoringPhaseB = baseThresholds.EnableVolatilityScoringPhaseB
                 };
 
                 var summary = await backtester.RunAsync(

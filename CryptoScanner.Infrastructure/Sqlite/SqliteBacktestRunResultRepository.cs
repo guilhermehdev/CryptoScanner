@@ -48,6 +48,29 @@ public sealed class SqliteBacktestRunResultRepository : IBacktestRunResultReposi
             """;
         await using var command = new SqliteCommand(sql, connection);
         await command.ExecuteNonQueryAsync(cancellationToken);
+
+        // Migração: adiciona a coluna nova em bancos criados por uma versão anterior.
+        var existingColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await using (var pragmaCommand = new SqliteCommand("PRAGMA table_info(BacktestRunResults)", connection))
+        await using (var reader = await pragmaCommand.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+                existingColumns.Add(reader.GetString(reader.GetOrdinal("name")));
+        }
+
+        if (!existingColumns.Contains("EnableBollingerScoring"))
+        {
+            await using var alterCommand = new SqliteCommand(
+                "ALTER TABLE BacktestRunResults ADD COLUMN EnableBollingerScoring INTEGER DEFAULT 0", connection);
+            await alterCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        if (!existingColumns.Contains("EnableVolatilityScoringPhaseB"))
+        {
+            await using var alterCommand = new SqliteCommand(
+                "ALTER TABLE BacktestRunResults ADD COLUMN EnableVolatilityScoringPhaseB INTEGER DEFAULT 0", connection);
+            await alterCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
     }
 
     public async Task<bool> ExistsAsync(string signatureHash, CancellationToken cancellationToken = default)
@@ -68,13 +91,13 @@ public sealed class SqliteBacktestRunResultRepository : IBacktestRunResultReposi
             INSERT OR IGNORE INTO BacktestRunResults
             (SignatureHash, SavedAt, Label, Profile, RiskMode, StartDate, EndDate, Symbols, SymbolCount,
              MinScore, MinResistanceDistanceSwing, MinResistanceDistanceAtr, MinVolumeSpike, MinRiskReward,
-             MinStopDistancePercent, MaxRiskReward, EnablePullbackBounce, EvaluationHoursOverride,
+             MinStopDistancePercent, MaxRiskReward, EnablePullbackBounce, EnableBollingerScoring, EnableVolatilityScoringPhaseB, EvaluationHoursOverride,
              TotalTrades, WinRate, TotalReturnPercent, MaxDrawdownPercent, ProfitFactor,
              AvgRiskRewardAtEntry, BreakEvenWinRate, Edge)
             VALUES
             (@SignatureHash, @SavedAt, @Label, @Profile, @RiskMode, @StartDate, @EndDate, @Symbols, @SymbolCount,
              @MinScore, @MinResistanceDistanceSwing, @MinResistanceDistanceAtr, @MinVolumeSpike, @MinRiskReward,
-             @MinStopDistancePercent, @MaxRiskReward, @EnablePullbackBounce, @EvaluationHoursOverride,
+             @MinStopDistancePercent, @MaxRiskReward, @EnablePullbackBounce, @EnableBollingerScoring, @EnableVolatilityScoringPhaseB, @EvaluationHoursOverride,
              @TotalTrades, @WinRate, @TotalReturnPercent, @MaxDrawdownPercent, @ProfitFactor,
              @AvgRiskRewardAtEntry, @BreakEvenWinRate, @Edge)
             """;
@@ -96,6 +119,8 @@ public sealed class SqliteBacktestRunResultRepository : IBacktestRunResultReposi
         command.Parameters.AddWithValue("@MinStopDistancePercent", (double)result.MinStopDistancePercent);
         command.Parameters.AddWithValue("@MaxRiskReward", (double)result.MaxRiskReward);
         command.Parameters.AddWithValue("@EnablePullbackBounce", result.EnablePullbackBounce ? 1 : 0);
+        command.Parameters.AddWithValue("@EnableBollingerScoring", result.EnableBollingerScoring ? 1 : 0);
+        command.Parameters.AddWithValue("@EnableVolatilityScoringPhaseB", result.EnableVolatilityScoringPhaseB ? 1 : 0);
         command.Parameters.AddWithValue("@EvaluationHoursOverride", (object?)result.EvaluationHoursOverride ?? DBNull.Value);
         command.Parameters.AddWithValue("@TotalTrades", result.TotalTrades);
         command.Parameters.AddWithValue("@WinRate", result.WinRate);
@@ -138,6 +163,8 @@ public sealed class SqliteBacktestRunResultRepository : IBacktestRunResultReposi
                 MinStopDistancePercent = Convert.ToDecimal(reader.GetDouble(reader.GetOrdinal("MinStopDistancePercent"))),
                 MaxRiskReward = Convert.ToDecimal(reader.GetDouble(reader.GetOrdinal("MaxRiskReward"))),
                 EnablePullbackBounce = reader.GetInt32(reader.GetOrdinal("EnablePullbackBounce")) == 1,
+                EnableBollingerScoring = !reader.IsDBNull(reader.GetOrdinal("EnableBollingerScoring")) && reader.GetInt32(reader.GetOrdinal("EnableBollingerScoring")) == 1,
+                EnableVolatilityScoringPhaseB = !reader.IsDBNull(reader.GetOrdinal("EnableVolatilityScoringPhaseB")) && reader.GetInt32(reader.GetOrdinal("EnableVolatilityScoringPhaseB")) == 1,
                 EvaluationHoursOverride = reader.IsDBNull(reader.GetOrdinal("EvaluationHoursOverride")) ? null : reader.GetInt32(reader.GetOrdinal("EvaluationHoursOverride")),
                 TotalTrades = reader.GetInt32(reader.GetOrdinal("TotalTrades")),
                 WinRate = reader.GetDouble(reader.GetOrdinal("WinRate")),

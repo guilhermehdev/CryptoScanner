@@ -18,6 +18,8 @@ public sealed class EligibilityThresholds
     public required decimal MinStopDistancePercent { get; init; }
     public required decimal MaxRiskReward { get; init; }
     public required bool EnablePullbackBounce { get; init; }
+    public required bool EnableBollingerScoring { get; init; }
+    public required bool EnableVolatilityScoringPhaseB { get; init; }
 
     public static readonly EligibilityThresholds Default = new()
     {
@@ -32,6 +34,8 @@ public sealed class EligibilityThresholds
         MinRelativeStrengthPercent = ScannerSettings.MinRelativeStrengthPercent,
         MinStopDistancePercent = 0m,
         MaxRiskReward = decimal.MaxValue,
-        EnablePullbackBounce = false
+        EnablePullbackBounce = false,
+        EnableBollingerScoring = false,
+        EnableVolatilityScoringPhaseB = false,
     };
 }

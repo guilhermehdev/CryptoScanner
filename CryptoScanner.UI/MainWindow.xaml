@@ -335,11 +335,11 @@
 
         </TabControl>
 
-        <Button Content="Backtest BTC" Click="BtnBacktest_Click" HorizontalAlignment="Left" Height="19" Margin="696,7,0,0" VerticalAlignment="Top" Width="78"/>
         <Button x:Name="btAtualizar" Content="Atualizar" HorizontalAlignment="Left" Height="19" Margin="614,7,0,0" VerticalAlignment="Top" Width="77" RenderTransformOrigin="0.509,0.601" Click="btAtualizar_Click"/>
         <Button Content="Análise" Click="BtnAnalytics_Click" HorizontalAlignment="Left" Height="19" Margin="782,7,0,0" VerticalAlignment="Top" Width="78"/>
-        <Button Content="Backtest Completo" Click="BtnFullBacktest_Click" HorizontalAlignment="Left" Height="19" Margin="868,7,0,0" VerticalAlignment="Top" Width="120"/>
-        <Button Content="Alertas" Click="BtnAlertSettings_Click" HorizontalAlignment="Left" Height="19" Margin="994,7,0,0" VerticalAlignment="Top" Width="70"/>
+        <Button Content="Backtest" Click="BtnFullBacktest_Click" HorizontalAlignment="Left" Height="19" Margin="868,7,0,0" VerticalAlignment="Top" Width="80"/>
+        <Button Content="Histórico" Click="BtnBacktestHistory_Click" HorizontalAlignment="Left" Height="19" Margin="954,7,0,0" VerticalAlignment="Top" Width="80"/>
+        <Button Content="Alertas" Click="BtnAlertSettings_Click" HorizontalAlignment="Left" Height="19" Margin="1040,7,0,0" VerticalAlignment="Top" Width="70"/>
 
         <Popup x:Name="popupBreakdown"
                StaysOpen="False"

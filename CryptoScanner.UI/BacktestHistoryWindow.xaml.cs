@@ -1,6 +1,9 @@
 using CryptoScanner.Core.Contracts;
 using CryptoScanner.Core.Models;
 using System;
+using System.IO;
+using System.Linq;
+using System.Text;
 using System.Windows;
 using MessageBox = System.Windows.MessageBox;
 
@@ -30,6 +33,68 @@ public partial class BacktestHistoryWindow : Window
         catch (Exception ex)
         {
             MessageBox.Show($"Não foi possível carregar o histórico.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void BtnExportTxt_Click(object sender, RoutedEventArgs e)
+    {
+        var itemsToExport = dgResults.SelectedItems.Cast<BacktestRunResult>().ToList();
+
+        if (itemsToExport.Count == 0)
+            itemsToExport = (dgResults.ItemsSource as System.Collections.Generic.IEnumerable<BacktestRunResult>)?.ToList()
+                             ?? new System.Collections.Generic.List<BacktestRunResult>();
+
+        if (itemsToExport.Count == 0)
+        {
+            MessageBox.Show("Não há resultados pra exportar.", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            FileName = $"backtest_historico_{DateTime.Now:yyyyMMdd_HHmmss}.txt",
+            Filter = "Arquivo de texto (*.txt)|*.txt",
+            DefaultExt = ".txt"
+        };
+
+        if (dialog.ShowDialog() != true)
+            return;
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"Histórico de Testes de Backtest — exportado em {DateTime.Now:dd/MM/yyyy HH:mm}");
+        sb.AppendLine($"Total de registros: {itemsToExport.Count}");
+        sb.AppendLine(new string('=', 70));
+        sb.AppendLine();
+
+        foreach (var r in itemsToExport)
+        {
+            sb.AppendLine($"Teste: {r.Label}");
+            sb.AppendLine($"Salvo em: {r.SavedAt:dd/MM/yy HH:mm}");
+            sb.AppendLine($"Perfil: {r.Profile} | Modo de Risco: {r.RiskMode}");
+            sb.AppendLine($"Período: {r.StartDate:dd/MM/yy} - {r.EndDate:dd/MM/yy}");
+            sb.AppendLine($"Moedas ({r.SymbolCount}): {r.Symbols}");
+            sb.AppendLine($"Limiares: Score>={r.MinScore:F0} | RR min={r.MinRiskReward:F1} | RR max={r.MaxRiskReward:F0} | " +
+                           $"Dist.Resist.Swing={r.MinResistanceDistanceSwing:F0}% | Dist.Resist.ATR={r.MinResistanceDistanceAtr:F0}% | " +
+                           $"Vol.Spike={r.MinVolumeSpike:F2} | Stop min={r.MinStopDistancePercent:F0}% | " +
+                           $"Caminho A={(r.EnablePullbackBounce ? "sim" : "não")} | Bollinger Scoring={(r.EnableBollingerScoring ? "sim" : "não")} | " +
+                           $"Volatility Fase B={(r.EnableVolatilityScoringPhaseB ? "sim" : "não")} | " +
+                           $"Timeout override={(r.EvaluationHoursOverride?.ToString() ?? "padrão")}");
+            sb.AppendLine(new string('-', 70));
+            sb.AppendLine($"Operações: {r.TotalTrades} | Win Rate: {r.WinRate:F1}% | Retorno: {r.TotalReturnPercent:F2}% | " +
+                           $"Drawdown: {r.MaxDrawdownPercent:F2}% | Profit Factor: {r.ProfitFactor:F2}");
+            sb.AppendLine($"RR Médio: {r.AvgRiskRewardAtEntry:F2} | Win Rate Equilíbrio: {r.BreakEvenWinRate:F1}% | Edge: {r.Edge:F1} pontos %");
+            sb.AppendLine(new string('=', 70));
+            sb.AppendLine();
+        }
+
+        try
+        {
+            File.WriteAllText(dialog.FileName, sb.ToString());
+            MessageBox.Show($"Exportado com sucesso:\n{dialog.FileName}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Não foi possível salvar o arquivo.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
