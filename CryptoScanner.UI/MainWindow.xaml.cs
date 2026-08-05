@@ -30,6 +30,9 @@ public partial class MainWindow : Window
     private readonly IBacktestRunResultRepository _runResultRepository;
     private readonly BinanceExchangeService _priceCheckService = new();
     private readonly IAlertSettingsRepository _alertSettingsRepository;
+    private readonly IAppSettingsRepository _appSettingsRepository;
+    private readonly BinanceWebSocketService _webSocketService = new();
+    private IReadOnlyList<SimulatedTrade> _lastSimulatedTrades = Array.Empty<SimulatedTrade>();
     private bool _isScanning;
     private bool _isWindowLoaded;
     private ScanProfile _currentProfile = ScanProfile.Swing;
@@ -46,6 +49,7 @@ public partial class MainWindow : Window
         _simulatedTradeRepository = new SqliteSimulatedTradeRepository(databasePath);
         _runResultRepository = new SqliteBacktestRunResultRepository(databasePath);
         _alertSettingsRepository = new SqliteAlertSettingsRepository(databasePath);
+        _appSettingsRepository = new SqliteAppSettingsRepository(databasePath);
 
         _scanner = new ScannerService(
             new BinanceExchangeService(),
@@ -54,11 +58,12 @@ public partial class MainWindow : Window
             new AssetAnalyzer());
 
         Loaded += MainWindow_Loaded;
-        _timer.Interval = TimeSpan.FromMinutes(30); // perfil padrão: Swing
+        _timer.Interval = TimeSpan.FromMinutes(1); // padrão inicial — o valor real (persistido) é carregado no Loaded
         _timer.Tick += Timer_Tick;
 
         InitializeTrayIcon();
         StateChanged += MainWindow_StateChanged;
+        _webSocketService.PriceUpdated += OnWebSocketPriceUpdated;
     }
 
     private void InitializeTrayIcon()
@@ -110,6 +115,7 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _trayIcon?.Dispose();
+        _ = _webSocketService.DisposeAsync().AsTask(); // fire-and-forget — app já está fechando
         base.OnClosed(e);
     }
 
@@ -133,6 +139,8 @@ public partial class MainWindow : Window
             ApplyRankingFilter();
             await DispatchAlertsAsync(result.NewSignals);
             await EvaluateSimulatedTradesAsync();
+            await LoadSimulatedTradesAsync(); // mantém o resumo do Diário (e o espelho no Dashboard) sempre fresco
+            UpdateDashboard(result.MarketRegime);
             dgHistory.ItemsSource = result.History;
             txtWinRate.Text = $"Win Rate: {result.WinRate:F1}%";
             txtAvgReturn.Text = $"Retorno Médio: {result.AverageReturn:F2}%";
@@ -156,8 +164,70 @@ public partial class MainWindow : Window
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         _isWindowLoaded = true;
+        await LoadAutoScanIntervalAsync();
+
+        try
+        {
+            await _webSocketService.ConnectAsync();
+        }
+        catch (Exception ex)
+        {
+            // Não conectar ao stream de preço em tempo real não deve impedir o app de
+            // funcionar — só fica sem atualização instantânea; o scan normal continua
+            // cobrindo tudo via REST, como sempre foi.
+            MessageBox.Show(
+                $"Não foi possível conectar ao stream de preços em tempo real. O app vai continuar funcionando normalmente, só sem atualização instantânea de preço.\n{ex.Message}",
+                "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
         await LoadSimulatedTradesAsync();
         await RunScannerAsync();
+    }
+
+    private const string AutoScanIntervalSettingKey = "AutoScanIntervalMinutes";
+
+    private async Task LoadAutoScanIntervalAsync()
+    {
+        int minutes = 1; // padrão inicial, conforme combinado
+        try
+        {
+            await _appSettingsRepository.InitializeAsync();
+            string? saved = await _appSettingsRepository.GetAsync(AutoScanIntervalSettingKey);
+            if (saved != null && int.TryParse(saved, out int savedMinutes) && savedMinutes >= 1)
+                minutes = savedMinutes;
+        }
+        catch
+        {
+            // Falha ao ler configuração não deve impedir o app de abrir — usa o padrão.
+        }
+
+        txtAutoScanInterval.Text = minutes.ToString();
+        _timer.Interval = TimeSpan.FromMinutes(minutes);
+    }
+
+    private async void TxtAutoScanInterval_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (!_isWindowLoaded)
+            return;
+
+        if (!int.TryParse(txtAutoScanInterval.Text, out int minutes) || minutes < 1)
+        {
+            MessageBox.Show("Informe um número inteiro de minutos, mínimo 1.", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
+            await LoadAutoScanIntervalAsync(); // reverte o campo pro último valor válido salvo
+            return;
+        }
+
+        _timer.Interval = TimeSpan.FromMinutes(minutes);
+
+        try
+        {
+            await _appSettingsRepository.InitializeAsync();
+            await _appSettingsRepository.SetAsync(AutoScanIntervalSettingKey, minutes.ToString());
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Não foi possível salvar o intervalo.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private async void ProfileChanged(object sender, RoutedEventArgs e)
@@ -168,10 +238,6 @@ public partial class MainWindow : Window
             return;
 
         _currentProfile = ReferenceEquals(sender, rbIntraday) ? ScanProfile.Intraday : ScanProfile.Swing;
-
-        _timer.Interval = _currentProfile.Name == ScanProfile.Intraday.Name
-            ? TimeSpan.FromMinutes(3)
-            : TimeSpan.FromMinutes(30);
 
         await RunScannerAsync();
     }
@@ -354,6 +420,7 @@ public partial class MainWindow : Window
             }
 
             dgSimulatedTrades.ItemsSource = trades;
+            _lastSimulatedTrades = trades;
 
             int totalClosed = trades.Count(t => t.Closed);
             int wins = trades.Count(t => t.Closed && t.OutcomePercent > 0);
@@ -363,10 +430,88 @@ public partial class MainWindow : Window
 
             txtSimulatedSummary.Text = $"Trades: {trades.Count} total ({openCount} em aberto, {totalClosed} fechados)   |   " +
                                         $"Win Rate: {winRate:F1}%   |   Retorno Acumulado: {totalReturn:F2}%";
+
+            txtDashboardSimulated.Text = trades.Count == 0
+                ? "Nenhum trade registrado"
+                : $"{openCount} aberto(s) | Win Rate {winRate:F1}% | Retorno {totalReturn:F2}%";
+
+            await SyncWebSocketSubscriptionsAsync();
         }
         catch (Exception ex)
         {
             MessageBox.Show($"Não foi possível carregar o diário de trades.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async Task SyncWebSocketSubscriptionsAsync()
+    {
+        var desired = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var asset in _lastRanking)
+            desired.Add(asset.Symbol);
+
+        foreach (var trade in _lastSimulatedTrades.Where(t => t.IsOpen))
+            desired.Add(trade.Symbol);
+
+        try
+        {
+            await _webSocketService.SyncSubscriptionsAsync(desired);
+        }
+        catch
+        {
+            // Falha ao sincronizar inscrições não deve travar o app — tenta de novo
+            // automaticamente na próxima vez que o Diário for recarregado.
+        }
+    }
+
+    private async void OnWebSocketPriceUpdated(string symbol, decimal price)
+    {
+        AssetScore? matchedAsset = null;
+        var tradesToClose = new List<(SimulatedTrade Trade, decimal ExitPrice, string Reason)>();
+
+        // Parte síncrona: só mexe em objetos ligados à UI, precisa rodar na thread da UI,
+        // mas sem nenhuma chamada de I/O aqui dentro (Dispatcher.Invoke não lida bem com
+        // async — por isso a parte de persistir o fechamento fica fora, depois).
+        Dispatcher.Invoke(() =>
+        {
+            matchedAsset = _lastRanking.FirstOrDefault(a => string.Equals(a.Symbol, symbol, StringComparison.OrdinalIgnoreCase));
+            if (matchedAsset != null)
+                matchedAsset.Close = price;
+
+            foreach (var trade in _lastSimulatedTrades.Where(t =>
+                         t.IsOpen && string.Equals(t.Symbol, symbol, StringComparison.OrdinalIgnoreCase)))
+            {
+                trade.CurrentPrice = price;
+                trade.UnrealizedPnLPercent = ((price - trade.EntryPrice) / trade.EntryPrice) * 100m;
+
+                if (price <= trade.StopLoss)
+                    tradesToClose.Add((trade, trade.StopLoss, "SL"));
+                else if (price >= trade.TakeProfit)
+                    tradesToClose.Add((trade, trade.TakeProfit, "TP"));
+            }
+        });
+
+        foreach (var (trade, exitPrice, reason) in tradesToClose)
+        {
+            decimal outcome = ((exitPrice - trade.EntryPrice) / trade.EntryPrice) * 100m;
+
+            try
+            {
+                await _simulatedTradeRepository.CloseTradeAsync(trade.Id, exitPrice, outcome, reason);
+            }
+            catch
+            {
+                continue; // falha ao persistir — não marca como fechado na tela, tenta de novo depois
+            }
+
+            Dispatcher.Invoke(() =>
+            {
+                trade.ExitPrice = exitPrice;
+                trade.OutcomePercent = outcome;
+                trade.ExitReason = reason;
+                trade.ExitTime = DateTime.UtcNow;
+                trade.Closed = true; // já notifica IsOpen junto, graças ao setter ajustado
+            });
         }
     }
 
@@ -476,6 +621,25 @@ public partial class MainWindow : Window
         dgRanking.ItemsSource = chkFavoritesOnly.IsChecked == true
             ? _lastRanking.Where(a => a.IsFavorite).ToList()
             : _lastRanking;
+    }
+
+    private void UpdateDashboard(string marketRegime)
+    {
+        txtDashboardRegime.Text = marketRegime;
+        borderRegime.Background = marketRegime switch
+        {
+            "BULL" => Brushes.SeaGreen,
+            "BEAR" => Brushes.IndianRed,
+            _ => Brushes.Goldenrod // LATERAL ou qualquer outro valor inesperado
+        };
+
+        var eligible = _lastRanking.Where(a => a.IsEligible).OrderByDescending(a => a.Score).ToList();
+
+        txtDashboardEligible.Text = eligible.Count.ToString();
+
+        txtDashboardTopCandidates.Text = eligible.Count == 0
+            ? "Nenhum no momento"
+            : string.Join("  |  ", eligible.Take(3).Select(a => $"{a.Symbol} ({a.Score:F1})"));
     }
 
     private void ChkFavoritesOnly_Changed(object sender, RoutedEventArgs e) => ApplyRankingFilter();

@@ -1,6 +1,6 @@
 ﻿namespace CryptoScanner.Core.Models;
 
-public sealed class SimulatedTrade
+public sealed class SimulatedTrade : ObservableModel
 {
     public int Id { get; set; }
     public string Symbol { get; set; } = "";
@@ -11,8 +11,7 @@ public sealed class SimulatedTrade
     public string Note { get; set; } = "";
     public string Profile { get; set; } = "";
 
-    // Raio-x completo do momento da entrada — mesmo nível de detalhe do SignalSnapshot,
-    // pra permitir análise futura (ex.: "meus trades com Score>75 tiveram Win Rate melhor?").
+    // Raio-x completo do momento da entrada — inalterado, sem mudança
     public decimal ScoreAtEntry { get; set; }
     public decimal Rsi { get; set; }
     public decimal Adx { get; set; }
@@ -38,16 +37,62 @@ public sealed class SimulatedTrade
     public bool IsBullTrap { get; set; }
     public bool IsBearTrap { get; set; }
 
-    public bool Closed { get; set; }
-    public DateTime? ExitTime { get; set; }
-    public decimal? ExitPrice { get; set; }
-    public decimal? OutcomePercent { get; set; }
-    public string ExitReason { get; set; } = ""; // "TP" | "SL" | "Manual"
+    // A partir daqui, os campos que podem mudar depois de criado o trade — precisam
+    // notificar a tela quando o preço em tempo real (WebSocket) fecha o trade sozinho,
+    // sem esperar o próximo scan recarregar o grid inteiro.
+
+    private bool _closed;
+    public bool Closed
+    {
+        get => _closed;
+        set
+        {
+            if (SetField(ref _closed, value))
+                OnPropertyChanged(nameof(IsOpen)); // IsOpen depende de Closed, não notifica sozinho
+        }
+    }
+
+    private DateTime? _exitTime;
+    public DateTime? ExitTime
+    {
+        get => _exitTime;
+        set => SetField(ref _exitTime, value);
+    }
+
+    private decimal? _exitPrice;
+    public decimal? ExitPrice
+    {
+        get => _exitPrice;
+        set => SetField(ref _exitPrice, value);
+    }
+
+    private decimal? _outcomePercent;
+    public decimal? OutcomePercent
+    {
+        get => _outcomePercent;
+        set => SetField(ref _outcomePercent, value);
+    }
+
+    private string _exitReason = "";
+    public string ExitReason
+    {
+        get => _exitReason;
+        set => SetField(ref _exitReason, value);
+    }
 
     public bool IsOpen => !Closed;
 
-    // Preenchidos em memória na hora de carregar a tela — não são persistidos no banco,
-    // já que representam o preço "agora", não um dado histórico do trade.
-    public decimal? CurrentPrice { get; set; }
-    public decimal? UnrealizedPnLPercent { get; set; }
+    private decimal? _currentPrice;
+    public decimal? CurrentPrice
+    {
+        get => _currentPrice;
+        set => SetField(ref _currentPrice, value);
+    }
+
+    private decimal? _unrealizedPnLPercent;
+    public decimal? UnrealizedPnLPercent
+    {
+        get => _unrealizedPnLPercent;
+        set => SetField(ref _unrealizedPnLPercent, value);
+    }
 }

@@ -1,9 +1,19 @@
 namespace CryptoScanner.Core.Models;
 
-public sealed class AssetScore
+public sealed class AssetScore : ObservableModel
 {
+
     public string Symbol { get; init; } = "";
-    public decimal Close { get; init; }
+    private decimal _close;
+    public decimal Close
+    {
+        get => _close;
+        set
+        {
+            if (SetField(ref _close, value))
+                OnPropertyChanged(nameof(CloseFormatted)); // derivado — precisa notificar junto
+        }
+    }
     public decimal Score { get; init; }
     public decimal OpportunityScore { get; init; }
     public decimal PreviousScore { get; init; }
