@@ -18,7 +18,12 @@
             <Button Content="Exportar TXT (selecionados, ou todos se nenhum selecionado)" Padding="8,4" Click="BtnExportTxt_Click"/>
         </StackPanel>
 
-        <DataGrid x:Name="dgResults" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True">
+        <DataGrid x:Name="dgResults" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True" MouseRightButtonUp="DgResults_MouseRightButtonUp">
+            <DataGrid.ContextMenu>
+                <ContextMenu>
+                    <MenuItem Header="Copiar teste selecionado para a área de transferência" Click="MenuCopySelected_Click"/>
+                </ContextMenu>
+            </DataGrid.ContextMenu>
             <DataGrid.Columns>
                 <DataGridTemplateColumn Header="" Width="30">
                     <DataGridTemplateColumn.CellTemplate>

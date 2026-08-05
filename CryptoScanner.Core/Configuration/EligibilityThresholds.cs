@@ -8,6 +8,7 @@ public sealed class EligibilityThresholds
     public required decimal MinVolumeSpike { get; init; }
     public required decimal DefensiveMinVolumeSpike { get; init; }
     public required decimal MinResistanceDistance { get; init; }
+    public required bool EnableMultiTimeframe { get; init; }
 
     // Limiar separado pro modo ATR — Res% aqui mede volatilidade (ATR% × multiplicador),
     // não distância estrutural até um topo real. Precisa de escala diferente.
@@ -20,6 +21,7 @@ public sealed class EligibilityThresholds
     public required bool EnablePullbackBounce { get; init; }
     public required bool EnableBollingerScoring { get; init; }
     public required bool EnableVolatilityScoringPhaseB { get; init; }
+    public required decimal MinResistanceDistancePartialExits { get; init; }
 
     public static readonly EligibilityThresholds Default = new()
     {
@@ -37,5 +39,7 @@ public sealed class EligibilityThresholds
         EnablePullbackBounce = false,
         EnableBollingerScoring = false,
         EnableVolatilityScoringPhaseB = false,
+        MinResistanceDistancePartialExits = ScannerSettings.MinResistanceDistance, // provisório — a calibrar via comparador
+        EnableMultiTimeframe = false,
     };
 }

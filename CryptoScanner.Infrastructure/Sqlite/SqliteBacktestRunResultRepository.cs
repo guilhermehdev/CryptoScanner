@@ -71,6 +71,27 @@ public sealed class SqliteBacktestRunResultRepository : IBacktestRunResultReposi
                 "ALTER TABLE BacktestRunResults ADD COLUMN EnableVolatilityScoringPhaseB INTEGER DEFAULT 0", connection);
             await alterCommand.ExecuteNonQueryAsync(cancellationToken);
         }
+
+        if (!existingColumns.Contains("Diagnostics"))
+        {
+            await using var alterCommand = new SqliteCommand(
+                "ALTER TABLE BacktestRunResults ADD COLUMN Diagnostics TEXT DEFAULT ''", connection);
+            await alterCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        if (!existingColumns.Contains("Tp1Fraction"))
+        {
+            await using var alterCommand = new SqliteCommand(
+                "ALTER TABLE BacktestRunResults ADD COLUMN Tp1Fraction REAL", connection);
+            await alterCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        if (!existingColumns.Contains("Tp2Fraction"))
+        {
+            await using var alterCommand = new SqliteCommand(
+                "ALTER TABLE BacktestRunResults ADD COLUMN Tp2Fraction REAL", connection);
+            await alterCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
     }
 
     public async Task<bool> ExistsAsync(string signatureHash, CancellationToken cancellationToken = default)
@@ -93,13 +114,13 @@ public sealed class SqliteBacktestRunResultRepository : IBacktestRunResultReposi
              MinScore, MinResistanceDistanceSwing, MinResistanceDistanceAtr, MinVolumeSpike, MinRiskReward,
              MinStopDistancePercent, MaxRiskReward, EnablePullbackBounce, EnableBollingerScoring, EnableVolatilityScoringPhaseB, EvaluationHoursOverride,
              TotalTrades, WinRate, TotalReturnPercent, MaxDrawdownPercent, ProfitFactor,
-             AvgRiskRewardAtEntry, BreakEvenWinRate, Edge)
+             AvgRiskRewardAtEntry, BreakEvenWinRate, Edge, Diagnostics, Tp1Fraction, Tp2Fraction)
             VALUES
             (@SignatureHash, @SavedAt, @Label, @Profile, @RiskMode, @StartDate, @EndDate, @Symbols, @SymbolCount,
              @MinScore, @MinResistanceDistanceSwing, @MinResistanceDistanceAtr, @MinVolumeSpike, @MinRiskReward,
              @MinStopDistancePercent, @MaxRiskReward, @EnablePullbackBounce, @EnableBollingerScoring, @EnableVolatilityScoringPhaseB, @EvaluationHoursOverride,
              @TotalTrades, @WinRate, @TotalReturnPercent, @MaxDrawdownPercent, @ProfitFactor,
-             @AvgRiskRewardAtEntry, @BreakEvenWinRate, @Edge)
+             @AvgRiskRewardAtEntry, @BreakEvenWinRate, @Edge, @Diagnostics, @Tp1Fraction, @Tp2Fraction)
             """;
         await using var command = new SqliteCommand(sql, connection);
         command.Parameters.AddWithValue("@SignatureHash", result.SignatureHash);
@@ -121,6 +142,9 @@ public sealed class SqliteBacktestRunResultRepository : IBacktestRunResultReposi
         command.Parameters.AddWithValue("@EnablePullbackBounce", result.EnablePullbackBounce ? 1 : 0);
         command.Parameters.AddWithValue("@EnableBollingerScoring", result.EnableBollingerScoring ? 1 : 0);
         command.Parameters.AddWithValue("@EnableVolatilityScoringPhaseB", result.EnableVolatilityScoringPhaseB ? 1 : 0);
+        command.Parameters.AddWithValue("@Diagnostics", result.Diagnostics ?? "");
+        command.Parameters.AddWithValue("@Tp1Fraction", (object?)result.Tp1Fraction ?? DBNull.Value);
+        command.Parameters.AddWithValue("@Tp2Fraction", (object?)result.Tp2Fraction ?? DBNull.Value);
         command.Parameters.AddWithValue("@EvaluationHoursOverride", (object?)result.EvaluationHoursOverride ?? DBNull.Value);
         command.Parameters.AddWithValue("@TotalTrades", result.TotalTrades);
         command.Parameters.AddWithValue("@WinRate", result.WinRate);
@@ -155,23 +179,26 @@ public sealed class SqliteBacktestRunResultRepository : IBacktestRunResultReposi
                 EndDate = DateTime.Parse(reader.GetString(reader.GetOrdinal("EndDate"))),
                 Symbols = GetStringOrDefault(reader, "Symbols"),
                 SymbolCount = reader.GetInt32(reader.GetOrdinal("SymbolCount")),
-                MinScore = Convert.ToDecimal(reader.GetDouble(reader.GetOrdinal("MinScore"))),
-                MinResistanceDistanceSwing = Convert.ToDecimal(reader.GetDouble(reader.GetOrdinal("MinResistanceDistanceSwing"))),
-                MinResistanceDistanceAtr = Convert.ToDecimal(reader.GetDouble(reader.GetOrdinal("MinResistanceDistanceAtr"))),
-                MinVolumeSpike = Convert.ToDecimal(reader.GetDouble(reader.GetOrdinal("MinVolumeSpike"))),
-                MinRiskReward = Convert.ToDecimal(reader.GetDouble(reader.GetOrdinal("MinRiskReward"))),
-                MinStopDistancePercent = Convert.ToDecimal(reader.GetDouble(reader.GetOrdinal("MinStopDistancePercent"))),
-                MaxRiskReward = Convert.ToDecimal(reader.GetDouble(reader.GetOrdinal("MaxRiskReward"))),
+                MinScore = GetDecimalSafe(reader, "MinScore"),
+                MinResistanceDistanceSwing = GetDecimalSafe(reader, "MinResistanceDistanceSwing"),
+                MinResistanceDistanceAtr = GetDecimalSafe(reader, "MinResistanceDistanceAtr"),
+                MinVolumeSpike = GetDecimalSafe(reader, "MinVolumeSpike"),
+                MinRiskReward = GetDecimalSafe(reader, "MinRiskReward"),
+                MinStopDistancePercent = GetDecimalSafe(reader, "MinStopDistancePercent"),
+                MaxRiskReward = GetDecimalSafe(reader, "MaxRiskReward"),
                 EnablePullbackBounce = reader.GetInt32(reader.GetOrdinal("EnablePullbackBounce")) == 1,
                 EnableBollingerScoring = !reader.IsDBNull(reader.GetOrdinal("EnableBollingerScoring")) && reader.GetInt32(reader.GetOrdinal("EnableBollingerScoring")) == 1,
                 EnableVolatilityScoringPhaseB = !reader.IsDBNull(reader.GetOrdinal("EnableVolatilityScoringPhaseB")) && reader.GetInt32(reader.GetOrdinal("EnableVolatilityScoringPhaseB")) == 1,
+                Diagnostics = reader.IsDBNull(reader.GetOrdinal("Diagnostics")) ? "" : reader.GetString(reader.GetOrdinal("Diagnostics")),
+                Tp1Fraction = reader.IsDBNull(reader.GetOrdinal("Tp1Fraction")) ? null : (decimal?)reader.GetDouble(reader.GetOrdinal("Tp1Fraction")),
+                Tp2Fraction = reader.IsDBNull(reader.GetOrdinal("Tp2Fraction")) ? null : (decimal?)reader.GetDouble(reader.GetOrdinal("Tp2Fraction")),
                 EvaluationHoursOverride = reader.IsDBNull(reader.GetOrdinal("EvaluationHoursOverride")) ? null : reader.GetInt32(reader.GetOrdinal("EvaluationHoursOverride")),
                 TotalTrades = reader.GetInt32(reader.GetOrdinal("TotalTrades")),
                 WinRate = reader.GetDouble(reader.GetOrdinal("WinRate")),
-                TotalReturnPercent = Convert.ToDecimal(reader.GetDouble(reader.GetOrdinal("TotalReturnPercent"))),
-                MaxDrawdownPercent = Convert.ToDecimal(reader.GetDouble(reader.GetOrdinal("MaxDrawdownPercent"))),
-                ProfitFactor = Convert.ToDecimal(reader.GetDouble(reader.GetOrdinal("ProfitFactor"))),
-                AvgRiskRewardAtEntry = Convert.ToDecimal(reader.GetDouble(reader.GetOrdinal("AvgRiskRewardAtEntry"))),
+                TotalReturnPercent = GetDecimalSafe(reader, "TotalReturnPercent"),
+                MaxDrawdownPercent = GetDecimalSafe(reader, "MaxDrawdownPercent"),
+                ProfitFactor = GetDecimalSafe(reader, "ProfitFactor"),
+                AvgRiskRewardAtEntry = GetDecimalSafe(reader, "AvgRiskRewardAtEntry"),
                 BreakEvenWinRate = reader.GetDouble(reader.GetOrdinal("BreakEvenWinRate")),
                 Edge = reader.GetDouble(reader.GetOrdinal("Edge"))
             });
@@ -193,5 +220,27 @@ public sealed class SqliteBacktestRunResultRepository : IBacktestRunResultReposi
     {
         int ordinal = reader.GetOrdinal(column);
         return reader.IsDBNull(ordinal) ? "" : reader.GetString(ordinal);
+    }
+
+    /// <summary>
+    /// Lê um valor decimal do SQLite (guardado como double/REAL) com proteção contra
+    /// overflow — registros antigos gravados antes de uma correção anterior podem ter
+    /// valores como decimal.MaxValue que não sobrevivem intactos à ida-e-volta via double.
+    /// Em vez de travar o Histórico inteiro por causa de 1 linha ruim, usa um valor seguro.
+    /// </summary>
+    private static decimal GetDecimalSafe(SqliteDataReader reader, string column)
+    {
+        int ordinal = reader.GetOrdinal(column);
+        if (reader.IsDBNull(ordinal))
+            return 0m;
+
+        try
+        {
+            return Convert.ToDecimal(reader.GetDouble(ordinal));
+        }
+        catch (OverflowException)
+        {
+            return 999999m;
+        }
     }
 }

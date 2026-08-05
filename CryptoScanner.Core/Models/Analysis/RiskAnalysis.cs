@@ -9,6 +9,8 @@ public sealed class RiskAnalysis
     public decimal ResistanceDistancePercent { get; init; }
     public decimal SupportDistancePercent { get; init; }
     public decimal RiskReward { get; init; }
+    public decimal? TakeProfit1 { get; init; }
+    public decimal? TakeProfit3 { get; init; }
 
     // Necessário pra EligibilityEvaluator saber qual limiar de distância aplicar —
     // Res%/Sup% significam coisas diferentes dependendo de como foram calculados.

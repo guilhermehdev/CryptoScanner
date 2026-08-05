@@ -2,7 +2,10 @@
 
 public enum RiskCalculationMode
 {
-    SwingBased,          // comportamento atual: máxima/mínima dos últimos 50 candles
-    AtrBased,            // stop/alvo como múltiplo do ATR, RR fixo por construção
-    SwingWithAtrBuffer   // suporte/resistência reais (Swing), mas o stop ganha uma folga extra em ATR
+    SwingBased,
+    AtrBased,
+    SwingWithAtrBuffer,
+    SwingWithPartialExits // etapa 4.1: TP escolhido via ResistanceScanner com pontuação;
+                          // saída ainda é "tudo ou nada" — o motor de saída parcial de
+                          // verdade entra só na etapa 4.3
 }

@@ -76,6 +76,9 @@
                     <TextBlock Text="Dist. Resist. mín. ATR %:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox x:Name="txtMinResistDistanceAtr" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
 
+                    <TextBlock Text="Dist. Resist. mín. Pontuada %:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBox x:Name="txtMinResistDistancePartialExits" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
+
                     <TextBlock Text="Volume Spike mín.:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox x:Name="txtMinVolumeSpike" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
 
@@ -96,10 +99,12 @@
                     <TextBlock Text="Cálculo de Risco:" VerticalAlignment="Center" Margin="0,0,10,0"/>
                     <RadioButton x:Name="rbRiskSwing" Content="Swing (atual)" GroupName="RiskMode" IsChecked="True" VerticalAlignment="Center" Margin="0,0,12,0"/>
                     <RadioButton x:Name="rbRiskAtr" Content="ATR (novo)" GroupName="RiskMode" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                    <RadioButton x:Name="rbRiskSwingBuffer" Content="Swing + Buffer ATR (novo)" GroupName="RiskMode" VerticalAlignment="Center" Margin="0,0,24,0"/>
+                    <RadioButton x:Name="rbRiskSwingBuffer" Content="Swing + Buffer ATR (novo)" GroupName="RiskMode" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <RadioButton x:Name="rbRiskPartialExits" Content="Swing + Resistência Pontuada (4.1)" GroupName="RiskMode" VerticalAlignment="Center" Margin="0,0,24,0"/>
 
                     <CheckBox x:Name="chkEnableBollingerScoring" Content="Bollinger Scoring (experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
-                    <CheckBox x:Name="chkEnableVolatilityScoringPhaseB" Content="Volatility Scoring — Fase B (experimental)" VerticalAlignment="Center"/>
+                    <CheckBox x:Name="chkEnableVolatilityScoringPhaseB" Content="Volatility Scoring — Fase B (experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
+                    <CheckBox x:Name="chkEnableMultiTimeframe" Content="Multi-timeframe (4.2, experimental)" VerticalAlignment="Center"/>
                 </StackPanel>
             </StackPanel>
         </GroupBox>
@@ -122,6 +127,9 @@
                     <Button x:Name="btnCompareMaxRR" Content="Comparar Cenários (Teto RR)" Width="180" Height="26" Margin="8,0,0,0" Click="BtnCompareMaxRRScenarios_Click"/>
                     <Button x:Name="btnCompareNewPaths" Content="Comparar Cenários (Caminhos)" Width="190" Height="26" Margin="8,0,0,0" Click="BtnCompareNewPathsScenarios_Click"/>
                     <Button x:Name="btnCompareAtrDistance" Content="Comparar Dist. Resist. (ATR)" Height="26" Padding="8,0" Margin="8,0,0,0" Click="BtnCompareAtrDistanceScenarios_Click"/>
+                    <Button x:Name="btnComparePartialExitsDistance" Content="Comparar Dist. Resist. (Pontuada)" Height="26" Padding="8,0" Margin="8,0,0,0" Click="BtnComparePartialExitsDistanceScenarios_Click"/>
+                    <Button x:Name="btnComparePartialExitsRR" Content="Comparar RR mín. (Pontuada)" Height="26" Padding="8,0" Margin="8,0,0,0" Click="BtnComparePartialExitsRRScenarios_Click"/>
+                    <Button x:Name="btnComparePartialExitsFractions" Content="Comparar Frações (Pontuada)" Height="26" Padding="8,0" Margin="8,0,0,0" Click="BtnComparePartialExitsFractionsScenarios_Click"/>
                     <Button x:Name="btnCompareTimeout" Content="Comparar Cenários (Timeout)" Height="26" Padding="8,0" Margin="8,0,0,0" Click="BtnCompareTimeoutScenarios_Click"/>
                 </StackPanel>
 
@@ -150,11 +158,15 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <Border Grid.Row="0" Background="WhiteSmoke" BorderBrush="LightGray" BorderThickness="1" Padding="10" Margin="0,0,0,10" MaxHeight="180">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <TextBlock x:Name="txtSummaryResult" FontWeight="Bold" TextWrapping="Wrap"/>
-                </ScrollViewer>
-            </Border>
+            <Grid Grid.Row="0" Margin="0,0,0,10">
+                <Border Background="WhiteSmoke" BorderBrush="LightGray" BorderThickness="1" Padding="10" MaxHeight="180">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <TextBlock x:Name="txtSummaryResult" FontWeight="Bold" TextWrapping="Wrap"/>
+                    </ScrollViewer>
+                </Border>
+                <Button Content="Copiar Resumo" HorizontalAlignment="Right" VerticalAlignment="Top"
+                    Margin="0,4,4,0" Padding="6,2" FontSize="10" Click="BtnCopySummary_Click"/>
+            </Grid>
 
             <DataGrid x:Name="dgComparison"
                   Grid.Row="1"
@@ -221,6 +233,30 @@
                                 <Setter Property="Background" Value="LightGray"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding ExitReason}" Value="EOT">
+                                <Setter Property="Background" Value="LightBlue"/>
+                            </DataTrigger>
+
+                            <!-- Saída parcial (etapa 4.3): sucesso completo (bateu os 3 alvos) -->
+                            <DataTrigger Binding="{Binding ExitReason}" Value="TP1TP2TP3">
+                                <Setter Property="Background" Value="MediumSeaGreen"/>
+                            </DataTrigger>
+                            <!-- Bateu TP1 e/ou TP2, mas o restante foi parado/expirou depois -->
+                            <DataTrigger Binding="{Binding ExitReason}" Value="TP1SL">
+                                <Setter Property="Background" Value="PaleGreen"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ExitReason}" Value="TP1TP2SL">
+                                <Setter Property="Background" Value="PaleGreen"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ExitReason}" Value="TP1TIMEOUT">
+                                <Setter Property="Background" Value="Khaki"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ExitReason}" Value="TP1TP2TIMEOUT">
+                                <Setter Property="Background" Value="Khaki"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ExitReason}" Value="TP1EOT">
+                                <Setter Property="Background" Value="LightBlue"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ExitReason}" Value="TP1TP2EOT">
                                 <Setter Property="Background" Value="LightBlue"/>
                             </DataTrigger>
                         </Style.Triggers>

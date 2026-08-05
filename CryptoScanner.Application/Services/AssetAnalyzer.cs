@@ -11,13 +11,13 @@ namespace CryptoScanner.Application.Services;
 
 public sealed class AssetAnalyzer
 {
-    public AssetAnalysis Analyze(string symbol, List<Candle> candles, List<Candle> btcCandles, ScanProfile profile, RiskCalculationMode riskMode = RiskCalculationMode.SwingBased)
+    public AssetAnalysis Analyze(string symbol, List<Candle> candles, List<Candle> btcCandles, ScanProfile profile, RiskCalculationMode riskMode = RiskCalculationMode.SwingBased, List<Candle>? symbolDailyCandles = null)
     {
         var structure = AnalyzeStructure(candles);
         var trend = AnalyzeTrend(candles, structure);
         var volume = AnalyzeVolume(candles);
         var candle = AnalyzeCandle(candles);
-        var risk = AnalyzeRisk(candles, trend.Close, trend.Atr, riskMode);
+        var risk = AnalyzeRisk(candles, trend.Close, trend.Atr, riskMode, trend.TrendStrengthScore, symbolDailyCandles);
         var setup = AnalyzeSetup(candles, trend, risk, structure, candle, btcCandles, profile);
 
         var analysis = new AssetAnalysis
@@ -174,7 +174,7 @@ public sealed class AssetAnalyzer
         };
     }
 
-    private static RiskAnalysis AnalyzeRisk(List<Candle> candles, decimal close, decimal atr, RiskCalculationMode mode)
+    private static RiskAnalysis AnalyzeRisk(List<Candle> candles, decimal close, decimal atr, RiskCalculationMode mode, int trendStrengthScore, List<Candle>? symbolDailyCandles = null)
     {
         if (mode == RiskCalculationMode.AtrBased)
         {
@@ -191,6 +191,59 @@ public sealed class AssetAnalyzer
                 SupportDistancePercent = supportDistance,
                 RiskReward = supportDistance > 0 ? resistanceDistance / supportDistance : 0,
                 Mode = RiskCalculationMode.AtrBased
+            };
+        }
+
+        if (mode == RiskCalculationMode.SwingWithPartialExits)
+        {
+            decimal swingSupport = SupportResistanceIndicator.GetSupport(candles);
+            decimal bufferedSupport = swingSupport - (atr * ScannerSettings.AtrBufferMultiplier);
+
+            var zones = ResistanceScanner.ScanMultiTimeframe(candles, symbolDailyCandles, close, atr); // etapa 4.2
+            decimal resistance = zones.Count > 0
+                ? zones[0].Price
+                : SupportResistanceIndicator.GetResistance(candles);
+
+            decimal resistanceDistance = (resistance - close) / close * 100m;
+            decimal supportDistance = (close - bufferedSupport) / close * 100m;
+
+            // TP1: proporcional ao TP2 (60% do caminho), nunca fixo em 2R — evita a escada
+            // ficar fora de ordem quando o RR real é menor que 2 (comum na faixa RR≈1,5-1,7
+            // que validamos como a melhor pra esse modo).
+            decimal takeProfit1 = close + (resistance - close) * 0.60m;
+
+            // TP3: segunda resistência estrutural real, se o scanner achou uma; senão,
+            // extensão de Fibonacci adaptativa pela força de tendência (ADX como proxy).
+            decimal takeProfit3;
+            if (zones.Count > 1)
+            {
+                takeProfit3 = zones[1].Price;
+            }
+            else
+            {
+                // V1: extensão de Fibonacci por faixas do TrendStrengthScore (0/25/50/75/100),
+                // em vez de ADX — mais alinhado com a proposta original, mesmo sendo um score
+                // simples (só mede distância à EMA200). V2/V3 (score composto, função contínua)
+                // ficam registrados como refinamento futuro.
+                decimal fibExtension = trendStrengthScore switch
+                {
+                    <= 25 => 1.272m,
+                    <= 75 => 1.618m,
+                    _ => 2.618m
+                };
+                takeProfit3 = close + (resistance - close) * fibExtension;
+            }
+
+            return new RiskAnalysis
+            {
+                Resistance = resistance,
+                Support = bufferedSupport,
+                ResistanceDistancePercent = resistanceDistance,
+                SupportDistancePercent = supportDistance,
+                RiskReward = supportDistance > 0 ? resistanceDistance / supportDistance : 0,
+                Mode = RiskCalculationMode.SwingWithPartialExits,
+                TakeProfit1 = takeProfit1,
+                TakeProfit3 = takeProfit3
             };
         }
 
@@ -215,6 +268,8 @@ public sealed class AssetAnalyzer
                 Mode = RiskCalculationMode.SwingWithAtrBuffer
             };
         }
+
+       
 
         // Comportamento original (padrão do app ao vivo hoje) — inalterado.
         decimal originalResistance = SupportResistanceIndicator.GetResistance(candles);

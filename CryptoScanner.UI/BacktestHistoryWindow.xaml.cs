@@ -67,25 +67,7 @@ public partial class BacktestHistoryWindow : Window
         sb.AppendLine();
 
         foreach (var r in itemsToExport)
-        {
-            sb.AppendLine($"Teste: {r.Label}");
-            sb.AppendLine($"Salvo em: {r.SavedAt:dd/MM/yy HH:mm}");
-            sb.AppendLine($"Perfil: {r.Profile} | Modo de Risco: {r.RiskMode}");
-            sb.AppendLine($"Período: {r.StartDate:dd/MM/yy} - {r.EndDate:dd/MM/yy}");
-            sb.AppendLine($"Moedas ({r.SymbolCount}): {r.Symbols}");
-            sb.AppendLine($"Limiares: Score>={r.MinScore:F0} | RR min={r.MinRiskReward:F1} | RR max={r.MaxRiskReward:F0} | " +
-                           $"Dist.Resist.Swing={r.MinResistanceDistanceSwing:F0}% | Dist.Resist.ATR={r.MinResistanceDistanceAtr:F0}% | " +
-                           $"Vol.Spike={r.MinVolumeSpike:F2} | Stop min={r.MinStopDistancePercent:F0}% | " +
-                           $"Caminho A={(r.EnablePullbackBounce ? "sim" : "não")} | Bollinger Scoring={(r.EnableBollingerScoring ? "sim" : "não")} | " +
-                           $"Volatility Fase B={(r.EnableVolatilityScoringPhaseB ? "sim" : "não")} | " +
-                           $"Timeout override={(r.EvaluationHoursOverride?.ToString() ?? "padrão")}");
-            sb.AppendLine(new string('-', 70));
-            sb.AppendLine($"Operações: {r.TotalTrades} | Win Rate: {r.WinRate:F1}% | Retorno: {r.TotalReturnPercent:F2}% | " +
-                           $"Drawdown: {r.MaxDrawdownPercent:F2}% | Profit Factor: {r.ProfitFactor:F2}");
-            sb.AppendLine($"RR Médio: {r.AvgRiskRewardAtEntry:F2} | Win Rate Equilíbrio: {r.BreakEvenWinRate:F1}% | Edge: {r.Edge:F1} pontos %");
-            sb.AppendLine(new string('=', 70));
-            sb.AppendLine();
-        }
+            sb.Append(FormatResultAsText(r));
 
         try
         {
@@ -95,6 +77,62 @@ public partial class BacktestHistoryWindow : Window
         catch (Exception ex)
         {
             MessageBox.Show($"Não foi possível salvar o arquivo.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private static string FormatResultAsText(BacktestRunResult r)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"Teste: {r.Label}");
+        sb.AppendLine($"Salvo em: {r.SavedAt:dd/MM/yy HH:mm}");
+        sb.AppendLine($"Perfil: {r.Profile} | Modo de Risco: {r.RiskMode}");
+        sb.AppendLine($"Período: {r.StartDate:dd/MM/yy} - {r.EndDate:dd/MM/yy}");
+        sb.AppendLine($"Moedas ({r.SymbolCount}): {r.Symbols}");
+        sb.AppendLine($"Limiares: Score>={r.MinScore:F0} | RR min={r.MinRiskReward:F1} | RR max={r.MaxRiskReward:F0} | " +
+                       $"Dist.Resist.Swing={r.MinResistanceDistanceSwing:F0}% | Dist.Resist.ATR={r.MinResistanceDistanceAtr:F0}% | " +
+                       $"Vol.Spike={r.MinVolumeSpike:F2} | Stop min={r.MinStopDistancePercent:F0}% | " +
+                       $"Caminho A={(r.EnablePullbackBounce ? "sim" : "não")} | Bollinger Scoring={(r.EnableBollingerScoring ? "sim" : "não")} | " +
+                       $"Volatility Fase B={(r.EnableVolatilityScoringPhaseB ? "sim" : "não")} | " +
+                       $"Timeout override={(r.EvaluationHoursOverride?.ToString() ?? "padrão")}" +
+                       (r.Tp1Fraction.HasValue ? $" | Frações TP1/TP2={r.Tp1Fraction:F2}/{r.Tp2Fraction:F2}" : ""));
+        sb.AppendLine(new string('-', 70));
+        sb.AppendLine($"Operações: {r.TotalTrades} | Win Rate: {r.WinRate:F1}% | Retorno: {r.TotalReturnPercent:F2}% | " +
+                       $"Drawdown: {r.MaxDrawdownPercent:F2}% | Profit Factor: {r.ProfitFactor:F2}");
+        sb.AppendLine($"RR Médio: {r.AvgRiskRewardAtEntry:F2} | Win Rate Equilíbrio: {r.BreakEvenWinRate:F1}% | Edge: {r.Edge:F1} pontos %");
+        if (!string.IsNullOrWhiteSpace(r.Diagnostics))
+            sb.AppendLine($"Filtros: {r.Diagnostics}");
+        sb.AppendLine(new string('=', 70));
+        sb.AppendLine();
+        return sb.ToString();
+    }
+
+    private void DgResults_MouseRightButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        // Garante que a linha sob o cursor fica selecionada antes do menu abrir,
+        // pra "Copiar" sempre agir na linha certa, mesmo sem clique esquerdo antes.
+        var hit = (DependencyObject)e.OriginalSource;
+        while (hit != null && hit is not System.Windows.Controls.DataGridRow)
+            hit = System.Windows.Media.VisualTreeHelper.GetParent(hit);
+
+        if (hit is System.Windows.Controls.DataGridRow row)
+            row.IsSelected = true;
+    }
+
+    private void MenuCopySelected_Click(object sender, RoutedEventArgs e)
+    {
+        if (dgResults.SelectedItem is not BacktestRunResult result)
+        {
+            MessageBox.Show("Clique com o botão direito em uma linha primeiro.", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        try
+        {
+            System.Windows.Clipboard.SetText(FormatResultAsText(result));
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Não foi possível copiar.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 

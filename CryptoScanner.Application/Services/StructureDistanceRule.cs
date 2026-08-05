@@ -8,13 +8,17 @@ public sealed class StructureDistanceRule : IScoringRule
 {
     public string Name => "StructureDistance";
 
+    // Curva invertida em relação à primeira versão: agora recompensa FOLGA em relação
+    // ao suporte, não proximidade — a versão original (premiando entrada colada no
+    // suporte) se mostrou ligada a RR inflado e Win Rate ruim em teste real, e conflitava
+    // filosoficamente com o modo Swing+Buffer ATR, que já afasta o stop de propósito.
     private static readonly PercentileScoreCurve Curve = new(new List<(decimal, decimal)>
     {
-        (0m, 20m),
-        (0.3m, 20m),
-        (0.7m, 10m),
-        (1.2m, -15m),
-        (3m, -15m)
+        (0m, -15m),
+        (0.3m, -15m),
+        (0.7m, 0m),
+        (1.2m, 10m),
+        (2.5m, 15m)
     });
 
     public decimal Evaluate(ScoringContext context)

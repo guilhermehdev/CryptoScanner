@@ -31,4 +31,7 @@ public sealed class BacktestRunResult
     public double BreakEvenWinRate { get; set; }
     public double Edge { get; set; }
     public bool EnableVolatilityScoringPhaseB { get; set; }
+    public string Diagnostics { get; set; } = "";
+    public decimal? Tp1Fraction { get; set; }
+    public decimal? Tp2Fraction { get; set; }
 }
