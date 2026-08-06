@@ -86,6 +86,14 @@
                     </StackPanel>
                 </Border>
                 <StackPanel Margin="0,0,28,0" VerticalAlignment="Center">
+                    <TextBlock Text="BTC" FontSize="9" Foreground="Gray"/>
+                    <TextBlock x:Name="txtDashboardBtcPrice" Text="—" FontWeight="Bold" FontSize="14" Foreground="Black"/>
+                </StackPanel>
+                <StackPanel Margin="0,0,28,0" VerticalAlignment="Center">
+                    <TextBlock Text="DOMINÂNCIA BTC" FontSize="9" Foreground="Gray"/>
+                    <TextBlock x:Name="txtDashboardBtcDominance" Text="—" FontWeight="Bold" FontSize="14" Foreground="Black"/>
+                </StackPanel>
+                <StackPanel Margin="0,0,28,0" VerticalAlignment="Center">
                     <TextBlock Text="SINAIS ELEGÍVEIS AGORA" FontSize="9" Foreground="Gray"/>
                     <TextBlock x:Name="txtDashboardEligible" Text="—" FontWeight="Bold" FontSize="14" Foreground="Black"/>
                 </StackPanel>
@@ -170,10 +178,11 @@
         <DataGrid x:Name="dgRanking"
               Grid.Row="2"
               AutoGenerateColumns="False"
-              IsReadOnly="True">
+              IsReadOnly="True"
+              MouseLeftButtonUp="DgRanking_MouseLeftButtonUp"
+              MouseRightButtonUp="DgRanking_MouseRightButtonUp">
             <DataGrid.RowStyle>
                 <Style TargetType="DataGridRow">
-                    <EventSetter Event="MouseLeftButtonUp" Handler="DgRankingRow_Click"/>
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding Signal}" Value="COMPRA+">
                             <Setter Property="Background" Value="DarkGreen"/>
@@ -332,8 +341,8 @@
                             </DataGridTemplateColumn>
                             <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" IsReadOnly="True" />
                             <DataGridTextColumn Header="Entrada" Binding="{Binding EntryTime, StringFormat=dd/MM HH:mm}" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Preço Entrada" Binding="{Binding EntryPrice}" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Preço Atual" Binding="{Binding CurrentPrice}" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Preço Entrada" Binding="{Binding EntryPrice, StringFormat=0.########}" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Preço Atual" Binding="{Binding CurrentPrice, StringFormat=0.########}" IsReadOnly="True" />
                             <DataGridTextColumn Header="TP" Binding="{Binding TakeProfit, Mode=TwoWay}" IsReadOnly="False" />
                             <DataGridTextColumn Header="SL" Binding="{Binding StopLoss, Mode=TwoWay}" IsReadOnly="False" />
                             <DataGridTextColumn Header="Score" Binding="{Binding ScoreAtEntry, StringFormat=F2}" IsReadOnly="True" />

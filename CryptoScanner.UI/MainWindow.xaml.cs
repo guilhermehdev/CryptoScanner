@@ -13,6 +13,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Forms = System.Windows.Forms;
 using MessageBox = System.Windows.MessageBox;
@@ -32,6 +33,7 @@ public partial class MainWindow : Window
     private readonly IAlertSettingsRepository _alertSettingsRepository;
     private readonly IAppSettingsRepository _appSettingsRepository;
     private readonly BinanceWebSocketService _webSocketService = new();
+    private readonly CoinGeckoService _coinGeckoService = new();
     private IReadOnlyList<SimulatedTrade> _lastSimulatedTrades = Array.Empty<SimulatedTrade>();
     private bool _isScanning;
     private bool _isWindowLoaded;
@@ -141,6 +143,7 @@ public partial class MainWindow : Window
             await EvaluateSimulatedTradesAsync();
             await LoadSimulatedTradesAsync(); // mantém o resumo do Diário (e o espelho no Dashboard) sempre fresco
             UpdateDashboard(result.MarketRegime);
+            _ = UpdateBtcDominanceAsync(); // não bloqueia o scan — atualiza o Dashboard quando terminar
             dgHistory.ItemsSource = result.History;
             txtWinRate.Text = $"Win Rate: {result.WinRate:F1}%";
             txtAvgReturn.Text = $"Retorno Médio: {result.AverageReturn:F2}%";
@@ -445,7 +448,9 @@ public partial class MainWindow : Window
 
     private async Task SyncWebSocketSubscriptionsAsync()
     {
-        var desired = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // BTCUSDT sempre inscrito, independente de estar no ranking — o Dashboard precisa
+        // do preço dele sempre disponível.
+        var desired = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "BTCUSDT" };
 
         foreach (var asset in _lastRanking)
             desired.Add(asset.Symbol);
@@ -474,6 +479,9 @@ public partial class MainWindow : Window
         // async — por isso a parte de persistir o fechamento fica fora, depois).
         Dispatcher.Invoke(() =>
         {
+            if (string.Equals(symbol, "BTCUSDT", StringComparison.OrdinalIgnoreCase))
+                txtDashboardBtcPrice.Text = price.ToString("N2");
+
             matchedAsset = _lastRanking.FirstOrDefault(a => string.Equals(a.Symbol, symbol, StringComparison.OrdinalIgnoreCase));
             if (matchedAsset != null)
                 matchedAsset.Close = price;
@@ -642,6 +650,27 @@ public partial class MainWindow : Window
             : string.Join("  |  ", eligible.Take(3).Select(a => $"{a.Symbol} ({a.Score:F1})"));
     }
 
+    private bool _btcDominanceErrorShown; // diagnóstico temporário — remove depois de achar a causa
+
+    private async Task UpdateBtcDominanceAsync()
+    {
+        var (dominance, error) = await _coinGeckoService.GetBitcoinDominanceAsync();
+
+        if (dominance.HasValue)
+        {
+            txtDashboardBtcDominance.Text = $"{dominance.Value:F1}%";
+            return;
+        }
+
+        txtDashboardBtcDominance.Text = "—";
+
+        if (!_btcDominanceErrorShown)
+        {
+            _btcDominanceErrorShown = true;
+            MessageBox.Show($"Diagnóstico (só aparece 1 vez): falha ao buscar dominância do BTC.\n{error}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     private void ChkFavoritesOnly_Changed(object sender, RoutedEventArgs e) => ApplyRankingFilter();
 
     private async void ChkFavorite_Click(object sender, RoutedEventArgs e)
@@ -670,9 +699,9 @@ public partial class MainWindow : Window
             ApplyRankingFilter();
     }
 
-    private void DgRankingRow_Click(object sender, MouseButtonEventArgs e)
+    private void DgRanking_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (sender is not DataGridRow row || row.Item is not AssetScore asset)
+        if (dgRanking.SelectedItem is not AssetScore asset)
             return;
 
         // Clicar na mesma linha que já está aberta fecha o popup (comportamento de alternância).
@@ -682,10 +711,41 @@ public partial class MainWindow : Window
             return;
         }
 
+        var row = FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject);
         popupBreakdown.DataContext = asset;
-        popupBreakdown.PlacementTarget = row;
+        popupBreakdown.PlacementTarget = (UIElement?)row ?? dgRanking;
         popupBreakdown.Placement = PlacementMode.Bottom;
         popupBreakdown.IsOpen = true;
+    }
+
+    private void DgRanking_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        var row = FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject);
+        if (row?.Item is not AssetScore asset)
+            return;
+
+        string interval = ToTradingViewInterval(_currentProfile.CandleInterval);
+        var chartWindow = new ChartWindow(asset.Symbol, interval) { Owner = this };
+        chartWindow.Show();
+    }
+
+    private static string ToTradingViewInterval(string candleInterval) => candleInterval switch
+    {
+        "1h" => "60",
+        "4h" => "240",
+        "1d" => "D",
+        _ => "240" // não reconhecido — cai num padrão razoável em vez de quebrar
+    };
+
+    private static T? FindAncestor<T>(DependencyObject? current) where T : DependencyObject
+    {
+        while (current != null)
+        {
+            if (current is T match)
+                return match;
+            current = VisualTreeHelper.GetParent(current);
+        }
+        return null;
     }
 
     private static string GetDatabasePath()
