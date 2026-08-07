@@ -48,7 +48,10 @@ public sealed class SimulatedTrade : ObservableModel
         set
         {
             if (SetField(ref _closed, value))
-                OnPropertyChanged(nameof(IsOpen)); // IsOpen depende de Closed, não notifica sozinho
+            {
+                OnPropertyChanged(nameof(IsOpen));
+                OnPropertyChanged(nameof(PartialExitProgressText));
+            }
         }
     }
 
@@ -95,4 +98,65 @@ public sealed class SimulatedTrade : ObservableModel
         get => _unrealizedPnLPercent;
         set => SetField(ref _unrealizedPnLPercent, value);
     }
+
+    // Etapa 3.3 — estado da saída parcial (TP1→breakeven→TP2→TP3), espelhando a mesma
+    // lógica já validada no Backtest (SwingWithPartialExits). TakeProfit já existente
+    // continua sendo o TP2 (resistência estrutural); TakeProfit1/3 são os alvos extras.
+    public decimal? TakeProfit1 { get; set; }
+    public decimal? TakeProfit3 { get; set; }
+
+    private bool _tp1Hit;
+    public bool Tp1Hit
+    {
+        get => _tp1Hit;
+        set
+        {
+            if (SetField(ref _tp1Hit, value))
+                OnPropertyChanged(nameof(PartialExitProgressText));
+        }
+    }
+
+    private bool _tp2Hit;
+    public bool Tp2Hit
+    {
+        get => _tp2Hit;
+        set
+        {
+            if (SetField(ref _tp2Hit, value))
+                OnPropertyChanged(nameof(PartialExitProgressText));
+        }
+    }
+
+   
+
+    private decimal _remainingFraction = 1.0m;
+    public decimal RemainingFraction
+    {
+        get => _remainingFraction;
+        set => SetField(ref _remainingFraction, value);
+    }
+
+    private decimal _weightedExitSum;
+    public decimal WeightedExitSum
+    {
+        get => _weightedExitSum;
+        set => SetField(ref _weightedExitSum, value);
+    }
+
+    public string PartialExitProgressText
+    {
+        get
+        {
+            if (TakeProfit1 == null)
+                return ""; // trade sem saída parcial (modo antigo, ou criado antes da 3.2)
+
+            string tp1 = Tp1Hit ? "✓" : "—";
+            string tp2 = Tp2Hit ? "✓" : "—";
+            string tp3 = Closed && ExitReason == "TP1TP2TP3" ? "✓" : "—";
+
+            return $"TP1 {tp1} | TP2 {tp2} | TP3 {tp3}";
+        }
+    }
+
+
 }

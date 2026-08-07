@@ -64,7 +64,14 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
             ("ExitTime", "TEXT"),
             ("ExitPrice", "REAL"),
             ("OutcomePercent", "REAL"),
-            ("ExitReason", "TEXT")
+            ("ExitReason", "TEXT"),
+            // Etapa 3.3 — estado da saída parcial (TP1→breakeven→TP2→TP3).
+            ("TakeProfit1", "REAL"),
+            ("TakeProfit3", "REAL"),
+            ("Tp1Hit", "INTEGER DEFAULT 0"),
+            ("Tp2Hit", "INTEGER DEFAULT 0"),
+            ("RemainingFraction", "REAL DEFAULT 1.0"),
+            ("WeightedExitSum", "REAL DEFAULT 0")
         };
 
         var existingColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -89,6 +96,7 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
     {
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
+
         const string sql = """
             INSERT INTO SimulatedTrades
             (Symbol, EntryTime, EntryPrice, TakeProfit, StopLoss, Note, Profile,
@@ -96,14 +104,16 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
              VolumeSpike, VolumeImbalance, RelativeStrength, RiskRewardAtEntry,
              TrendScore, StructureScore, VolumeScore, CandleScore, SetupScore,
              MomentumScore, VolatilityScore, TrendStrengthScore,
-             PatternName, SmartMoneyLabel, BreakoutSource, MarketRegime, IsBullTrap, IsBearTrap, Closed)
+             PatternName, SmartMoneyLabel, BreakoutSource, MarketRegime, IsBullTrap, IsBearTrap,
+             TakeProfit1, TakeProfit3, Tp1Hit, Tp2Hit, RemainingFraction, WeightedExitSum, Closed)
             VALUES
             (@Symbol, @EntryTime, @EntryPrice, @TakeProfit, @StopLoss, @Note, @Profile,
              @ScoreAtEntry, @Rsi, @Adx, @AtrPercent, @EmaDistanceAtr, @SwingUsageAtr,
              @VolumeSpike, @VolumeImbalance, @RelativeStrength, @RiskRewardAtEntry,
              @TrendScore, @StructureScore, @VolumeScore, @CandleScore, @SetupScore,
              @MomentumScore, @VolatilityScore, @TrendStrengthScore,
-             @PatternName, @SmartMoneyLabel, @BreakoutSource, @MarketRegime, @IsBullTrap, @IsBearTrap, 0);
+             @PatternName, @SmartMoneyLabel, @BreakoutSource, @MarketRegime, @IsBullTrap, @IsBearTrap,
+             @TakeProfit1, @TakeProfit3, 0, 0, 1.0, 0, 0);
             SELECT last_insert_rowid();
             """;
         await using var command = new SqliteCommand(sql, connection);
@@ -138,6 +148,9 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
         command.Parameters.AddWithValue("@MarketRegime", trade.MarketRegime ?? "");
         command.Parameters.AddWithValue("@IsBullTrap", trade.IsBullTrap ? 1 : 0);
         command.Parameters.AddWithValue("@IsBearTrap", trade.IsBearTrap ? 1 : 0);
+        command.Parameters.AddWithValue("@TakeProfit1", (object?)(trade.TakeProfit1.HasValue ? (double)trade.TakeProfit1.Value : null) ?? DBNull.Value);
+        command.Parameters.AddWithValue("@TakeProfit3", (object?)(trade.TakeProfit3.HasValue ? (double)trade.TakeProfit3.Value : null) ?? DBNull.Value);
+
         var result = await command.ExecuteScalarAsync(cancellationToken);
         return Convert.ToInt32(result);
     }
@@ -152,6 +165,7 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
     {
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
+
         const string sql = """
             UPDATE SimulatedTrades
             SET TakeProfit = @TakeProfit, StopLoss = @StopLoss, Note = @Note
@@ -165,10 +179,34 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    public async Task UpdatePartialExitStateAsync(
+        int id, bool tp1Hit, bool tp2Hit, decimal remainingFraction, decimal weightedExitSum, decimal stopLoss,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        const string sql = """
+            UPDATE SimulatedTrades
+            SET Tp1Hit = @Tp1Hit, Tp2Hit = @Tp2Hit, RemainingFraction = @RemainingFraction,
+                WeightedExitSum = @WeightedExitSum, StopLoss = @StopLoss
+            WHERE Id = @Id AND Closed = 0
+            """;
+        await using var command = new SqliteCommand(sql, connection);
+        command.Parameters.AddWithValue("@Id", id);
+        command.Parameters.AddWithValue("@Tp1Hit", tp1Hit ? 1 : 0);
+        command.Parameters.AddWithValue("@Tp2Hit", tp2Hit ? 1 : 0);
+        command.Parameters.AddWithValue("@RemainingFraction", (double)remainingFraction);
+        command.Parameters.AddWithValue("@WeightedExitSum", (double)weightedExitSum);
+        command.Parameters.AddWithValue("@StopLoss", (double)stopLoss);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     public async Task CloseTradeAsync(int id, decimal exitPrice, decimal outcomePercent, string exitReason, CancellationToken cancellationToken = default)
     {
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
+
         const string sql = """
             UPDATE SimulatedTrades
             SET Closed = 1, ExitTime = @ExitTime, ExitPrice = @ExitPrice, OutcomePercent = @OutcomePercent, ExitReason = @ExitReason
@@ -231,7 +269,13 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
                 ExitTime = reader.IsDBNull(reader.GetOrdinal("ExitTime")) ? null : DateTime.Parse(reader.GetString(reader.GetOrdinal("ExitTime"))),
                 ExitPrice = reader.IsDBNull(reader.GetOrdinal("ExitPrice")) ? null : Convert.ToDecimal(reader.GetDouble(reader.GetOrdinal("ExitPrice"))),
                 OutcomePercent = reader.IsDBNull(reader.GetOrdinal("OutcomePercent")) ? null : Convert.ToDecimal(reader.GetDouble(reader.GetOrdinal("OutcomePercent"))),
-                ExitReason = GetStringOrDefault(reader, "ExitReason")
+                ExitReason = GetStringOrDefault(reader, "ExitReason"),
+                TakeProfit1 = GetNullableDecimal(reader, "TakeProfit1"),
+                TakeProfit3 = GetNullableDecimal(reader, "TakeProfit3"),
+                Tp1Hit = reader.GetInt32(reader.GetOrdinal("Tp1Hit")) == 1,
+                Tp2Hit = reader.GetInt32(reader.GetOrdinal("Tp2Hit")) == 1,
+                RemainingFraction = GetDecimalOrDefault(reader, "RemainingFraction", fallback: 1.0m),
+                WeightedExitSum = GetDecimalOrDefault(reader, "WeightedExitSum")
             });
         }
 
@@ -244,9 +288,15 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
         return reader.IsDBNull(ordinal) ? "" : reader.GetString(ordinal);
     }
 
-    private static decimal GetDecimalOrDefault(SqliteDataReader reader, string column)
+    private static decimal GetDecimalOrDefault(SqliteDataReader reader, string column, decimal fallback = 0m)
     {
         int ordinal = reader.GetOrdinal(column);
-        return reader.IsDBNull(ordinal) ? 0m : Convert.ToDecimal(reader.GetDouble(ordinal));
+        return reader.IsDBNull(ordinal) ? fallback : Convert.ToDecimal(reader.GetDouble(ordinal));
+    }
+
+    private static decimal? GetNullableDecimal(SqliteDataReader reader, string column)
+    {
+        int ordinal = reader.GetOrdinal(column);
+        return reader.IsDBNull(ordinal) ? null : Convert.ToDecimal(reader.GetDouble(ordinal));
     }
 }

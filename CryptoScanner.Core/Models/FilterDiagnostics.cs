@@ -13,13 +13,16 @@ public sealed class FilterDiagnostics
     public int FailedDirection { get; set; }
     public int FailedRiskReward { get; set; }
     public int FailedStopDistance { get; set; }
+    public int FailedStopDistanceTooHigh { get; set; }
     public int FailedRiskRewardTooHigh { get; set; }
+    public int FailedBullTrap { get; set; }
     public int SkippedDuplicateToday { get; set; }
 
     public string Summary =>
         $"Score: {FailedScore} | Sem breakout: {FailedBreakout} | Sem consol.: {FailedConsolidation} | " +
         $"Vol. spike: {FailedVolumeSpike} | Dist. resist.: {FailedResistanceDistance} | " +
         $"Direção: {FailedDirection} | Risk/Reward: {FailedRiskReward} | Stop mín.: {FailedStopDistance} | " +
-        $"RR teto: {FailedRiskRewardTooHigh} | Duplicado hoje: {SkippedDuplicateToday} | " +
+        $"Stop máx.: {FailedStopDistanceTooHigh} | RR teto: {FailedRiskRewardTooHigh} | Bull Trap: {FailedBullTrap} | " +
+        $"Duplicado hoje: {SkippedDuplicateToday} | " +
         $"Passaram: {PassedAll}/{TotalAnalyzed}";
 }

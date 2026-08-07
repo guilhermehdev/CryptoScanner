@@ -17,7 +17,7 @@ public sealed class StrategyBacktester
     /// configuração de tela idêntica gera a mesma assinatura de sempre, e o sistema recusa
     /// salvar o resultado novo mesmo que o motor por trás tenha mudado completamente.
     /// </summary>
-    public const int EngineVersion = 4; // v4: etapa 4.4 V1 — Fibonacci por TrendStrengthScore em vez de ADX
+    public const int EngineVersion = 6; // v6: teto de distância de stop (MaxStopDistancePercent) disponível como filtro
 
     private const int LookbackCandles = 300;
 
@@ -41,6 +41,7 @@ public sealed class StrategyBacktester
      RiskCalculationMode riskMode = RiskCalculationMode.SwingBased,
      int? evaluationHoursOverride = null,
      (decimal Tp1, decimal Tp2)? partialExitFractions = null,
+     bool disableTimeout = false,
      Action<string, double>? onProgress = null,
      CancellationToken cancellationToken = default)
     {
@@ -107,7 +108,7 @@ public sealed class StrategyBacktester
                 }
 
                 var (trades, symbolDiagnostics) = await Task.Run(
-                    () => SimulateSymbol(symbol, candles, btcCandles, btcDailyCandles, symbolDailyCandles, startUtc, profile, thresholds, riskMode, evaluationHoursOverride, partialExitFractions,
+                    () => SimulateSymbol(symbol, candles, btcCandles, btcDailyCandles, symbolDailyCandles, startUtc, profile, thresholds, riskMode, evaluationHoursOverride, partialExitFractions, disableTimeout,
                         (message, _) => { }),
                     cancellationToken);
 
@@ -144,6 +145,7 @@ public sealed class StrategyBacktester
         RiskCalculationMode riskMode,
         int? evaluationHoursOverride,
         (decimal Tp1, decimal Tp2)? partialExitFractions,
+        bool disableTimeout,
         Action<string, double>? onProgress)
     {
         var trades = new List<BacktestTradeResult>();
@@ -187,7 +189,7 @@ public sealed class StrategyBacktester
                     // Modo SwingWithPartialExits (etapa 4.3) — saída fracionada TP1→TP2→TP3.
                     justClosed = ProcessPartialExits(openPosition, currentCandle, trades);
 
-                    if (!justClosed && currentCandle.OpenTime >= openPosition.EntryTime.AddHours(effectiveEvaluationHours))
+                    if (!disableTimeout && !justClosed && currentCandle.OpenTime >= openPosition.EntryTime.AddHours(effectiveEvaluationHours))
                     {
                         // Timeout com posição parcialmente realizada — fecha só o que sobrou,
                         // ponderado junto com as pernas de TP1/TP2 já realizadas.
@@ -220,7 +222,7 @@ public sealed class StrategyBacktester
                         openPosition = null;
                         justClosed = true;
                     }
-                    else if (currentCandle.OpenTime >= openPosition.EntryTime.AddHours(effectiveEvaluationHours))
+                    else if (!disableTimeout && currentCandle.OpenTime >= openPosition.EntryTime.AddHours(effectiveEvaluationHours))
                     {
                         trades.Add(CloseTrade(openPosition, currentCandle.OpenTime, currentCandle.Close, "TIMEOUT"));
                         openPosition = null;
@@ -379,6 +381,8 @@ public sealed class StrategyBacktester
             if (eligibility.FailedRiskReward) diagnostics.FailedRiskReward++;
             if (eligibility.FailedStopDistance) diagnostics.FailedStopDistance++;
             if (eligibility.FailedRiskRewardTooHigh) diagnostics.FailedRiskRewardTooHigh++;
+            if (eligibility.FailedStopDistanceTooHigh) diagnostics.FailedStopDistanceTooHigh++;
+            if (eligibility.FailedBullTrap) diagnostics.FailedBullTrap++;
 
             if (!eligibility.IsEligible)
                 continue;
@@ -458,6 +462,8 @@ public sealed class StrategyBacktester
         target.SkippedDuplicateToday += source.SkippedDuplicateToday;
         target.FailedStopDistance += source.FailedStopDistance;
         target.FailedRiskRewardTooHigh += source.FailedRiskRewardTooHigh;
+        target.FailedStopDistanceTooHigh += source.FailedStopDistanceTooHigh;
+        target.FailedBullTrap += source.FailedBullTrap;
     }
 
     private static BacktestTradeResult CloseTrade(BacktestOpenPosition position, DateTime exitTime, decimal exitPrice, string reason)

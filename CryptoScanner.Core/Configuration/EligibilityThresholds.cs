@@ -17,6 +17,14 @@ public sealed class EligibilityThresholds
     public required decimal MinRiskReward { get; init; }
     public required decimal MinRelativeStrengthPercent { get; init; }
     public required decimal MinStopDistancePercent { get; init; }
+
+    // Teto de distância de stop — NÃO-obrigatório de propósito (default = sem limite), pra
+    // não quebrar nenhuma construção existente de EligibilityThresholds espalhada pelo app.
+    // Investigado depois de um SL absurdamente longe (HEIUSDT, ~81% de distância) escapar
+    // ileso dos filtros de proporção — SL e TP estavam esticados na mesma escala, então o
+    // RR parecia razoável mesmo os valores absolutos sendo um absurdo.
+    public decimal MaxStopDistancePercent { get; init; } = decimal.MaxValue;
+
     public required decimal MaxRiskReward { get; init; }
     public required bool EnablePullbackBounce { get; init; }
     public required bool EnableBollingerScoring { get; init; }

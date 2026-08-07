@@ -7,7 +7,7 @@ namespace CryptoScanner.Application.Services;
 
 public static class AssetScoreFactory
 {
-    public static AssetScore Create(AssetAnalysis analysis, string marketRegime, IReadOnlySet<string> favoriteSymbols) => new()
+    public static AssetScore Create(AssetAnalysis analysis, string marketRegime, IReadOnlySet<string> favoriteSymbols, EligibilityThresholds? thresholds = null) => new()
     {
         Symbol = analysis.Symbol,
         Close = analysis.Trend.Close,
@@ -16,6 +16,8 @@ public static class AssetScoreFactory
         PreviousScore = analysis.PreviousScore,
         ScoreVariation = analysis.ScoreVariation,
         Resistance = analysis.Risk.Resistance,
+        TakeProfit1 = analysis.Risk.TakeProfit1,
+        TakeProfit3 = analysis.Risk.TakeProfit3,
         VolumeSpike = analysis.Volume.Spike,
         ResistanceDistance = analysis.Risk.ResistanceDistancePercent,
         SupportDistance = analysis.Risk.SupportDistancePercent,
@@ -33,7 +35,7 @@ public static class AssetScoreFactory
         SmartMoneyLabel = analysis.Structure.SmartMoneyLabel,
         IsBullTrap = analysis.Structure.IsBullTrap,
         IsBearTrap = analysis.Structure.IsBearTrap,
-        IsEligible = EligibilityEvaluator.Evaluate(analysis, marketRegime).IsEligible,
+        IsEligible = EligibilityEvaluator.Evaluate(analysis, marketRegime, thresholds).IsEligible,
         IsFavorite = favoriteSymbols.Contains(analysis.Symbol),
         TrendScore = analysis.Trend.Score,
         StructureScore = analysis.Structure.Score,

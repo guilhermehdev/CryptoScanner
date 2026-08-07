@@ -11,6 +11,39 @@ public sealed class ScannerService
 {
     private const int MaxConcurrentAnalyses = 8;
 
+    // Configuração validada via Backtest (Swing + Resistência Pontuada + Saída Parcial,
+    // RR mín.=1,5) — etapa 3.1 do plano de ligar a estratégia real ao app ao vivo.
+    // Ainda não inclui saída parcial de verdade no Diário (isso é a etapa 3.3/3.4);
+    // por enquanto só troca QUAL sinal é considerado elegível.
+    private const RiskCalculationMode ValidatedRiskMode = RiskCalculationMode.SwingWithPartialExits;
+
+    private static readonly EligibilityThresholds ValidatedThresholds = new()
+    {
+        BuyOpportunityScore = ScannerSettings.BuyOpportunityScore,
+        BearRegimePenalty = ScannerSettings.BearRegimePenalty,
+        SidewaysRegimePenalty = ScannerSettings.SidewaysRegimePenalty,
+        MinVolumeSpike = ScannerSettings.MinVolumeSpike,
+        DefensiveMinVolumeSpike = ScannerSettings.DefensiveMinVolumeSpike,
+        MinResistanceDistance = ScannerSettings.MinResistanceDistance,
+        MinResistanceDistanceAtrMode = ScannerSettings.MinResistanceDistance, // não usado nesse modo
+        MinResistanceDistancePartialExits = 4m, // validado no Backtest
+        MinRiskReward = 1.5m, // validado no Backtest
+        MinRelativeStrengthPercent = ScannerSettings.MinRelativeStrengthPercent,
+        MinStopDistancePercent = 0m, // testado e confirmado irrelevante nesse modo (buffer de ATR já protege)
+        MaxStopDistancePercent = 25m, // validado via Backtest em 3 universos distintos (110/167 moedas,
+                                      // 3 janelas de período) — faixa 20-30% consistentemente melhor que
+                                      // os extremos; 25% escolhido como meio-termo robusto entre eles,
+                                      // evitando depender do pico exato de um teste isolado
+        MaxRiskReward = 999m, // mesmo valor usado em toda a validação
+        EnablePullbackBounce = false,
+        EnableBollingerScoring = true, // validado via Backtest em 2 janelas de período distintas (2020-2026
+                                       // e 2021-2026, 167 moedas, RR mín.=1,5) — melhora Win Rate, Profit
+                                       // Factor, Retorno E reduz Drawdown ao mesmo tempo, nas duas vezes;
+                                       // diferente da Fase B, não dilui o sinal da resistência pontuada
+        EnableVolatilityScoringPhaseB = false,
+        EnableMultiTimeframe = false,
+    };
+
     private readonly IMarketDataService _marketData;
     private readonly ISignalRepository _signals;
     private readonly IWatchlistRepository _watchlist;
@@ -43,6 +76,7 @@ public sealed class ScannerService
         var favoriteSet = new HashSet<string>(favoriteSymbols, StringComparer.OrdinalIgnoreCase);
 
         var pendingSignals = await _signals.GetPendingSignalsAsync(cancellationToken);
+
         var topSymbols = (await _marketData.GetUsdtSymbolsAsync(cancellationToken))
             .Take(ScannerSettings.MaxCoins)
             .ToList();
@@ -66,13 +100,15 @@ public sealed class ScannerService
             .ToList();
 
         await EvaluatePendingSignalsAsync(pendingSignals, profile, cancellationToken);
+
         var (diagnostics, newSignals) = await PersistEligibleSignalsAsync(analysesResult, marketRegime, profile, cancellationToken);
 
         var history = await _signals.GetSignalsAsync(cancellationToken);
+
         return new ScannerRunResult
         {
             MarketRegime = marketRegime,
-            Ranking = analysesResult.Select(asset => AssetScoreFactory.Create(asset, marketRegime, favoriteSet)).ToList(),
+            Ranking = analysesResult.Select(asset => AssetScoreFactory.Create(asset, marketRegime, favoriteSet, ValidatedThresholds)).ToList(),
             History = history,
             WinRate = await _signals.GetWinRateAsync(cancellationToken),
             AverageReturn = await _signals.GetAverageReturnAsync(cancellationToken),
@@ -92,7 +128,7 @@ public sealed class ScannerService
 
         foreach (var asset in ranking)
         {
-            var eligibility = EligibilityEvaluator.Evaluate(asset, marketRegime);
+            var eligibility = EligibilityEvaluator.Evaluate(asset, marketRegime, ValidatedThresholds);
 
             if (eligibility.FailedScore) diagnostics.FailedScore++;
             if (eligibility.FailedBreakout) diagnostics.FailedBreakout++;
@@ -103,6 +139,8 @@ public sealed class ScannerService
             if (eligibility.FailedRiskReward) diagnostics.FailedRiskReward++;
             if (eligibility.FailedStopDistance) diagnostics.FailedStopDistance++;
             if (eligibility.FailedRiskRewardTooHigh) diagnostics.FailedRiskRewardTooHigh++;
+            if (eligibility.FailedStopDistanceTooHigh) diagnostics.FailedStopDistanceTooHigh++;
+            if (eligibility.FailedBullTrap) diagnostics.FailedBullTrap++;
 
             if (!eligibility.IsEligible)
                 continue;
@@ -153,7 +191,6 @@ public sealed class ScannerService
             };
 
             await _signals.InsertSignalAsync(snapshot, cancellationToken);
-
             newSignals.Add(new NewSignalAlert(asset.Symbol, asset.Signal, asset.OpportunityScore, asset.Trend.Close, profile.Name));
         }
 
@@ -166,7 +203,7 @@ public sealed class ScannerService
         try
         {
             var candles = await _marketData.GetCandlesAsync(symbol, profile.CandleInterval, 300, cancellationToken);
-            return _assetAnalyzer.Analyze(symbol, candles, btcCandles, profile);
+            return _assetAnalyzer.Analyze(symbol, candles, btcCandles, profile, ValidatedRiskMode);
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
@@ -223,7 +260,6 @@ public sealed class ScannerService
                     exitPrice = signal.StopLoss;
                     break;
                 }
-
                 if (candle.High >= signal.TakeProfit)
                 {
                     hitTakeProfit = true;
@@ -248,8 +284,6 @@ public sealed class ScannerService
             }
         }
     }
-
-  
 
     public async Task<AssetScore?> LookupSymbolAsync(string symbol, ScanProfile profile, CancellationToken cancellationToken = default)
     {
@@ -277,8 +311,7 @@ public sealed class ScannerService
         var favoriteSymbols = await _watchlist.GetAllAsync(cancellationToken);
         var favoriteSet = new HashSet<string>(favoriteSymbols, StringComparer.OrdinalIgnoreCase);
 
-        var analysis = _assetAnalyzer.Analyze(symbol, candles, btcCandles, profile);
-
-        return AssetScoreFactory.Create(analysis, marketRegime, favoriteSet);
+        var analysis = _assetAnalyzer.Analyze(symbol, candles, btcCandles, profile, ValidatedRiskMode);
+        return AssetScoreFactory.Create(analysis, marketRegime, favoriteSet, ValidatedThresholds);
     }
 }

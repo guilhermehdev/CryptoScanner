@@ -91,9 +91,11 @@ public partial class BacktestHistoryWindow : Window
         sb.AppendLine($"Limiares: Score>={r.MinScore:F0} | RR min={r.MinRiskReward:F1} | RR max={r.MaxRiskReward:F0} | " +
                        $"Dist.Resist.Swing={r.MinResistanceDistanceSwing:F0}% | Dist.Resist.ATR={r.MinResistanceDistanceAtr:F0}% | " +
                        $"Vol.Spike={r.MinVolumeSpike:F2} | Stop min={r.MinStopDistancePercent:F0}% | " +
+                       (r.MaxStopDistancePercent.HasValue ? $"Stop máx={r.MaxStopDistancePercent:F0}% | " : "") +
                        $"Caminho A={(r.EnablePullbackBounce ? "sim" : "não")} | Bollinger Scoring={(r.EnableBollingerScoring ? "sim" : "não")} | " +
                        $"Volatility Fase B={(r.EnableVolatilityScoringPhaseB ? "sim" : "não")} | " +
                        $"Timeout override={(r.EvaluationHoursOverride?.ToString() ?? "padrão")}" +
+                       (r.DisableTimeout ? " | Timeout=DESATIVADO (só TP/SL)" : "") +
                        (r.Tp1Fraction.HasValue ? $" | Frações TP1/TP2={r.Tp1Fraction:F2}/{r.Tp2Fraction:F2}" : ""));
         sb.AppendLine(new string('-', 70));
         sb.AppendLine($"Operações: {r.TotalTrades} | Win Rate: {r.WinRate:F1}% | Retorno: {r.TotalReturnPercent:F2}% | " +

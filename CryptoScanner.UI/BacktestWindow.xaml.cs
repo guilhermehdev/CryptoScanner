@@ -40,7 +40,7 @@ public partial class BacktestWindow : Window
         _runResultRepository = new SqliteBacktestRunResultRepository(databasePath);
 
         dpEnd.SelectedDate = DateTime.Today;
-        dpStart.SelectedDate = DateTime.Today.AddYears(-1);
+        dpStart.SelectedDate = DateTime.Today.AddYears(-6);
 
         txtMinScore.Text = ScannerSettings.BuyOpportunityScore.ToString("F0");
         txtMinResistDistance.Text = ScannerSettings.MinResistanceDistance.ToString("F0");
@@ -49,6 +49,7 @@ public partial class BacktestWindow : Window
         txtMinVolumeSpike.Text = ScannerSettings.MinVolumeSpike.ToString("F2");
         txtMinRiskReward.Text = 1.5m.ToString("F1"); // valor de referência validado pro modo Swing+Resistência Pontuada
         txtMinStopDistance.Text = "0"; // 0 = sem piso, reproduz o comportamento atual do app ao vivo
+        txtMaxStopDistance.Text = "25"; 
         txtMaxRiskReward.Text = "999"; // efetivamente sem teto
 
         UpdateManualSymbolsCount();
@@ -118,7 +119,7 @@ public partial class BacktestWindow : Window
     private static string ComputeSignature(
         IReadOnlyList<string> symbols, DateTime start, DateTime end, ScanProfile profile,
         EligibilityThresholds thresholds, RiskCalculationMode riskMode, int? evaluationHoursOverride,
-        decimal? tp1Fraction = null, decimal? tp2Fraction = null)
+        decimal? tp1Fraction = null, decimal? tp2Fraction = null, bool disableTimeout = false)
     {
         var sb = new StringBuilder();
         sb.Append(profile.Name).Append('|');
@@ -133,6 +134,7 @@ public partial class BacktestWindow : Window
         sb.Append(thresholds.MinVolumeSpike).Append('|');
         sb.Append(thresholds.MinRiskReward).Append('|');
         sb.Append(thresholds.MinStopDistancePercent).Append('|');
+        sb.Append(thresholds.MaxStopDistancePercent).Append('|');
         sb.Append(thresholds.MaxRiskReward).Append('|');
         sb.Append(thresholds.EnablePullbackBounce).Append('|');
         sb.Append(thresholds.EnableBollingerScoring).Append('|');
@@ -141,6 +143,7 @@ public partial class BacktestWindow : Window
         sb.Append(evaluationHoursOverride?.ToString() ?? "default").Append('|');
         sb.Append(tp1Fraction?.ToString() ?? "default").Append('|');
         sb.Append(tp2Fraction?.ToString() ?? "default").Append('|');
+        sb.Append(disableTimeout).Append('|');
         sb.Append(StrategyBacktester.EngineVersion);
 
         byte[] hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()));
@@ -150,11 +153,11 @@ public partial class BacktestWindow : Window
     private async Task SaveRunResultAsync(
         string label, IReadOnlyList<string> symbols, DateTime start, DateTime end, ScanProfile profile,
         EligibilityThresholds thresholds, RiskCalculationMode riskMode, int? evaluationHoursOverride,
-        BacktestSummary summary, decimal? tp1Fraction = null, decimal? tp2Fraction = null)
+        BacktestSummary summary, decimal? tp1Fraction = null, decimal? tp2Fraction = null, bool disableTimeout = false)
     {
         try
         {
-            string signature = ComputeSignature(symbols, start, end, profile, thresholds, riskMode, evaluationHoursOverride, tp1Fraction, tp2Fraction);
+            string signature = ComputeSignature(symbols, start, end, profile, thresholds, riskMode, evaluationHoursOverride, tp1Fraction, tp2Fraction, disableTimeout);
 
             await _runResultRepository.InitializeAsync();
             if (await _runResultRepository.ExistsAsync(signature))
@@ -177,12 +180,14 @@ public partial class BacktestWindow : Window
                 MinVolumeSpike = thresholds.MinVolumeSpike,
                 MinRiskReward = thresholds.MinRiskReward,
                 MinStopDistancePercent = thresholds.MinStopDistancePercent,
+                MaxStopDistancePercent = thresholds.MaxStopDistancePercent,
                 MaxRiskReward = thresholds.MaxRiskReward,
                 EnablePullbackBounce = thresholds.EnablePullbackBounce,
                 EnableBollingerScoring = thresholds.EnableBollingerScoring,
                 EnableVolatilityScoringPhaseB = thresholds.EnableVolatilityScoringPhaseB,
                 Tp1Fraction = tp1Fraction,
                 Tp2Fraction = tp2Fraction,
+                DisableTimeout = disableTimeout,
                 Diagnostics = summary.Diagnostics.Summary,
                 EvaluationHoursOverride = evaluationHoursOverride,
                 TotalTrades = summary.TotalTrades,
@@ -232,6 +237,7 @@ public partial class BacktestWindow : Window
             MinRiskReward = EligibilityThresholds.Default.MinRiskReward,
             MinRelativeStrengthPercent = EligibilityThresholds.Default.MinRelativeStrengthPercent,
             MinStopDistancePercent = EligibilityThresholds.Default.MinStopDistancePercent,
+            MaxStopDistancePercent = EligibilityThresholds.Default.MaxStopDistancePercent,
             MaxRiskReward = EligibilityThresholds.Default.MaxRiskReward,
             EnablePullbackBounce = EligibilityThresholds.Default.EnablePullbackBounce,
             EnableBollingerScoring = EligibilityThresholds.Default.EnableBollingerScoring,
@@ -302,6 +308,7 @@ public partial class BacktestWindow : Window
             !decimal.TryParse(txtMinVolumeSpike.Text, out decimal minVolumeSpike) ||
             !decimal.TryParse(txtMinRiskReward.Text, out decimal minRiskReward) ||
             !decimal.TryParse(txtMinStopDistance.Text, out decimal minStopDistance) ||
+            !decimal.TryParse(txtMaxStopDistance.Text, out decimal maxStopDistance) ||
             !decimal.TryParse(txtMaxRiskReward.Text, out decimal maxRiskReward))
         {
             MessageBox.Show("Revise os valores de limiares — todos precisam ser números válidos.", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -321,6 +328,7 @@ public partial class BacktestWindow : Window
             MinRiskReward = minRiskReward,
             MinRelativeStrengthPercent = ScannerSettings.MinRelativeStrengthPercent,
             MinStopDistancePercent = minStopDistance,
+            MaxStopDistancePercent = maxStopDistance,
             MaxRiskReward = maxRiskReward,
             EnablePullbackBounce = false, // Caminho A escondido da tela — lógica preservada, mas sempre desligada por padrão
             EnableBollingerScoring = chkEnableBollingerScoring.IsChecked == true,
@@ -372,6 +380,8 @@ public partial class BacktestWindow : Window
                 ? overrideHours
                 : null;
 
+            bool disableTimeout = chkDisableTimeout.IsChecked == true;
+
             var summary = await backtester.RunAsync(
                 symbols,
                 start,
@@ -380,6 +390,7 @@ public partial class BacktestWindow : Window
                 thresholds,
                 riskMode: GetSelectedRiskMode(),
                 evaluationHoursOverride: evaluationHoursOverride,
+                disableTimeout: disableTimeout,
                 onProgress: (message, percent) => Dispatcher.Invoke(() =>
                 {
                     txtStatus.Text = message;
@@ -387,14 +398,20 @@ public partial class BacktestWindow : Window
                 }),
                 cancellationToken: _cts.Token);
 
-            await SaveRunResultAsync("Rodar Backtest", symbols, start, end, profile, thresholds, GetSelectedRiskMode(), evaluationHoursOverride, summary);
+            await SaveRunResultAsync("Rodar Backtest", symbols, start, end, profile, thresholds, GetSelectedRiskMode(), evaluationHoursOverride, summary, disableTimeout: disableTimeout);
 
             string skippedInfo = summary.SkippedSymbols.Count > 0
                 ? $"\n\n⚠ {summary.SkippedSymbols.Count} de {symbols.Count} moedas não entraram no teste:\n" +
                   string.Join("\n", summary.SkippedSymbols)
                 : "";
 
+            string maxStopText = thresholds.MaxStopDistancePercent < 999m
+                ? $"{thresholds.MaxStopDistancePercent:F0}%"
+                : "sem teto";
+
             txtSummaryResult.Text =
+                $"Score≥{thresholds.BuyOpportunityScore:F0} | RR mín.={thresholds.MinRiskReward:F1} | Stop mín.={thresholds.MinStopDistancePercent:F0}% | Stop máx.={maxStopText}" +
+                (disableTimeout ? " | Timeout=DESATIVADO (só TP/SL)" : "") + "\n\n" +
                 $"Operações: {summary.TotalTrades}   |   " +
                 $"Win Rate: {summary.WinRate:F1}%   |   " +
                 $"Retorno Acumulado: {summary.TotalReturnPercent:F2}%   |   " +
@@ -486,6 +503,7 @@ public partial class BacktestWindow : Window
                     MinRiskReward = rr,
                     MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
                     MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
+                    MaxStopDistancePercent = baseThresholds.MaxStopDistancePercent,
                     MaxRiskReward = baseThresholds.MaxRiskReward,
                     EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
                     EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
@@ -605,6 +623,7 @@ public partial class BacktestWindow : Window
                     MinRiskReward = baseThresholds.MinRiskReward,
                     MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
                     MinStopDistancePercent = stopMin,
+                    MaxStopDistancePercent = baseThresholds.MaxStopDistancePercent,
                     MaxRiskReward = baseThresholds.MaxRiskReward,
                     EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
                     EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
@@ -647,6 +666,128 @@ public partial class BacktestWindow : Window
             dgComparison.Visibility = Visibility.Visible;
             txtSummaryResult.Text = $"Comparação por piso de Stop concluída — RR mínimo fixo em {baseThresholds.MinRiskReward}. " +
                                      "Isso isola o efeito de exigir um stop com distância mínima, independente da proporção RR.";
+            txtStatus.Text = "Concluído.";
+        }
+        catch (OperationCanceledException)
+        {
+            txtStatus.Text = "Comparação cancelada.";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Erro ao comparar cenários.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
+            txtStatus.Text = "";
+        }
+        finally
+        {
+            SetRunningState(false);
+        }
+    }
+
+    private async void BtnCompareMaxStopScenarios_Click(object sender, RoutedEventArgs e)
+    {
+        if (!TryGetDateRange(out var start, out var end))
+            return;
+
+        if (!TryBuildThresholds(out var baseThresholds))
+            return;
+
+        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : ScanProfile.Swing;
+
+        List<string>? symbols;
+        try
+        {
+            symbols = await ResolveSymbolsAsync();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Não foi possível obter a lista de moedas.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
+            txtStatus.Text = "";
+            return;
+        }
+
+        if (symbols == null)
+            return;
+
+        // RR fica fixo no valor da tela — só o teto de distância do stop varia, pra isolar
+        // o efeito desse critério (investigado depois do caso HEIUSDT: SL ~81% de distância,
+        // que passou ileso porque a proporção RR parecia normal mesmo o valor absoluto sendo
+        // um absurdo — TP e SL esticados na mesma escala).
+        decimal[] maxStopScenarios = { 15m, 20m, 30m, 50m, 999m };
+
+        SetRunningState(true);
+        dgTrades.ItemsSource = null;
+        cnvEquityCurve.Children.Clear();
+        _lastDisplayedTrades = new List<BacktestTradeResult>();
+        txtSummaryResult.Text = "";
+        var results = new List<ScenarioResult>();
+        _cts = new CancellationTokenSource();
+
+        try
+        {
+            var backtester = new StrategyBacktester(_marketData, _assetAnalyzer);
+
+            int scenarioIndex = 0;
+            foreach (var stopMax in maxStopScenarios)
+            {
+                _cts.Token.ThrowIfCancellationRequested();
+                scenarioIndex++;
+
+                var scenarioThresholds = new EligibilityThresholds
+                {
+                    BuyOpportunityScore = baseThresholds.BuyOpportunityScore,
+                    BearRegimePenalty = baseThresholds.BearRegimePenalty,
+                    SidewaysRegimePenalty = baseThresholds.SidewaysRegimePenalty,
+                    MinVolumeSpike = baseThresholds.MinVolumeSpike,
+                    DefensiveMinVolumeSpike = baseThresholds.DefensiveMinVolumeSpike,
+                    MinResistanceDistance = baseThresholds.MinResistanceDistance,
+                    MinResistanceDistanceAtrMode = baseThresholds.MinResistanceDistanceAtrMode,
+                    MinResistanceDistancePartialExits = baseThresholds.MinResistanceDistancePartialExits,
+                    MinRiskReward = baseThresholds.MinRiskReward,
+                    MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
+                    MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
+                    MaxStopDistancePercent = stopMax,
+                    MaxRiskReward = baseThresholds.MaxRiskReward,
+                    EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
+                    EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
+                    EnableVolatilityScoringPhaseB = baseThresholds.EnableVolatilityScoringPhaseB,
+                    EnableMultiTimeframe = baseThresholds.EnableMultiTimeframe
+                };
+
+                var summary = await backtester.RunAsync(
+                    symbols,
+                    start,
+                    end,
+                    profile,
+                    scenarioThresholds,
+                    riskMode: GetSelectedRiskMode(),
+                    onProgress: (message, percent) => Dispatcher.Invoke(() =>
+                    {
+                        double overallPercent = ((scenarioIndex - 1) * 100.0 + percent) / maxStopScenarios.Length;
+                        txtStatus.Text = $"[{scenarioIndex}/{maxStopScenarios.Length}] [Stop≤{stopMax}%] {message}";
+                        pbProgress.Value = overallPercent;
+                    }),
+                    cancellationToken: _cts.Token);
+
+                await SaveRunResultAsync($"Stop ≤ {stopMax}%", symbols, start, end, profile, scenarioThresholds, GetSelectedRiskMode(), null, summary);
+
+                results.Add(new ScenarioResult
+                {
+                    Label = $"Stop ≤ {stopMax}%",
+                    TotalTrades = summary.TotalTrades,
+                    WinRate = summary.WinRate,
+                    TotalReturnPercent = summary.TotalReturnPercent,
+                    MaxDrawdownPercent = summary.MaxDrawdownPercent,
+                    ProfitFactor = summary.ProfitFactor,
+                    AvgRiskRewardAtEntry = summary.AvgRiskRewardAtEntry,
+                    BreakEvenWinRate = summary.BreakEvenWinRate,
+                    Edge = summary.Edge
+                });
+            }
+
+            dgComparison.ItemsSource = results;
+            dgComparison.Visibility = Visibility.Visible;
+            txtSummaryResult.Text = $"Comparação por teto de Stop concluída — RR mínimo fixo em {baseThresholds.MinRiskReward}. " +
+                                     "Isola o efeito de rejeitar sinais com stop absurdamente distante, mesmo quando a proporção RR parece normal.";
             txtStatus.Text = "Concluído.";
         }
         catch (OperationCanceledException)
@@ -724,6 +865,7 @@ public partial class BacktestWindow : Window
                     MinRiskReward = baseThresholds.MinRiskReward,
                     MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
                     MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
+                    MaxStopDistancePercent = baseThresholds.MaxStopDistancePercent,
                     MaxRiskReward = maxRR,
                     EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
                     EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
@@ -848,6 +990,7 @@ public partial class BacktestWindow : Window
                     MinRiskReward = baseThresholds.MinRiskReward,
                     MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
                     MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
+                    MaxStopDistancePercent = baseThresholds.MaxStopDistancePercent,
                     MaxRiskReward = baseThresholds.MaxRiskReward,
                     EnablePullbackBounce = scenario.EnableA,
                     EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
@@ -1366,6 +1509,7 @@ public partial class BacktestWindow : Window
                     MinRiskReward = baseThresholds.MinRiskReward,
                     MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
                     MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
+                    MaxStopDistancePercent = baseThresholds.MaxStopDistancePercent,
                     MaxRiskReward = baseThresholds.MaxRiskReward,
                     EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
                     EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
@@ -1487,6 +1631,7 @@ public partial class BacktestWindow : Window
                     MinRiskReward = baseThresholds.MinRiskReward,
                     MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
                     MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
+                    MaxStopDistancePercent = baseThresholds.MaxStopDistancePercent,
                     MaxRiskReward = baseThresholds.MaxRiskReward,
                     EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
                     EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
@@ -1608,6 +1753,7 @@ public partial class BacktestWindow : Window
                     MinRiskReward = rr,
                     MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
                     MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
+                    MaxStopDistancePercent = baseThresholds.MaxStopDistancePercent,
                     MaxRiskReward = baseThresholds.MaxRiskReward,
                     EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
                     EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
@@ -1975,6 +2121,7 @@ public partial class BacktestWindow : Window
         btnRun.IsEnabled = !isRunning;
         btnCompare.IsEnabled = !isRunning;
         btnCompareStop.IsEnabled = !isRunning;
+        btnCompareMaxStop.IsEnabled = !isRunning;
         btnCompareMaxRR.IsEnabled = !isRunning;
         btnCompareNewPaths.IsEnabled = !isRunning;
         btnComparePeriods.IsEnabled = !isRunning;

@@ -54,6 +54,8 @@ public partial class SimulateTradeWindow : Window
             EntryPrice = entryPrice,
             TakeProfit = takeProfit,
             StopLoss = stopLoss,
+            TakeProfit1 = _asset.TakeProfit1,
+            TakeProfit3 = _asset.TakeProfit3,
             Note = txtNote.Text.Trim(),
             Profile = _profileName,
 

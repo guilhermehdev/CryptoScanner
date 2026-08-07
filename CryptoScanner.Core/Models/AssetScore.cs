@@ -2,8 +2,8 @@ namespace CryptoScanner.Core.Models;
 
 public sealed class AssetScore : ObservableModel
 {
-
     public string Symbol { get; init; } = "";
+
     private decimal _close;
     public decimal Close
     {
@@ -11,15 +11,18 @@ public sealed class AssetScore : ObservableModel
         set
         {
             if (SetField(ref _close, value))
-                OnPropertyChanged(nameof(CloseFormatted)); // derivado — precisa notificar junto
+                OnPropertyChanged(nameof(CloseFormatted));
         }
     }
+
     public decimal Score { get; init; }
     public decimal OpportunityScore { get; init; }
     public decimal PreviousScore { get; init; }
     public decimal ScoreVariation { get; init; }
     public decimal Resistance { get; init; }
     public decimal Support { get; init; }
+    public decimal? TakeProfit1 { get; init; }
+    public decimal? TakeProfit3 { get; init; }
     public decimal VolumeSpike { get; init; }
     public decimal ResistanceDistance { get; init; }
     public decimal SupportDistance { get; init; }
@@ -67,6 +70,20 @@ public sealed class AssetScore : ObservableModel
     public string RelativeStrengthText =>
         RelativeStrength >= 0 ? $"+{RelativeStrength:F2}% vs BTC" : $"{RelativeStrength:F2}% vs BTC";
 
-    // Consolidação só é exigida como critério de elegibilidade quando o regime é BULL.
     public bool IsConsolidationRelevant => MarketRegime == "BULL";
+
+    public string PartialExitTargetsText
+    {
+        get
+        {
+            if (TakeProfit1 == null && TakeProfit3 == null)
+                return ""; // modo de risco sem saída parcial
+
+            string tp1 = TakeProfit1.HasValue ? TakeProfit1.Value.ToString("0.########") : "—";
+            string tp2 = Resistance.ToString("0.########");
+            string tp3 = TakeProfit3.HasValue ? TakeProfit3.Value.ToString("0.########") : "—";
+
+            return $"TP1 {tp1} | TP2 {tp2} | TP3 {tp3}";
+        }
+    }
 }

@@ -34,4 +34,6 @@ public sealed class BacktestRunResult
     public string Diagnostics { get; set; } = "";
     public decimal? Tp1Fraction { get; set; }
     public decimal? Tp2Fraction { get; set; }
+    public decimal? MaxStopDistancePercent { get; set; }
+    public bool DisableTimeout { get; set; }
 }

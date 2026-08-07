@@ -45,14 +45,12 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-
         var databasePath = GetDatabasePath();
         _watchlistRepository = new SqliteWatchlistRepository(databasePath);
         _simulatedTradeRepository = new SqliteSimulatedTradeRepository(databasePath);
         _runResultRepository = new SqliteBacktestRunResultRepository(databasePath);
         _alertSettingsRepository = new SqliteAlertSettingsRepository(databasePath);
         _appSettingsRepository = new SqliteAppSettingsRepository(databasePath);
-
         _scanner = new ScannerService(
             new BinanceExchangeService(),
             new SqliteSignalRepository(databasePath),
@@ -81,7 +79,6 @@ public partial class MainWindow : Window
         menu.Items.Add("Abrir", null, (_, _) => RestoreFromTray());
         menu.Items.Add("Sair", null, (_, _) => ExitApplication());
         _trayIcon.ContextMenuStrip = menu;
-
         _trayIcon.DoubleClick += (_, _) => RestoreFromTray();
     }
 
@@ -92,7 +89,6 @@ public partial class MainWindow : Window
 
         Hide();
         ShowInTaskbar = false;
-
         if (_trayIcon != null)
             _trayIcon.Visible = true;
     }
@@ -103,7 +99,6 @@ public partial class MainWindow : Window
         WindowState = WindowState.Normal;
         ShowInTaskbar = true;
         Activate();
-
         if (_trayIcon != null)
             _trayIcon.Visible = false;
     }
@@ -268,7 +263,6 @@ public partial class MainWindow : Window
         var databasePath = GetDatabasePath();
         var cacheRepository = new SqliteCandleCacheRepository(databasePath);
         var cachingMarketData = new CachingMarketDataService(new BinanceExchangeService(), cacheRepository);
-
         var window = new BacktestWindow(cachingMarketData, new AssetAnalyzer(), databasePath)
         {
             Owner = this
@@ -334,7 +328,6 @@ public partial class MainWindow : Window
     private async void BtnSearch_Click(object sender, RoutedEventArgs e)
     {
         string input = txtSearchSymbol.Text.Trim().ToUpperInvariant();
-
         if (string.IsNullOrWhiteSpace(input))
             return;
 
@@ -342,11 +335,9 @@ public partial class MainWindow : Window
             input += "USDT";
 
         btnSearch.IsEnabled = false;
-
         try
         {
             var result = await _scanner.LookupSymbolAsync(input, _currentProfile);
-
             if (result == null)
             {
                 MessageBox.Show(
@@ -369,7 +360,6 @@ public partial class MainWindow : Window
                 chkFavoritesOnly.IsChecked = false;
 
             ApplyRankingFilter();
-
             dgRanking.SelectedItem = result;
             dgRanking.ScrollIntoView(result);
         }
@@ -392,7 +382,6 @@ public partial class MainWindow : Window
         {
             Owner = this
         };
-
         window.ShowDialog();
 
         if (window.Saved)
@@ -469,14 +458,134 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Processa um preço novo pra um trade simulado, seguindo TP1→breakeven→TP2→TP3 (mesma
+    /// lógica já validada no Backtest, ProcessPartialExits) — ou o fechamento único de sempre,
+    /// se o trade não tiver TP1 (modo de risco antigo, ou trade criado antes dessa etapa).
+    /// A parte que mexe em objetos ligados à UI roda dentro de Dispatcher.Invoke (seguro tanto
+    /// se já estivermos na thread da UI — caso do scan — quanto vindo de outra thread — caso
+    /// do WebSocket); a parte de I/O (persistir no banco) fica sempre fora do Invoke.
+    /// Devolve true se o trade foi fechado por completo.
+    /// </summary>
+    private async Task<bool> ProcessPartialExitTickAsync(SimulatedTrade trade, decimal price)
+    {
+        string? closeReason = null;
+        decimal closeExitPrice = 0;
+        decimal closeOutcome = 0;
+        bool partialHit = false;
+
+        Dispatcher.Invoke(() =>
+        {
+            if (trade.TakeProfit1 == null)
+            {
+                // Sem TP1 — comportamento original, fechamento único.
+                if (price <= trade.StopLoss)
+                {
+                    closeReason = "SL";
+                    closeExitPrice = trade.StopLoss;
+                    closeOutcome = (trade.StopLoss - trade.EntryPrice) / trade.EntryPrice * 100m;
+                }
+                else if (price >= trade.TakeProfit)
+                {
+                    closeReason = "TP";
+                    closeExitPrice = trade.TakeProfit;
+                    closeOutcome = (trade.TakeProfit - trade.EntryPrice) / trade.EntryPrice * 100m;
+                }
+                return;
+            }
+
+            // 1. Stop Loss sempre tem prioridade — pode já estar no breakeven se TP1 bateu antes.
+            if (price <= trade.StopLoss)
+            {
+                decimal legReturn = (trade.StopLoss - trade.EntryPrice) / trade.EntryPrice * 100m;
+                closeOutcome = trade.WeightedExitSum + trade.RemainingFraction * legReturn;
+                closeReason = trade.Tp1Hit ? (trade.Tp2Hit ? "TP1TP2SL" : "TP1SL") : "SL";
+                closeExitPrice = trade.StopLoss;
+                return;
+            }
+
+            // 2. TP1 — realiza 40%, move o stop pro breakeven.
+            if (!trade.Tp1Hit && price >= trade.TakeProfit1.Value)
+            {
+                const decimal tp1Fraction = 0.40m;
+                decimal legReturn = (trade.TakeProfit1.Value - trade.EntryPrice) / trade.EntryPrice * 100m;
+
+                trade.WeightedExitSum += tp1Fraction * legReturn;
+                trade.RemainingFraction -= tp1Fraction;
+                trade.Tp1Hit = true;
+                trade.StopLoss = trade.EntryPrice * 1.001m; // breakeven + 0,1% de folga
+                partialHit = true;
+                return;
+            }
+
+            // 3. TP2 — a resistência estrutural (TakeProfit "principal" de sempre). Realiza mais 40%.
+            if (trade.Tp1Hit && !trade.Tp2Hit && price >= trade.TakeProfit)
+            {
+                const decimal tp2Fraction = 0.40m;
+                decimal legReturn = (trade.TakeProfit - trade.EntryPrice) / trade.EntryPrice * 100m;
+
+                trade.WeightedExitSum += tp2Fraction * legReturn;
+                trade.RemainingFraction -= tp2Fraction;
+                trade.Tp2Hit = true;
+                partialHit = true;
+                return;
+            }
+
+            // 4. TP3 — fecha o restante da posição.
+            if (trade.Tp2Hit && trade.TakeProfit3.HasValue && price >= trade.TakeProfit3.Value)
+            {
+                decimal legReturn = (trade.TakeProfit3.Value - trade.EntryPrice) / trade.EntryPrice * 100m;
+                closeOutcome = trade.WeightedExitSum + trade.RemainingFraction * legReturn;
+                closeReason = "TP1TP2TP3";
+                closeExitPrice = trade.TakeProfit3.Value;
+            }
+        });
+
+        if (closeReason != null)
+        {
+            try
+            {
+                await _simulatedTradeRepository.CloseTradeAsync(trade.Id, closeExitPrice, closeOutcome, closeReason);
+            }
+            catch
+            {
+                return false; // falha ao persistir — não marca como fechado, tenta de novo depois
+            }
+
+            Dispatcher.Invoke(() =>
+            {
+                trade.ExitPrice = closeExitPrice;
+                trade.OutcomePercent = closeOutcome;
+                trade.ExitReason = closeReason;
+                trade.ExitTime = DateTime.UtcNow;
+                trade.Closed = true; // já notifica IsOpen junto
+            });
+
+            return true;
+        }
+
+        if (partialHit)
+        {
+            try
+            {
+                await _simulatedTradeRepository.UpdatePartialExitStateAsync(
+                    trade.Id, trade.Tp1Hit, trade.Tp2Hit, trade.RemainingFraction, trade.WeightedExitSum, trade.StopLoss);
+            }
+            catch
+            {
+                // Estado em memória já mudou e já notificou a UI — só a persistência falhou;
+                // tenta salvar de novo no próximo tick/scan.
+            }
+        }
+
+        return false;
+    }
+
     private async void OnWebSocketPriceUpdated(string symbol, decimal price)
     {
         AssetScore? matchedAsset = null;
-        var tradesToClose = new List<(SimulatedTrade Trade, decimal ExitPrice, string Reason)>();
+        var matchingTrades = new List<SimulatedTrade>();
 
-        // Parte síncrona: só mexe em objetos ligados à UI, precisa rodar na thread da UI,
-        // mas sem nenhuma chamada de I/O aqui dentro (Dispatcher.Invoke não lida bem com
-        // async — por isso a parte de persistir o fechamento fica fora, depois).
         Dispatcher.Invoke(() =>
         {
             if (string.Equals(symbol, "BTCUSDT", StringComparison.OrdinalIgnoreCase))
@@ -491,36 +600,12 @@ public partial class MainWindow : Window
             {
                 trade.CurrentPrice = price;
                 trade.UnrealizedPnLPercent = ((price - trade.EntryPrice) / trade.EntryPrice) * 100m;
-
-                if (price <= trade.StopLoss)
-                    tradesToClose.Add((trade, trade.StopLoss, "SL"));
-                else if (price >= trade.TakeProfit)
-                    tradesToClose.Add((trade, trade.TakeProfit, "TP"));
+                matchingTrades.Add(trade);
             }
         });
 
-        foreach (var (trade, exitPrice, reason) in tradesToClose)
-        {
-            decimal outcome = ((exitPrice - trade.EntryPrice) / trade.EntryPrice) * 100m;
-
-            try
-            {
-                await _simulatedTradeRepository.CloseTradeAsync(trade.Id, exitPrice, outcome, reason);
-            }
-            catch
-            {
-                continue; // falha ao persistir — não marca como fechado na tela, tenta de novo depois
-            }
-
-            Dispatcher.Invoke(() =>
-            {
-                trade.ExitPrice = exitPrice;
-                trade.OutcomePercent = outcome;
-                trade.ExitReason = reason;
-                trade.ExitTime = DateTime.UtcNow;
-                trade.Closed = true; // já notifica IsOpen junto, graças ao setter ajustado
-            });
-        }
+        foreach (var trade in matchingTrades)
+            await ProcessPartialExitTickAsync(trade, price);
     }
 
     private async void DgSimulatedTrades_RowEditEnding(object sender, DataGridRowEditEndingEventArgs e)
@@ -552,6 +637,41 @@ public partial class MainWindow : Window
 
     private async void BtnRefreshSimulatedTrades_Click(object sender, RoutedEventArgs e) => await LoadSimulatedTradesAsync();
 
+    private void DgSimulatedTrades_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        // O WPF não seleciona a linha sozinho com clique direito (só clique esquerdo) —
+        // sem isso, "Copiar linha" poderia copiar uma linha diferente da que foi clicada.
+        var row = FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject);
+        if (row != null)
+            row.IsSelected = true;
+    }
+
+    private void BtnCopySimulatedTradeRow_Click(object sender, RoutedEventArgs e)
+    {
+        if (dgSimulatedTrades.SelectedItem is not SimulatedTrade trade)
+            return;
+
+        string status = trade.IsOpen ? "Aberto" : $"Fechado ({trade.ExitReason})";
+        string currentOrExit = trade.IsOpen
+            ? $"Preço Atual: {trade.CurrentPrice?.ToString("0.########") ?? "—"} | P/L: {trade.UnrealizedPnLPercent?.ToString("F2") ?? "—"}%"
+            : $"Preço Saída: {trade.ExitPrice?.ToString("0.########") ?? "—"} | Resultado: {trade.OutcomePercent?.ToString("F2") ?? "—"}%";
+
+        string text = $"{trade.Symbol} | Entrada: {trade.EntryPrice:0.########} em {trade.EntryTime:dd/MM/yyyy HH:mm} | " +
+                      $"TP1: {trade.TakeProfit1?.ToString("0.########") ?? "—"} | TP2: {trade.TakeProfit:0.########} | TP3: {trade.TakeProfit3?.ToString("0.########") ?? "—"} | " +
+                      $"SL: {trade.StopLoss:0.########} | {currentOrExit} | " +
+                      $"Progresso: {trade.PartialExitProgressText} | Status: {status}" +
+                      (string.IsNullOrWhiteSpace(trade.Note) ? "" : $" | Obs: {trade.Note}");
+
+        try
+        {
+            System.Windows.Clipboard.SetText(text);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Não foi possível copiar.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private async void BtnCloseSimulatedTradeRow_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not System.Windows.Controls.Button button || button.DataContext is not SimulatedTrade trade)
@@ -567,7 +687,21 @@ public partial class MainWindow : Window
         try
         {
             decimal currentPrice = await _priceCheckService.GetCurrentPriceAsync(trade.Symbol);
-            decimal outcomePercent = ((currentPrice - trade.EntryPrice) / trade.EntryPrice) * 100m;
+
+            // Se já teve saída parcial (TP1/TP2 batidos), o resultado final precisa ponderar
+            // o que já foi realizado com a fração restante fechando agora — mesma lógica do
+            // Backtest. Sem TP1 (trade antigo ou modo sem saída parcial), fecha tudo de uma vez.
+            decimal outcomePercent;
+            if (trade.TakeProfit1 != null && (trade.Tp1Hit || trade.Tp2Hit))
+            {
+                decimal legReturn = (currentPrice - trade.EntryPrice) / trade.EntryPrice * 100m;
+                outcomePercent = trade.WeightedExitSum + trade.RemainingFraction * legReturn;
+            }
+            else
+            {
+                outcomePercent = (currentPrice - trade.EntryPrice) / trade.EntryPrice * 100m;
+            }
+
             await _simulatedTradeRepository.CloseTradeAsync(trade.Id, currentPrice, outcomePercent, "Manual");
             await LoadSimulatedTradesAsync();
         }
@@ -590,38 +724,20 @@ public partial class MainWindow : Window
             return; // não deixa falha de leitura derrubar o scan
         }
 
-        if (openTrades.Count == 0)
-            return;
-
-        bool anyClosed = false;
-
         foreach (var trade in openTrades)
         {
             try
             {
                 decimal currentPrice = await _priceCheckService.GetCurrentPriceAsync(trade.Symbol);
-
-                if (currentPrice <= trade.StopLoss)
-                {
-                    decimal outcome = ((trade.StopLoss - trade.EntryPrice) / trade.EntryPrice) * 100m;
-                    await _simulatedTradeRepository.CloseTradeAsync(trade.Id, trade.StopLoss, outcome, "SL");
-                    anyClosed = true;
-                }
-                else if (currentPrice >= trade.TakeProfit)
-                {
-                    decimal outcome = ((trade.TakeProfit - trade.EntryPrice) / trade.EntryPrice) * 100m;
-                    await _simulatedTradeRepository.CloseTradeAsync(trade.Id, trade.TakeProfit, outcome, "TP");
-                    anyClosed = true;
-                }
+                await ProcessPartialExitTickAsync(trade, currentPrice);
             }
             catch
             {
                 // símbolo com erro momentâneo — tenta de novo no próximo scan
             }
         }
-
-        if (anyClosed)
-            await LoadSimulatedTradesAsync();
+        // Quem chama esse método (RunScannerAsync) já recarrega o Diário logo em seguida,
+        // então não precisamos disparar isso aqui — evita duplicar a chamada.
     }
 
     private void ApplyRankingFilter()
@@ -704,6 +820,8 @@ public partial class MainWindow : Window
         if (dgRanking.SelectedItem is not AssetScore asset)
             return;
 
+        CopyAssetQualityToClipboard(asset);
+
         // Clicar na mesma linha que já está aberta fecha o popup (comportamento de alternância).
         if (popupBreakdown.IsOpen && ReferenceEquals(popupBreakdown.DataContext, asset))
         {
@@ -716,6 +834,28 @@ public partial class MainWindow : Window
         popupBreakdown.PlacementTarget = (UIElement?)row ?? dgRanking;
         popupBreakdown.Placement = PlacementMode.Bottom;
         popupBreakdown.IsOpen = true;
+    }
+
+    private static void CopyAssetQualityToClipboard(AssetScore asset)
+    {
+        string text = $"{asset.Symbol} | Preço: {asset.CloseFormatted} | Score: {asset.Score:F2} | " +
+                      $"Elegível: {(asset.IsEligible ? "Sim" : "Não")} | Sinal: {asset.Signal} | Elite: {(asset.IsEliteSetup ? "Sim" : "Não")} | " +
+                      $"Var: {asset.VariationText} | Trend: {asset.TrendDirection} | RR: {asset.RiskReward:F2} | " +
+                      $"Res %: {asset.ResistanceDistance:F1} | Sup %: {asset.SupportDistance:F1} | Vol Spike: {asset.VolumeSpike:F2} | " +
+                      $"Força Rel.: {asset.RelativeStrengthText} | Consol.: {(asset.IsConsolidating ? "Sim" : "Não")} | " +
+                      $"Exaustão: {(asset.HasExhaustion ? "Sim" : "Não")} | Padrão: {asset.PatternName} | Smart Money: {asset.SmartMoneyLabel}" +
+                      (asset.IsBullTrap ? " | ⚠ BULL TRAP" : "") +
+                      (!string.IsNullOrEmpty(asset.PartialExitTargetsText) ? $" | {asset.PartialExitTargetsText}" : "");
+
+        try
+        {
+            System.Windows.Clipboard.SetText(text);
+        }
+        catch
+        {
+            // Falha ao copiar (ex.: clipboard ocupado por outro processo) não deve
+            // impedir o popup de abrir normalmente — só perde a cópia dessa vez.
+        }
     }
 
     private void DgRanking_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
@@ -754,13 +894,10 @@ public partial class MainWindow : Window
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "CryptoScanner");
         Directory.CreateDirectory(databaseDirectory);
-
         string databasePath = Path.Combine(databaseDirectory, "signals.db");
         string legacyPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "signals.db");
-
         if (!File.Exists(databasePath) && File.Exists(legacyPath))
             File.Copy(legacyPath, databasePath);
-
         return databasePath;
     }
 }
@@ -778,7 +915,6 @@ public sealed class PnLColorConverter : IValueConverter
             if (pnl > 0) return Brushes.DarkGreen;
             if (pnl < 0) return Brushes.DarkRed;
         }
-
         return Brushes.Black;
     }
 
