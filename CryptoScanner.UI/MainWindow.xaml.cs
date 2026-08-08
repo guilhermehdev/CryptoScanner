@@ -35,6 +35,7 @@ public partial class MainWindow : Window
     private readonly BinanceWebSocketService _webSocketService = new();
     private readonly CoinGeckoService _coinGeckoService = new();
     private IReadOnlyList<SimulatedTrade> _lastSimulatedTrades = Array.Empty<SimulatedTrade>();
+    private bool _showClosedTrades; // Diário mostra só "em andamento" por padrão
     private bool _isScanning;
     private bool _isWindowLoaded;
     private ScanProfile _currentProfile = ScanProfile.Swing;
@@ -64,6 +65,7 @@ public partial class MainWindow : Window
         InitializeTrayIcon();
         StateChanged += MainWindow_StateChanged;
         _webSocketService.PriceUpdated += OnWebSocketPriceUpdated;
+        _webSocketService.CandleClosed += OnCandleClosed;
     }
 
     private void InitializeTrayIcon()
@@ -411,8 +413,8 @@ public partial class MainWindow : Window
                 }
             }
 
-            dgSimulatedTrades.ItemsSource = trades;
             _lastSimulatedTrades = trades;
+            ApplySimulatedTradesFilter();
 
             int totalClosed = trades.Count(t => t.Closed);
             int wins = trades.Count(t => t.Closed && t.OutcomePercent > 0);
@@ -608,6 +610,25 @@ public partial class MainWindow : Window
             await ProcessPartialExitTickAsync(trade, price);
     }
 
+    /// <summary>
+    /// Reage ao fechamento de um candle de BTCUSDT — dispara o scan no instante exato em
+    /// que o candle do timeframe do perfil ativo fecha, em vez de esperar o próximo tick
+    /// do timer. O timer continua existindo como rede de segurança (se esse evento se
+    /// perder por qualquer motivo, o scan roda de qualquer jeito, só um pouco mais tarde).
+    /// </summary>
+    private void OnCandleClosed(string interval)
+    {
+        // Ignora fechamento de um timeframe que não é o do perfil ativo agora (ex.: 4h
+        // fechando enquanto o usuário está no Intraday). Leitura simples de campo, segura
+        // de fazer direto na thread do WebSocket, sem precisar despachar pra UI primeiro.
+        if (!string.Equals(interval, _currentProfile.CandleInterval, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        // Esse evento chega pela thread de recebimento do WebSocket, não pela thread da UI —
+        // RunScannerAsync mexe direto em elementos de tela, então precisa ser despachado.
+        Dispatcher.BeginInvoke(async () => await RunScannerAsync());
+    }
+
     private async void DgSimulatedTrades_RowEditEnding(object sender, DataGridRowEditEndingEventArgs e)
     {
         if (e.EditAction != DataGridEditAction.Commit)
@@ -747,6 +768,20 @@ public partial class MainWindow : Window
             : _lastRanking;
     }
 
+    private void ApplySimulatedTradesFilter()
+    {
+        dgSimulatedTrades.ItemsSource = _showClosedTrades
+            ? _lastSimulatedTrades
+            : _lastSimulatedTrades.Where(t => t.IsOpen).ToList();
+    }
+
+    private void BtnToggleClosedTrades_Click(object sender, RoutedEventArgs e)
+    {
+        _showClosedTrades = !_showClosedTrades;
+        btnToggleClosedTrades.Content = _showClosedTrades ? "Ocultar Concluídos" : "Mostrar Concluídos";
+        ApplySimulatedTradesFilter();
+    }
+
     private void UpdateDashboard(string marketRegime)
     {
         txtDashboardRegime.Text = marketRegime;
@@ -839,13 +874,14 @@ public partial class MainWindow : Window
     private static void CopyAssetQualityToClipboard(AssetScore asset)
     {
         string text = $"{asset.Symbol} | Preço: {asset.CloseFormatted} | Score: {asset.Score:F2} | " +
-                      $"Elegível: {(asset.IsEligible ? "Sim" : "Não")} | Sinal: {asset.Signal} | Elite: {(asset.IsEliteSetup ? "Sim" : "Não")} | " +
+                      $"Elegível: {(asset.IsEligible ? "Sim" : "Não")} | Sinal: {asset.DisplaySignal} | Elite: {(asset.IsEliteSetup ? "Sim" : "Não")} | " +
                       $"Var: {asset.VariationText} | Trend: {asset.TrendDirection} | RR: {asset.RiskReward:F2} | " +
                       $"Res %: {asset.ResistanceDistance:F1} | Sup %: {asset.SupportDistance:F1} | Vol Spike: {asset.VolumeSpike:F2} | " +
                       $"Força Rel.: {asset.RelativeStrengthText} | Consol.: {(asset.IsConsolidating ? "Sim" : "Não")} | " +
                       $"Exaustão: {(asset.HasExhaustion ? "Sim" : "Não")} | Padrão: {asset.PatternName} | Smart Money: {asset.SmartMoneyLabel}" +
                       (asset.IsBullTrap ? " | ⚠ BULL TRAP" : "") +
-                      (!string.IsNullOrEmpty(asset.PartialExitTargetsText) ? $" | {asset.PartialExitTargetsText}" : "");
+                      (!string.IsNullOrEmpty(asset.PartialExitTargetsText) ? $" | {asset.PartialExitTargetsText}" : "") +
+                      $"\n\n{asset.QualityAnalysis}";
 
         try
         {

@@ -11,13 +11,15 @@ public sealed class ScannerService
 {
     private const int MaxConcurrentAnalyses = 8;
 
-    // Configuração validada via Backtest (Swing + Resistência Pontuada + Saída Parcial,
-    // RR mín.=1,5) — etapa 3.1 do plano de ligar a estratégia real ao app ao vivo.
+    // Configuração validada via Backtest — cada perfil tem sua própria calibração, já que
+    // Swing (candles de 4h) e Intraday (candles de 1h) responderam de forma bem diferente
+    // aos mesmos parâmetros nos testes (RR=1,5 e Dist.=4% funcionam bem no Swing, mas geram
+    // resultado ruim no Intraday sem esse ajuste separado).
     // Ainda não inclui saída parcial de verdade no Diário (isso é a etapa 3.3/3.4);
     // por enquanto só troca QUAL sinal é considerado elegível.
     private const RiskCalculationMode ValidatedRiskMode = RiskCalculationMode.SwingWithPartialExits;
 
-    private static readonly EligibilityThresholds ValidatedThresholds = new()
+    private static readonly EligibilityThresholds SwingValidatedThresholds = new()
     {
         BuyOpportunityScore = ScannerSettings.BuyOpportunityScore,
         BearRegimePenalty = ScannerSettings.BearRegimePenalty,
@@ -26,23 +28,54 @@ public sealed class ScannerService
         DefensiveMinVolumeSpike = ScannerSettings.DefensiveMinVolumeSpike,
         MinResistanceDistance = ScannerSettings.MinResistanceDistance,
         MinResistanceDistanceAtrMode = ScannerSettings.MinResistanceDistance, // não usado nesse modo
-        MinResistanceDistancePartialExits = 4m, // validado no Backtest
-        MinRiskReward = 1.5m, // validado no Backtest
+        MinResistanceDistancePartialExits = 4m, // validado no Backtest (Swing)
+        MinRiskReward = 1.5m, // validado no Backtest (Swing)
         MinRelativeStrengthPercent = ScannerSettings.MinRelativeStrengthPercent,
         MinStopDistancePercent = 0m, // testado e confirmado irrelevante nesse modo (buffer de ATR já protege)
         MaxStopDistancePercent = 25m, // validado via Backtest em 3 universos distintos (110/167 moedas,
-                                      // 3 janelas de período) — faixa 20-30% consistentemente melhor que
-                                      // os extremos; 25% escolhido como meio-termo robusto entre eles,
-                                      // evitando depender do pico exato de um teste isolado
+                                       // 3 janelas de período) — faixa 20-30% consistentemente melhor que
+                                       // os extremos; 25% escolhido como meio-termo robusto entre eles,
+                                       // evitando depender do pico exato de um teste isolado
         MaxRiskReward = 999m, // mesmo valor usado em toda a validação
         EnablePullbackBounce = false,
         EnableBollingerScoring = true, // validado via Backtest em 2 janelas de período distintas (2020-2026
-                                       // e 2021-2026, 167 moedas, RR mín.=1,5) — melhora Win Rate, Profit
-                                       // Factor, Retorno E reduz Drawdown ao mesmo tempo, nas duas vezes;
-                                       // diferente da Fase B, não dilui o sinal da resistência pontuada
+                                        // e 2021-2026, 167 moedas, RR mín.=1,5) — melhora Win Rate, Profit
+                                        // Factor, Retorno E reduz Drawdown ao mesmo tempo, nas duas vezes;
+                                        // diferente da Fase B, não dilui o sinal da resistência pontuada
         EnableVolatilityScoringPhaseB = false,
         EnableMultiTimeframe = false,
     };
+
+    private static readonly EligibilityThresholds IntradayValidatedThresholds = new()
+    {
+        BuyOpportunityScore = ScannerSettings.BuyOpportunityScore,
+        BearRegimePenalty = ScannerSettings.BearRegimePenalty,
+        SidewaysRegimePenalty = ScannerSettings.SidewaysRegimePenalty,
+        MinVolumeSpike = ScannerSettings.MinVolumeSpike,
+        DefensiveMinVolumeSpike = ScannerSettings.DefensiveMinVolumeSpike,
+        MinResistanceDistance = ScannerSettings.MinResistanceDistance,
+        MinResistanceDistanceAtrMode = ScannerSettings.MinResistanceDistance, // não usado nesse modo
+        MinResistanceDistancePartialExits = 15m, // validado no Backtest (Intraday) — RR=1,5/Dist.=4% do
+                                                  // Swing geram resultado ruim aqui (PF 0,58, DD 131,6%);
+                                                  // Dist.≥15% confirmado em 2 universos distintos (167
+                                                  // moedas/2020-2026 e 171 moedas/2020-2024), PF 4,45-5,64
+        MinRiskReward = 2.5m, // validado no Backtest (Intraday) — comparador de RR mín. mostrou pico
+                               // claro em 2,5 (PF 2,90 com 19 trades), caindo dos dois lados
+        MinRelativeStrengthPercent = ScannerSettings.MinRelativeStrengthPercent,
+        MinStopDistancePercent = 0m, // mesmo valor do Swing — não testado separadamente no Intraday ainda
+        MaxStopDistancePercent = 25m, // mesmo valor do Swing — não testado separadamente no Intraday ainda,
+                                       // reutilizado por analogia
+        MaxRiskReward = 999m,
+        EnablePullbackBounce = false,
+        EnableBollingerScoring = true, // já estava ativo em todos os testes de calibração do Intraday
+                                        // (RR mín. e Dist. Resist.), então tecnicamente confirmado nesse
+                                        // contexto também, ainda que não isolado especificamente
+        EnableVolatilityScoringPhaseB = false,
+        EnableMultiTimeframe = false,
+    };
+
+    private static EligibilityThresholds GetValidatedThresholds(ScanProfile profile) =>
+        profile.Name == ScanProfile.Intraday.Name ? IntradayValidatedThresholds : SwingValidatedThresholds;
 
     private readonly IMarketDataService _marketData;
     private readonly ISignalRepository _signals;
@@ -108,7 +141,7 @@ public sealed class ScannerService
         return new ScannerRunResult
         {
             MarketRegime = marketRegime,
-            Ranking = analysesResult.Select(asset => AssetScoreFactory.Create(asset, marketRegime, favoriteSet, ValidatedThresholds)).ToList(),
+            Ranking = analysesResult.Select(asset => AssetScoreFactory.Create(asset, marketRegime, favoriteSet, GetValidatedThresholds(profile))).ToList(),
             History = history,
             WinRate = await _signals.GetWinRateAsync(cancellationToken),
             AverageReturn = await _signals.GetAverageReturnAsync(cancellationToken),
@@ -125,10 +158,11 @@ public sealed class ScannerService
     {
         var diagnostics = new FilterDiagnostics { TotalAnalyzed = ranking.Count };
         var newSignals = new List<NewSignalAlert>();
+        var thresholds = GetValidatedThresholds(profile);
 
         foreach (var asset in ranking)
         {
-            var eligibility = EligibilityEvaluator.Evaluate(asset, marketRegime, ValidatedThresholds);
+            var eligibility = EligibilityEvaluator.Evaluate(asset, marketRegime, thresholds);
 
             if (eligibility.FailedScore) diagnostics.FailedScore++;
             if (eligibility.FailedBreakout) diagnostics.FailedBreakout++;
@@ -312,6 +346,6 @@ public sealed class ScannerService
         var favoriteSet = new HashSet<string>(favoriteSymbols, StringComparer.OrdinalIgnoreCase);
 
         var analysis = _assetAnalyzer.Analyze(symbol, candles, btcCandles, profile, ValidatedRiskMode);
-        return AssetScoreFactory.Create(analysis, marketRegime, favoriteSet, ValidatedThresholds);
+        return AssetScoreFactory.Create(analysis, marketRegime, favoriteSet, GetValidatedThresholds(profile));
     }
 }

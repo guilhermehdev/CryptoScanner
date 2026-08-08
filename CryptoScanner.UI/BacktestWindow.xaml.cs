@@ -33,7 +33,6 @@ public partial class BacktestWindow : Window
     public BacktestWindow(IMarketDataService marketData, AssetAnalyzer assetAnalyzer, string databasePath)
     {
         InitializeComponent();
-
         _marketData = marketData;
         _assetAnalyzer = assetAnalyzer;
         _settingsRepository = new SqliteBacktestSettingsRepository(databasePath);
@@ -49,7 +48,7 @@ public partial class BacktestWindow : Window
         txtMinVolumeSpike.Text = ScannerSettings.MinVolumeSpike.ToString("F2");
         txtMinRiskReward.Text = 1.5m.ToString("F1"); // valor de referência validado pro modo Swing+Resistência Pontuada
         txtMinStopDistance.Text = "0"; // 0 = sem piso, reproduz o comportamento atual do app ao vivo
-        txtMaxStopDistance.Text = "25"; 
+        txtMaxStopDistance.Text = "25";
         txtMaxRiskReward.Text = "999"; // efetivamente sem teto
 
         UpdateManualSymbolsCount();
@@ -62,7 +61,6 @@ public partial class BacktestWindow : Window
         {
             await _settingsRepository.InitializeAsync();
             var saved = await _settingsRepository.GetManualSymbolListAsync();
-
             if (!string.IsNullOrWhiteSpace(saved))
             {
                 txtManualSymbols.Text = saved;
@@ -90,7 +88,6 @@ public partial class BacktestWindow : Window
         int count = txtManualSymbols.Text
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Length;
-
         txtManualSymbolsCount.Text = $"({count} moeda{(count == 1 ? "" : "s")})";
     }
 
@@ -330,7 +327,7 @@ public partial class BacktestWindow : Window
             MinStopDistancePercent = minStopDistance,
             MaxStopDistancePercent = maxStopDistance,
             MaxRiskReward = maxRiskReward,
-            EnablePullbackBounce = false, // Caminho A escondido da tela — lógica preservada, mas sempre desligada por padrão
+            EnablePullbackBounce = chkEnablePullbackBounce.IsChecked == true, // Caminho A reexposto na tela — antes fixo em false
             EnableBollingerScoring = chkEnableBollingerScoring.IsChecked == true,
             EnableVolatilityScoringPhaseB = chkEnableVolatilityScoringPhaseB.IsChecked == true,
             EnableMultiTimeframe = chkEnableMultiTimeframe.IsChecked == true
@@ -426,6 +423,7 @@ public partial class BacktestWindow : Window
 
             dgTrades.ItemsSource = summary.Trades;
             DrawEquityCurve(summary.Trades);
+
             txtStatus.Text = summary.TotalTrades == 0
                 ? "Nenhuma operação simulada no período/moedas/limiares selecionados."
                 : "Concluído.";
@@ -1215,7 +1213,6 @@ public partial class BacktestWindow : Window
 
                 var periodEnd = DateTime.SpecifyKind(anchorEnd.AddYears(-(i - 1) * periodYears), DateTimeKind.Utc);
                 var periodStart = DateTime.SpecifyKind(anchorEnd.AddYears(-i * periodYears), DateTimeKind.Utc);
-
                 string label = $"{periodStart:dd/MM/yy} – {periodEnd:dd/MM/yy}";
 
                 var summary = await backtester.RunAsync(
@@ -1255,7 +1252,6 @@ public partial class BacktestWindow : Window
             // Junta todos os trades de todos os períodos numa amostra só — mais poder estatístico
             // do que qualquer período isolado.
             var pooledSummary = StrategyBacktester.BuildSummary(allTrades, aggregatedDiagnostics, new List<string>());
-
             var spanStart = DateTime.SpecifyKind(anchorEnd.AddYears(-periodCount * periodYears), DateTimeKind.Utc);
             await SaveRunResultAsync("TOTAL (todos os períodos juntos)", symbols, spanStart, anchorEnd, profile, defaultThresholds, GetSelectedRiskMode(), null, pooledSummary);
 
@@ -1274,6 +1270,7 @@ public partial class BacktestWindow : Window
 
             dgComparison.ItemsSource = results;
             dgComparison.Visibility = Visibility.Visible;
+
             var orderedAllTrades = allTrades.OrderBy(t => t.ExitTime).ToList();
             dgTrades.ItemsSource = orderedAllTrades;
             DrawEquityCurve(orderedAllTrades);
@@ -1368,7 +1365,6 @@ public partial class BacktestWindow : Window
 
                     var periodEnd = DateTime.SpecifyKind(anchorEnd.AddYears(-(i - 1) * periodYears), DateTimeKind.Utc);
                     var periodStart = DateTime.SpecifyKind(anchorEnd.AddYears(-i * periodYears), DateTimeKind.Utc);
-
                     string periodLabel = $"[{modeInfo.Label}] {periodStart:dd/MM/yy} – {periodEnd:dd/MM/yy}";
 
                     var summary = await backtester.RunAsync(
@@ -1397,7 +1393,6 @@ public partial class BacktestWindow : Window
                 // ficariam repetidos demais (2 modos x N períodos); o que importa aqui é o
                 // agregado de cada modo, pra comparação direta.
                 var pooledSummary = StrategyBacktester.BuildSummary(allTrades, aggregatedDiagnostics, new List<string>());
-
                 var spanStart = DateTime.SpecifyKind(anchorEnd.AddYears(-periodCount * periodYears), DateTimeKind.Utc);
                 await SaveRunResultAsync($"{modeInfo.Label} — TOTAL ({periodCount} período(s))",
                     symbols, spanStart, anchorEnd, profile, defaultThresholds, modeInfo.Mode, null, pooledSummary);
@@ -1425,7 +1420,6 @@ public partial class BacktestWindow : Window
 
             dgComparison.ItemsSource = results;
             dgComparison.Visibility = Visibility.Visible;
-
             txtSummaryResult.Text =
                 $"Comparação Swing vs ATR concluída — mesmos {periodCount} período(s) de {periodYears} ano(s), mesmas {symbols.Count} moedas, " +
                 "mesma configuração padrão de elegibilidade nos dois casos. Só muda como o alvo (Take Profit) e o stop (Stop Loss) são calculados: " +
@@ -1934,7 +1928,6 @@ public partial class BacktestWindow : Window
             return;
 
         var ordered = trades.OrderBy(t => t.ExitTime).ToList();
-
         decimal running = 0;
         var points = new List<decimal> { 0 };
         foreach (var trade in ordered)
@@ -1945,7 +1938,6 @@ public partial class BacktestWindow : Window
 
         double canvasWidth = cnvEquityCurve.ActualWidth;
         double canvasHeight = cnvEquityCurve.ActualHeight;
-
         if (canvasWidth <= 0 || canvasHeight <= 0)
             return; // ainda não teve um passe de layout — o SizeChanged vai chamar de novo
 
@@ -1957,8 +1949,8 @@ public partial class BacktestWindow : Window
         const double topMargin = 16;
         const double bottomMargin = 4;
         double plotHeight = canvasHeight - topMargin - bottomMargin;
-        double xStep = points.Count > 1 ? canvasWidth / (points.Count - 1) : canvasWidth;
 
+        double xStep = points.Count > 1 ? canvasWidth / (points.Count - 1) : canvasWidth;
         double YFor(decimal value) => topMargin + (1 - (double)((value - minValue) / range)) * plotHeight;
 
         // Linha de referência em zero, se estiver dentro da faixa visível.
@@ -1982,10 +1974,8 @@ public partial class BacktestWindow : Window
             Stroke = points[^1] >= 0 ? Brushes.SteelBlue : Brushes.IndianRed,
             StrokeThickness = 2
         };
-
         for (int i = 0; i < points.Count; i++)
             polyline.Points.Add(new System.Windows.Point(i * xStep, YFor(points[i])));
-
         cnvEquityCurve.Children.Add(polyline);
 
         AddCurveLabel($"Pico: {maxValue:F1}%", 4, 2, Brushes.DarkGreen);
@@ -2149,7 +2139,6 @@ public sealed class EdgeColorConverter : IValueConverter
     {
         if (value is double edge)
             return edge >= 0 ? Brushes.DarkGreen : Brushes.DarkRed;
-
         return Brushes.Black;
     }
 

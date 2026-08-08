@@ -8,6 +8,12 @@ public sealed class BinanceWebSocketService : IAsyncDisposable
 {
     private const string BaseUrl = "wss://stream.binance.com:9443/ws";
 
+    // Streams de kline do BTC — servem de "relógio" pro scan reagir no instante exato em
+    // que um candle novo fecha, em vez de esperar o próximo tick do timer fixo. Assinados
+    // uma única vez, de forma permanente, independente de qual perfil está ativo na tela —
+    // isso evita ter que reassinar toda vez que o usuário troca de perfil.
+    private static readonly string[] KlineStreams = { "btcusdt@kline_1h", "btcusdt@kline_4h" };
+
     private ClientWebSocket? _webSocket;
     private CancellationTokenSource? _receiveLoopCts;
     private Task? _receiveLoopTask;
@@ -18,6 +24,13 @@ public sealed class BinanceWebSocketService : IAsyncDisposable
     /// <summary>Disparado a cada atualização de preço recebida (symbol, preço atual).</summary>
     public event Action<string, decimal>? PriceUpdated;
 
+    /// <summary>
+    /// Disparado no instante exato em que um candle de BTCUSDT fecha — parâmetro é o
+    /// intervalo ("1h" ou "4h"), pra quem escuta decidir se isso é relevante pro perfil
+    /// atualmente selecionado.
+    /// </summary>
+    public event Action<string>? CandleClosed;
+
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
         _webSocket = new ClientWebSocket();
@@ -25,11 +38,14 @@ public sealed class BinanceWebSocketService : IAsyncDisposable
 
         _receiveLoopCts = new CancellationTokenSource();
         _receiveLoopTask = ReceiveLoopAsync(_receiveLoopCts.Token);
+
+        await SendSubscriptionMessageAsync("SUBSCRIBE", KlineStreams, cancellationToken);
     }
 
     /// <summary>
-    /// Ajusta as inscrições pra bater exatamente com o conjunto desejado — só manda
-    /// SUBSCRIBE/UNSUBSCRIBE da diferença, sem precisar reconectar.
+    /// Ajusta as inscrições de preço (@ticker) pra bater exatamente com o conjunto
+    /// desejado — só manda SUBSCRIBE/UNSUBSCRIBE da diferença, sem precisar reconectar.
+    /// Não mexe nos streams de kline (esses são permanentes, ver <see cref="KlineStreams"/>).
     /// </summary>
     public async Task SyncSubscriptionsAsync(IEnumerable<string> desiredSymbols, CancellationToken cancellationToken = default)
     {
@@ -39,23 +55,25 @@ public sealed class BinanceWebSocketService : IAsyncDisposable
         var toUnsubscribe = _subscribedSymbols.Where(s => !desired.Contains(s)).ToList();
 
         if (toSubscribe.Count > 0)
-            await SendSubscriptionMessageAsync("SUBSCRIBE", toSubscribe, cancellationToken);
+            await SendSubscriptionMessageAsync("SUBSCRIBE", ToTickerStreams(toSubscribe), cancellationToken);
 
         if (toUnsubscribe.Count > 0)
-            await SendSubscriptionMessageAsync("UNSUBSCRIBE", toUnsubscribe, cancellationToken);
+            await SendSubscriptionMessageAsync("UNSUBSCRIBE", ToTickerStreams(toUnsubscribe), cancellationToken);
 
         _subscribedSymbols.Clear();
         foreach (var symbol in desired)
             _subscribedSymbols.Add(symbol);
     }
 
-    private async Task SendSubscriptionMessageAsync(string method, List<string> symbols, CancellationToken cancellationToken)
+    private static IEnumerable<string> ToTickerStreams(IEnumerable<string> symbols) =>
+        symbols.Select(s => $"{s.ToLowerInvariant()}@ticker");
+
+    private async Task SendSubscriptionMessageAsync(string method, IEnumerable<string> streams, CancellationToken cancellationToken)
     {
         if (_webSocket == null || _webSocket.State != WebSocketState.Open)
             return;
 
-        var streams = symbols.Select(s => $"{s.ToLowerInvariant()}@ticker").ToArray();
-        var payload = new { method, @params = streams, id = Interlocked.Increment(ref _requestId) };
+        var payload = new { method, @params = streams.ToArray(), id = Interlocked.Increment(ref _requestId) };
         byte[] bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(payload));
 
         await _sendLock.WaitAsync(cancellationToken);
@@ -116,9 +134,12 @@ public sealed class BinanceWebSocketService : IAsyncDisposable
             _webSocket = new ClientWebSocket();
             await _webSocket.ConnectAsync(new Uri(BaseUrl), cancellationToken);
 
-            // Reconectou — precisa re-inscrever tudo que já estava inscrito antes da queda.
+            // Reconectou — precisa re-inscrever tudo que já estava inscrito antes da queda,
+            // incluindo os streams de kline (que não fazem parte de _subscribedSymbols).
+            await SendSubscriptionMessageAsync("SUBSCRIBE", KlineStreams, cancellationToken);
+
             if (_subscribedSymbols.Count > 0)
-                await SendSubscriptionMessageAsync("SUBSCRIBE", _subscribedSymbols.ToList(), cancellationToken);
+                await SendSubscriptionMessageAsync("SUBSCRIBE", ToTickerStreams(_subscribedSymbols), cancellationToken);
         }
         catch
         {
@@ -132,6 +153,14 @@ public sealed class BinanceWebSocketService : IAsyncDisposable
         {
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
+
+            // Mensagens de kline têm "e"="kline" e trazem os dados do candle dentro de "k" —
+            // formato bem diferente do @ticker, então são tratadas à parte.
+            if (root.TryGetProperty("e", out var eventTypeElement) && eventTypeElement.GetString() == "kline")
+            {
+                ProcessKlineMessage(root);
+                return;
+            }
 
             // Mensagens de confirmação de subscribe/unsubscribe não têm "s" (símbolo) —
             // só nos interessa atualização de preço em si.
@@ -151,6 +180,25 @@ public sealed class BinanceWebSocketService : IAsyncDisposable
         {
             // Mensagem mal formada ou inesperada — ignora e continua recebendo as próximas.
         }
+    }
+
+    private void ProcessKlineMessage(JsonElement root)
+    {
+        if (!root.TryGetProperty("k", out var klineElement))
+            return;
+
+        // "x" só vira true no instante exato em que ESSE candle específico fecha — todas
+        // as mensagens intermediárias (candle ainda em formação, atualizado a cada negociação)
+        // trazem "x"=false e devem ser ignoradas.
+        if (!klineElement.TryGetProperty("x", out var closedElement) || closedElement.ValueKind != JsonValueKind.True)
+            return;
+
+        if (!klineElement.TryGetProperty("i", out var intervalElement))
+            return;
+
+        string interval = intervalElement.GetString() ?? "";
+        if (!string.IsNullOrEmpty(interval))
+            CandleClosed?.Invoke(interval);
     }
 
     public async ValueTask DisposeAsync()

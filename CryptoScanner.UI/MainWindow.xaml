@@ -184,15 +184,15 @@
             <DataGrid.RowStyle>
                 <Style TargetType="DataGridRow">
                     <Style.Triggers>
-                        <DataTrigger Binding="{Binding Signal}" Value="COMPRA+">
+                        <DataTrigger Binding="{Binding DisplaySignal}" Value="COMPRA+">
                             <Setter Property="Background" Value="DarkGreen"/>
                             <Setter Property="Foreground" Value="White"/>
                         </DataTrigger>
-                        <DataTrigger Binding="{Binding Signal}" Value="COMPRA">
+                        <DataTrigger Binding="{Binding DisplaySignal}" Value="COMPRA">
                             <Setter Property="Background" Value="ForestGreen"/>
                             <Setter Property="Foreground" Value="White"/>
                         </DataTrigger>
-                        <DataTrigger Binding="{Binding Signal}" Value="MONITORAR">
+                        <DataTrigger Binding="{Binding DisplaySignal}" Value="MONITORAR">
                             <Setter Property="Background" Value="BlueViolet"/>
                             <Setter Property="Foreground" Value="White"/>
                         </DataTrigger>
@@ -237,7 +237,7 @@
                 <DataGridTextColumn Header="Romp" Binding="{Binding BreakoutSource}" />
                 <DataGridTextColumn Header="RR" Binding="{Binding RiskReward, StringFormat=F2}" />
                 <DataGridTextColumn Header="Trend" Binding="{Binding TrendDirection}" />
-                <DataGridTextColumn Header="Sinal" Binding="{Binding Signal}" />
+                <DataGridTextColumn Header="Sinal" Binding="{Binding DisplaySignal}" />
                 <DataGridCheckBoxColumn Header="Consol.*" Binding="{Binding IsConsolidating}">
                     <DataGridCheckBoxColumn.CellStyle>
                         <Style TargetType="DataGridCell">
@@ -270,6 +270,7 @@
                     <TextBlock x:Name="txtSimulatedSummary" Grid.Row="0" Margin="4" FontWeight="Bold" Foreground="White"/>
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="4,0,4,4">
                         <Button Content="Atualizar Diário" Click="BtnRefreshSimulatedTrades_Click" Padding="8,3"/>
+                        <Button x:Name="btnToggleClosedTrades" Content="Mostrar Concluídos" Click="BtnToggleClosedTrades_Click" Padding="8,3" Margin="8,0,0,0"/>
                     </StackPanel>
                     <DataGrid x:Name="dgSimulatedTrades" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="False" RowEditEnding="DgSimulatedTrades_RowEditEnding"
                           PreviewMouseRightButtonDown="DgSimulatedTrades_PreviewMouseRightButtonDown">
@@ -389,11 +390,16 @@
                     BorderBrush="{StaticResource DarkBorder}"
                     BorderThickness="1"
                     Padding="10"
+                    MaxWidth="400"
                     TextElement.Foreground="White">
                 <StackPanel>
                     <TextBlock Text="Score Breakdown"
                            FontWeight="Bold"
                            Margin="0,0,0,6"/>
+                    <TextBlock Text="{Binding QualityAnalysis}"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,10"/>
                     <UniformGrid Columns="4"
                              Rows="2">
                         <StackPanel Margin="0,0,10,6">

@@ -15,6 +15,7 @@ public static class ScannerSettings
     public const decimal MomentumWeight = 0.05m;
     public const decimal VolatilityWeight = 0.05m;
     public const decimal TrendStrengthWeight = 0.05m;
+
     // Modo ATR de cálculo de risco (ainda não usado ao vivo — só testável no backtest).
     // Convenção comum de mercado: alvo = 2x o stop, garantindo RR=2 fixo por construção.
     public const decimal AtrStopMultiplier = 1.5m;
@@ -41,7 +42,11 @@ public static class ScannerSettings
     public const int EvaluationHours = 24;
 
     // Scanner
-    public const int MaxCoins = 50;
+    // Ajustado de 50 pra 170 — bate com o universo usado em toda a validação por Backtest
+    // (Swing e Intraday, ambos calibrados em cima de 167-171 moedas). Com 50, o app ao vivo
+    // rodava numa base ~3x menor do que a que validamos, tornando sinais elegíveis ainda
+    // mais raros do que o esperado pelo Backtest.
+    public const int MaxCoins = 170;
 
     // Modo defensivo (ativado quando marketRegime != "BULL")
     // Rompimento de curto prazo, em vez de resistência de 50 candles.
