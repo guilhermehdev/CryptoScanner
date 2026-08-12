@@ -116,11 +116,13 @@ public partial class BacktestWindow : Window
     private static string ComputeSignature(
         IReadOnlyList<string> symbols, DateTime start, DateTime end, ScanProfile profile,
         EligibilityThresholds thresholds, RiskCalculationMode riskMode, int? evaluationHoursOverride,
-        decimal? tp1Fraction = null, decimal? tp2Fraction = null, bool disableTimeout = false)
+        decimal? tp1Fraction = null, decimal? tp2Fraction = null, bool disableTimeout = false,
+        TradeDirection direction = TradeDirection.Long)
     {
         var sb = new StringBuilder();
         sb.Append(profile.Name).Append('|');
         sb.Append(riskMode).Append('|');
+        sb.Append(direction).Append('|');
         sb.Append(start.ToString("O")).Append('|');
         sb.Append(end.ToString("O")).Append('|');
         sb.Append(string.Join(",", symbols.OrderBy(s => s, StringComparer.Ordinal))).Append('|');
@@ -150,11 +152,17 @@ public partial class BacktestWindow : Window
     private async Task SaveRunResultAsync(
         string label, IReadOnlyList<string> symbols, DateTime start, DateTime end, ScanProfile profile,
         EligibilityThresholds thresholds, RiskCalculationMode riskMode, int? evaluationHoursOverride,
-        BacktestSummary summary, decimal? tp1Fraction = null, decimal? tp2Fraction = null, bool disableTimeout = false)
+        BacktestSummary summary, decimal? tp1Fraction = null, decimal? tp2Fraction = null, bool disableTimeout = false,
+        TradeDirection direction = TradeDirection.Long)
     {
         try
         {
-            string signature = ComputeSignature(symbols, start, end, profile, thresholds, riskMode, evaluationHoursOverride, tp1Fraction, tp2Fraction, disableTimeout);
+            // direction entra na assinatura — sem isso, um teste de Venda com o mesmo
+            // perfil/modo/datas/limiares que um teste de Compra (ou de Venda anterior)
+            // gerava a MESMA assinatura, e o sistema recusava salvar de novo (achando
+            // que já existia um teste idêntico), mantendo o registro antigo — com a hora
+            // antiga. Bug real, não comportamento esperado.
+            string signature = ComputeSignature(symbols, start, end, profile, thresholds, riskMode, evaluationHoursOverride, tp1Fraction, tp2Fraction, disableTimeout, direction);
 
             await _runResultRepository.InitializeAsync();
             if (await _runResultRepository.ExistsAsync(signature))
@@ -210,7 +218,17 @@ public partial class BacktestWindow : Window
         if (rbRiskAtr.IsChecked == true) return RiskCalculationMode.AtrBased;
         if (rbRiskSwingBuffer.IsChecked == true) return RiskCalculationMode.SwingWithAtrBuffer;
         if (rbRiskPartialExits.IsChecked == true) return RiskCalculationMode.SwingWithPartialExits;
+        if (rbRiskMeanReversion.IsChecked == true) return RiskCalculationMode.MeanReversionScalp;
+        if (rbRiskBollingerReversal.IsChecked == true) return RiskCalculationMode.BollingerReversal;
         return RiskCalculationMode.SwingBased;
+    }
+
+    // Fase 1 do lado de venda — hoje só conectado no botão "Rodar Backtest" (BtnRun_Click).
+    // Os comparadores continuam Long-only por enquanto; se a Venda mostrar sinal de vida,
+    // isso se estende pros comparadores relevantes depois, não em bloco de uma vez.
+    private TradeDirection GetSelectedDirection()
+    {
+        return rbDirectionShort.IsChecked == true ? TradeDirection.Short : TradeDirection.Long;
     }
 
     private EligibilityThresholds BuildDefaultThresholdsWithCurrentAtrDistance()
@@ -235,6 +253,8 @@ public partial class BacktestWindow : Window
             MinRelativeStrengthPercent = EligibilityThresholds.Default.MinRelativeStrengthPercent,
             MinStopDistancePercent = EligibilityThresholds.Default.MinStopDistancePercent,
             MaxStopDistancePercent = EligibilityThresholds.Default.MaxStopDistancePercent,
+            EnableMeanReversionScalp = EligibilityThresholds.Default.EnableMeanReversionScalp,
+            EnableBollingerReversal = EligibilityThresholds.Default.EnableBollingerReversal,
             MaxRiskReward = EligibilityThresholds.Default.MaxRiskReward,
             EnablePullbackBounce = EligibilityThresholds.Default.EnablePullbackBounce,
             EnableBollingerScoring = EligibilityThresholds.Default.EnableBollingerScoring,
@@ -330,7 +350,9 @@ public partial class BacktestWindow : Window
             EnablePullbackBounce = chkEnablePullbackBounce.IsChecked == true, // Caminho A reexposto na tela — antes fixo em false
             EnableBollingerScoring = chkEnableBollingerScoring.IsChecked == true,
             EnableVolatilityScoringPhaseB = chkEnableVolatilityScoringPhaseB.IsChecked == true,
-            EnableMultiTimeframe = chkEnableMultiTimeframe.IsChecked == true
+            EnableMultiTimeframe = chkEnableMultiTimeframe.IsChecked == true,
+            EnableMeanReversionScalp = chkEnableMeanReversionScalp.IsChecked == true,
+            EnableBollingerReversal = chkEnableBollingerReversal.IsChecked == true
         };
 
         return true;
@@ -344,7 +366,8 @@ public partial class BacktestWindow : Window
         if (!TryBuildThresholds(out var thresholds))
             return;
 
-        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : ScanProfile.Swing;
+        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
+        var direction = GetSelectedDirection();
 
         List<string>? symbols;
         try
@@ -388,6 +411,7 @@ public partial class BacktestWindow : Window
                 riskMode: GetSelectedRiskMode(),
                 evaluationHoursOverride: evaluationHoursOverride,
                 disableTimeout: disableTimeout,
+                direction: direction,
                 onProgress: (message, percent) => Dispatcher.Invoke(() =>
                 {
                     txtStatus.Text = message;
@@ -395,7 +419,9 @@ public partial class BacktestWindow : Window
                 }),
                 cancellationToken: _cts.Token);
 
-            await SaveRunResultAsync("Rodar Backtest", symbols, start, end, profile, thresholds, GetSelectedRiskMode(), evaluationHoursOverride, summary, disableTimeout: disableTimeout);
+            await SaveRunResultAsync(
+                direction == TradeDirection.Short ? "Rodar Backtest (VENDA)" : "Rodar Backtest",
+                symbols, start, end, profile, thresholds, GetSelectedRiskMode(), evaluationHoursOverride, summary, disableTimeout: disableTimeout, direction: direction);
 
             string skippedInfo = summary.SkippedSymbols.Count > 0
                 ? $"\n\n⚠ {summary.SkippedSymbols.Count} de {symbols.Count} moedas não entraram no teste:\n" +
@@ -407,6 +433,7 @@ public partial class BacktestWindow : Window
                 : "sem teto";
 
             txtSummaryResult.Text =
+                $"Direção: {(direction == TradeDirection.Short ? "VENDA (Fase 1)" : "Compra")} | " +
                 $"Score≥{thresholds.BuyOpportunityScore:F0} | RR mín.={thresholds.MinRiskReward:F1} | Stop mín.={thresholds.MinStopDistancePercent:F0}% | Stop máx.={maxStopText}" +
                 (disableTimeout ? " | Timeout=DESATIVADO (só TP/SL)" : "") + "\n\n" +
                 $"Operações: {summary.TotalTrades}   |   " +
@@ -451,7 +478,7 @@ public partial class BacktestWindow : Window
         if (!TryBuildThresholds(out var baseThresholds))
             return;
 
-        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : ScanProfile.Swing;
+        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
 
         List<string>? symbols;
         try
@@ -504,6 +531,8 @@ public partial class BacktestWindow : Window
                     MaxStopDistancePercent = baseThresholds.MaxStopDistancePercent,
                     MaxRiskReward = baseThresholds.MaxRiskReward,
                     EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
+                    EnableMeanReversionScalp = baseThresholds.EnableMeanReversionScalp,
+                    EnableBollingerReversal = baseThresholds.EnableBollingerReversal,
                     EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
                     EnableVolatilityScoringPhaseB = baseThresholds.EnableVolatilityScoringPhaseB,
                     EnableMultiTimeframe = baseThresholds.EnableMultiTimeframe
@@ -569,7 +598,7 @@ public partial class BacktestWindow : Window
         if (!TryBuildThresholds(out var baseThresholds))
             return;
 
-        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : ScanProfile.Swing;
+        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
 
         List<string>? symbols;
         try
@@ -624,6 +653,8 @@ public partial class BacktestWindow : Window
                     MaxStopDistancePercent = baseThresholds.MaxStopDistancePercent,
                     MaxRiskReward = baseThresholds.MaxRiskReward,
                     EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
+                    EnableMeanReversionScalp = baseThresholds.EnableMeanReversionScalp,
+                    EnableBollingerReversal = baseThresholds.EnableBollingerReversal,
                     EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
                     EnableVolatilityScoringPhaseB = baseThresholds.EnableVolatilityScoringPhaseB,
                     EnableMultiTimeframe = baseThresholds.EnableMultiTimeframe
@@ -689,7 +720,7 @@ public partial class BacktestWindow : Window
         if (!TryBuildThresholds(out var baseThresholds))
             return;
 
-        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : ScanProfile.Swing;
+        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
 
         List<string>? symbols;
         try
@@ -746,6 +777,8 @@ public partial class BacktestWindow : Window
                     MaxStopDistancePercent = stopMax,
                     MaxRiskReward = baseThresholds.MaxRiskReward,
                     EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
+                    EnableMeanReversionScalp = baseThresholds.EnableMeanReversionScalp,
+                    EnableBollingerReversal = baseThresholds.EnableBollingerReversal,
                     EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
                     EnableVolatilityScoringPhaseB = baseThresholds.EnableVolatilityScoringPhaseB,
                     EnableMultiTimeframe = baseThresholds.EnableMultiTimeframe
@@ -811,7 +844,7 @@ public partial class BacktestWindow : Window
         if (!TryBuildThresholds(out var baseThresholds))
             return;
 
-        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : ScanProfile.Swing;
+        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
 
         List<string>? symbols;
         try
@@ -866,6 +899,8 @@ public partial class BacktestWindow : Window
                     MaxStopDistancePercent = baseThresholds.MaxStopDistancePercent,
                     MaxRiskReward = maxRR,
                     EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
+                    EnableMeanReversionScalp = baseThresholds.EnableMeanReversionScalp,
+                    EnableBollingerReversal = baseThresholds.EnableBollingerReversal,
                     EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
                     EnableVolatilityScoringPhaseB = baseThresholds.EnableVolatilityScoringPhaseB,
                     EnableMultiTimeframe = baseThresholds.EnableMultiTimeframe
@@ -933,7 +968,7 @@ public partial class BacktestWindow : Window
         if (!TryBuildThresholds(out var baseThresholds))
             return;
 
-        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : ScanProfile.Swing;
+        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
 
         List<string>? symbols;
         try
@@ -1171,7 +1206,7 @@ public partial class BacktestWindow : Window
         }
 
         var anchorEnd = dpEnd.SelectedDate ?? DateTime.Today;
-        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : ScanProfile.Swing;
+        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
 
         List<string>? symbols;
         try
@@ -1313,7 +1348,7 @@ public partial class BacktestWindow : Window
         }
 
         var anchorEnd = dpEnd.SelectedDate ?? DateTime.Today;
-        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : ScanProfile.Swing;
+        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
 
         List<string>? symbols;
         try
@@ -1451,7 +1486,7 @@ public partial class BacktestWindow : Window
         if (!TryBuildThresholds(out var baseThresholds))
             return;
 
-        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : ScanProfile.Swing;
+        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
 
         List<string>? symbols;
         try
@@ -1506,6 +1541,8 @@ public partial class BacktestWindow : Window
                     MaxStopDistancePercent = baseThresholds.MaxStopDistancePercent,
                     MaxRiskReward = baseThresholds.MaxRiskReward,
                     EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
+                    EnableMeanReversionScalp = baseThresholds.EnableMeanReversionScalp,
+                    EnableBollingerReversal = baseThresholds.EnableBollingerReversal,
                     EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
                     EnableVolatilityScoringPhaseB = baseThresholds.EnableVolatilityScoringPhaseB,
                     EnableMultiTimeframe = baseThresholds.EnableMultiTimeframe
@@ -1572,7 +1609,7 @@ public partial class BacktestWindow : Window
         if (!TryBuildThresholds(out var baseThresholds))
             return;
 
-        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : ScanProfile.Swing;
+        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
 
         List<string>? symbols;
         try
@@ -1628,6 +1665,8 @@ public partial class BacktestWindow : Window
                     MaxStopDistancePercent = baseThresholds.MaxStopDistancePercent,
                     MaxRiskReward = baseThresholds.MaxRiskReward,
                     EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
+                    EnableMeanReversionScalp = baseThresholds.EnableMeanReversionScalp,
+                    EnableBollingerReversal = baseThresholds.EnableBollingerReversal,
                     EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
                     EnableVolatilityScoringPhaseB = baseThresholds.EnableVolatilityScoringPhaseB,
                     EnableMultiTimeframe = baseThresholds.EnableMultiTimeframe
@@ -1694,7 +1733,7 @@ public partial class BacktestWindow : Window
         if (!TryBuildThresholds(out var baseThresholds))
             return;
 
-        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : ScanProfile.Swing;
+        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
 
         List<string>? symbols;
         try
@@ -1750,6 +1789,8 @@ public partial class BacktestWindow : Window
                     MaxStopDistancePercent = baseThresholds.MaxStopDistancePercent,
                     MaxRiskReward = baseThresholds.MaxRiskReward,
                     EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
+                    EnableMeanReversionScalp = baseThresholds.EnableMeanReversionScalp,
+                    EnableBollingerReversal = baseThresholds.EnableBollingerReversal,
                     EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
                     EnableVolatilityScoringPhaseB = baseThresholds.EnableVolatilityScoringPhaseB,
                     EnableMultiTimeframe = baseThresholds.EnableMultiTimeframe
@@ -1816,7 +1857,7 @@ public partial class BacktestWindow : Window
         if (!TryBuildThresholds(out var baseThresholds))
             return;
 
-        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : ScanProfile.Swing;
+        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
 
         List<string>? symbols;
         try
@@ -2010,7 +2051,7 @@ public partial class BacktestWindow : Window
         if (!TryBuildThresholds(out var baseThresholds))
             return;
 
-        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : ScanProfile.Swing;
+        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
 
         List<string>? symbols;
         try

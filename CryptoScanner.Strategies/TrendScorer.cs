@@ -23,4 +23,21 @@ public static class TrendScorer
 
         return score;
     }
+
+    // Espelho pro lado de baixa (Fase A do lado de venda) — mesma lógica, invertida.
+    public static int CalculateBearish(decimal close, decimal ema21, decimal ema50, decimal ema200)
+    {
+        int score = 0;
+
+        if (close < ema200)
+            score += 40;
+
+        if (ema21 < ema50)
+            score += 30;
+
+        if (ema50 < ema200)
+            score += 30;
+
+        return score;
+    }
 }

@@ -29,19 +29,24 @@ public sealed class ScannerService
         MinResistanceDistance = ScannerSettings.MinResistanceDistance,
         MinResistanceDistanceAtrMode = ScannerSettings.MinResistanceDistance, // não usado nesse modo
         MinResistanceDistancePartialExits = 4m, // validado no Backtest (Swing)
-        MinRiskReward = 1.5m, // validado no Backtest (Swing)
+        MinRiskReward = 2.0m, // atualizado de 1,5 pra 2,0 — recalibração necessária pra ativar o Caminho A
+                              // com segurança (ver comentário em EnablePullbackBounce abaixo)
         MinRelativeStrengthPercent = ScannerSettings.MinRelativeStrengthPercent,
         MinStopDistancePercent = 0m, // testado e confirmado irrelevante nesse modo (buffer de ATR já protege)
         MaxStopDistancePercent = 25m, // validado via Backtest em 3 universos distintos (110/167 moedas,
-                                       // 3 janelas de período) — faixa 20-30% consistentemente melhor que
-                                       // os extremos; 25% escolhido como meio-termo robusto entre eles,
-                                       // evitando depender do pico exato de um teste isolado
+                                      // 3 janelas de período) — faixa 20-30% consistentemente melhor que
+                                      // os extremos; 25% escolhido como meio-termo robusto entre eles,
+                                      // evitando depender do pico exato de um teste isolado
         MaxRiskReward = 999m, // mesmo valor usado em toda a validação
-        EnablePullbackBounce = false,
+        EnablePullbackBounce = true, // validado via Backtest em 2 janelas de período distintas (2020-2026 e
+                                     // 2021-2026, 171 moedas) — só funciona bem COMBINADO com RR mín.=2,0;
+                                     // com RR=1,5 (valor antigo), o Caminho A piorava tudo (PF 1,52, DD 43,16%
+                                     // vs baseline 2,79/31,81%). Com RR=2,0: mais operações que o baseline
+                                     // (21-25 vs 19), Profit Factor maior (3,00-3,70 vs 2,79), Drawdown menor
         EnableBollingerScoring = true, // validado via Backtest em 2 janelas de período distintas (2020-2026
-                                        // e 2021-2026, 167 moedas, RR mín.=1,5) — melhora Win Rate, Profit
-                                        // Factor, Retorno E reduz Drawdown ao mesmo tempo, nas duas vezes;
-                                        // diferente da Fase B, não dilui o sinal da resistência pontuada
+                                       // e 2021-2026, 167 moedas, RR mín.=1,5) — melhora Win Rate, Profit
+                                       // Factor, Retorno E reduz Drawdown ao mesmo tempo, nas duas vezes;
+                                       // diferente da Fase B, não dilui o sinal da resistência pontuada
         EnableVolatilityScoringPhaseB = false,
         EnableMultiTimeframe = false,
     };
@@ -56,26 +61,55 @@ public sealed class ScannerService
         MinResistanceDistance = ScannerSettings.MinResistanceDistance,
         MinResistanceDistanceAtrMode = ScannerSettings.MinResistanceDistance, // não usado nesse modo
         MinResistanceDistancePartialExits = 15m, // validado no Backtest (Intraday) — RR=1,5/Dist.=4% do
-                                                  // Swing geram resultado ruim aqui (PF 0,58, DD 131,6%);
-                                                  // Dist.≥15% confirmado em 2 universos distintos (167
-                                                  // moedas/2020-2026 e 171 moedas/2020-2024), PF 4,45-5,64
+                                                 // Swing geram resultado ruim aqui (PF 0,58, DD 131,6%);
+                                                 // Dist.≥15% confirmado em 2 universos distintos (167
+                                                 // moedas/2020-2026 e 171 moedas/2020-2024), PF 4,45-5,64
         MinRiskReward = 2.5m, // validado no Backtest (Intraday) — comparador de RR mín. mostrou pico
-                               // claro em 2,5 (PF 2,90 com 19 trades), caindo dos dois lados
+                              // claro em 2,5 (PF 2,90 com 19 trades), caindo dos dois lados
         MinRelativeStrengthPercent = ScannerSettings.MinRelativeStrengthPercent,
         MinStopDistancePercent = 0m, // mesmo valor do Swing — não testado separadamente no Intraday ainda
         MaxStopDistancePercent = 25m, // mesmo valor do Swing — não testado separadamente no Intraday ainda,
-                                       // reutilizado por analogia
+                                      // reutilizado por analogia
         MaxRiskReward = 999m,
         EnablePullbackBounce = false,
         EnableBollingerScoring = true, // já estava ativo em todos os testes de calibração do Intraday
-                                        // (RR mín. e Dist. Resist.), então tecnicamente confirmado nesse
-                                        // contexto também, ainda que não isolado especificamente
+                                       // (RR mín. e Dist. Resist.), então tecnicamente confirmado nesse
+                                       // contexto também, ainda que não isolado especificamente
+        EnableVolatilityScoringPhaseB = false,
+        EnableMultiTimeframe = false,
+    };
+
+    // ATENÇÃO: NÃO VALIDADO — valores de partida conservadores (mais rígidos que o Intraday,
+    // seguindo o padrão observado de "timeframe menor exige filtro mais apertado"), só pra
+    // destravar testes no Backtest. Não expor esse perfil no app ao vivo (MainWindow) até
+    // rodar o ciclo completo de calibração (RR, Dist. Resist., Stop, Bollinger) e confirmar
+    // resultado em pelo menos 2 universos/períodos distintos — mesma disciplina usada pro
+    // Swing e pro Intraday.
+    private static readonly EligibilityThresholds ScalpValidatedThresholds = new()
+    {
+        BuyOpportunityScore = ScannerSettings.BuyOpportunityScore,
+        BearRegimePenalty = ScannerSettings.BearRegimePenalty,
+        SidewaysRegimePenalty = ScannerSettings.SidewaysRegimePenalty,
+        MinVolumeSpike = ScannerSettings.MinVolumeSpike,
+        DefensiveMinVolumeSpike = ScannerSettings.DefensiveMinVolumeSpike,
+        MinResistanceDistance = ScannerSettings.MinResistanceDistance,
+        MinResistanceDistanceAtrMode = ScannerSettings.MinResistanceDistance, // não usado nesse modo
+        MinResistanceDistancePartialExits = 20m, // NÃO VALIDADO — chute inicial, mais rígido que os 15% do Intraday
+        MinRiskReward = 3.0m, // NÃO VALIDADO — chute inicial, mais rígido que os 2,5 do Intraday
+        MinRelativeStrengthPercent = ScannerSettings.MinRelativeStrengthPercent,
+        MinStopDistancePercent = 0m,
+        MaxStopDistancePercent = 25m, // reutilizado por analogia — não testado nesse perfil
+        MaxRiskReward = 999m,
+        EnablePullbackBounce = false,
+        EnableBollingerScoring = true, // reutilizado por analogia — não testado nesse perfil
         EnableVolatilityScoringPhaseB = false,
         EnableMultiTimeframe = false,
     };
 
     private static EligibilityThresholds GetValidatedThresholds(ScanProfile profile) =>
-        profile.Name == ScanProfile.Intraday.Name ? IntradayValidatedThresholds : SwingValidatedThresholds;
+        profile.Name == ScanProfile.Intraday.Name ? IntradayValidatedThresholds :
+        profile.Name == ScanProfile.Scalp.Name ? ScalpValidatedThresholds :
+        SwingValidatedThresholds;
 
     private readonly IMarketDataService _marketData;
     private readonly ISignalRepository _signals;
@@ -257,7 +291,9 @@ public sealed class ScannerService
                 ? ScanProfile.Intraday.EvaluationHours
                 : signal.Profile == ScanProfile.Swing.Name
                     ? ScanProfile.Swing.EvaluationHours
-                    : profile.EvaluationHours;
+                    : signal.Profile == ScanProfile.Scalp.Name
+                        ? ScanProfile.Scalp.EvaluationHours
+                        : profile.EvaluationHours;
 
             if (signal.TakeProfit <= 0 || signal.StopLoss <= 0)
             {

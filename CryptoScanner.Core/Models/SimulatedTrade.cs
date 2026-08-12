@@ -127,7 +127,7 @@ public sealed class SimulatedTrade : ObservableModel
         }
     }
 
-   
+
 
     private decimal _remainingFraction = 1.0m;
     public decimal RemainingFraction
@@ -150,11 +150,18 @@ public sealed class SimulatedTrade : ObservableModel
             if (TakeProfit1 == null)
                 return ""; // trade sem saída parcial (modo antigo, ou criado antes da 3.2)
 
-            string tp1 = Tp1Hit ? "✓" : "—";
-            string tp2 = Tp2Hit ? "✓" : "—";
-            string tp3 = Closed && ExitReason == "TP1TP2TP3" ? "✓" : "—";
+            string tp1Check = Tp1Hit ? "✓" : "—";
+            string tp2Check = Tp2Hit ? "✓" : "—";
+            string tp3Check = Closed && ExitReason == "TP1TP2TP3" ? "✓" : "—";
 
-            return $"TP1 {tp1} | TP2 {tp2} | TP3 {tp3}";
+            // Valor de cada alvo ao lado do check — antes só mostrava se bateu ou não,
+            // sem dizer o preço. TakeProfit (já existente) é o TP2; TakeProfit1/3 são
+            // os alvos extras da saída parcial.
+            string tp1Value = TakeProfit1.Value.ToString("0.########");
+            string tp2Value = TakeProfit.ToString("0.########");
+            string tp3Value = TakeProfit3?.ToString("0.########") ?? "—";
+
+            return $"TP1 {tp1Check} {tp1Value} | TP2 {tp2Check} {tp2Value} | TP3 {tp3Check} {tp3Value}";
         }
     }
 

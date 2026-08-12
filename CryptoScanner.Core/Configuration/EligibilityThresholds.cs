@@ -31,6 +31,14 @@ public sealed class EligibilityThresholds
     public required bool EnableVolatilityScoringPhaseB { get; init; }
     public required decimal MinResistanceDistancePartialExits { get; init; }
 
+    // Reversão à média (Scalp) — NÃO-obrigatório de propósito, mesmo padrão do
+    // MaxStopDistancePercent acima: evita quebrar toda construção existente de
+    // EligibilityThresholds espalhada pelo app. Default false — desligado até validar.
+    public bool EnableMeanReversionScalp { get; init; } = false;
+
+    // Reversão de Bollinger (Fase A do lado de venda) — mesmo padrão não-obrigatório acima.
+    public bool EnableBollingerReversal { get; init; } = false;
+
     public static readonly EligibilityThresholds Default = new()
     {
         BuyOpportunityScore = ScannerSettings.BuyOpportunityScore,

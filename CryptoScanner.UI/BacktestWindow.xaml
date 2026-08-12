@@ -30,7 +30,11 @@
                 <StackPanel Orientation="Horizontal" Margin="6,0,6,6">
                     <TextBlock Text="Perfil:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <RadioButton x:Name="rbBacktestIntraday" Content="Intraday (1h / 24h)" GroupName="BacktestProfile" Margin="0,0,12,0" VerticalAlignment="Center"/>
-                    <RadioButton x:Name="rbBacktestSwing" Content="Swing (4h / 10 dias)" GroupName="BacktestProfile" IsChecked="True" VerticalAlignment="Center"/>
+                    <RadioButton x:Name="rbBacktestSwing" Content="Swing (4h / 10 dias)" GroupName="BacktestProfile" IsChecked="True" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <RadioButton x:Name="rbBacktestScalp" Content="Scalp (15min / 6h, não validado)" GroupName="BacktestProfile" VerticalAlignment="Center" Margin="0,0,24,0"/>
+                    <TextBlock Text="Direção:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <RadioButton x:Name="rbDirectionLong" Content="Compra (Long)" GroupName="TradeDirection" IsChecked="True" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <RadioButton x:Name="rbDirectionShort" Content="Venda (Short, Fase 1 — só &quot;Rodar Backtest&quot;)" GroupName="TradeDirection" VerticalAlignment="Center"/>
                 </StackPanel>
             </StackPanel>
         </GroupBox>
@@ -84,11 +88,15 @@
                     <RadioButton x:Name="rbRiskSwing" Content="Swing (atual)" GroupName="RiskMode" IsChecked="True" VerticalAlignment="Center" Margin="0,0,12,0"/>
                     <RadioButton x:Name="rbRiskAtr" Content="ATR (novo)" GroupName="RiskMode" VerticalAlignment="Center" Margin="0,0,12,0"/>
                     <RadioButton x:Name="rbRiskSwingBuffer" Content="Swing + Buffer ATR (novo)" GroupName="RiskMode" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                    <RadioButton x:Name="rbRiskPartialExits" Content="Swing + Resistência Pontuada (4.1)" GroupName="RiskMode" VerticalAlignment="Center" Margin="0,0,24,0"/>
+                    <RadioButton x:Name="rbRiskPartialExits" Content="Swing + Resistência Pontuada (4.1)" GroupName="RiskMode" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <RadioButton x:Name="rbRiskMeanReversion" Content="Reversão à Média (Scalp, não validado)" GroupName="RiskMode" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <RadioButton x:Name="rbRiskBollingerReversal" Content="Reversão de Bollinger (Venda, não validado)" GroupName="RiskMode" VerticalAlignment="Center" Margin="0,0,24,0"/>
                     <CheckBox x:Name="chkEnableBollingerScoring" Content="Bollinger Scoring (experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
                     <CheckBox x:Name="chkEnableVolatilityScoringPhaseB" Content="Volatility Scoring — Fase B (experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
                     <CheckBox x:Name="chkEnableMultiTimeframe" Content="Multi-timeframe (4.2, experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
-                    <CheckBox x:Name="chkEnablePullbackBounce" Content="Caminho A — Repique (pullback, experimental)" VerticalAlignment="Center"/>
+                    <CheckBox x:Name="chkEnablePullbackBounce" Content="Caminho A — Repique (pullback, experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
+                    <CheckBox x:Name="chkEnableMeanReversionScalp" Content="Reversão à Média (Scalp, experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
+                    <CheckBox x:Name="chkEnableBollingerReversal" Content="Reversão de Bollinger (Venda, experimental)" VerticalAlignment="Center"/>
                 </WrapPanel>
             </StackPanel>
         </GroupBox>
@@ -101,7 +109,7 @@
                     <TextBlock x:Name="txtStatus" VerticalAlignment="Center" Margin="15,0,0,0" Foreground="Gray"/>
                 </WrapPanel>
                 <ProgressBar x:Name="pbProgress" Height="6" Margin="6,0,6,8" Minimum="0" Maximum="100" Visibility="Collapsed"/>
-                <TextBlock Text="Comparadores de cenário:" Margin="6,0,6,2" FontWeight="Bold" FontSize="11"/>
+                <TextBlock Text="Comparadores de cenário (Long apenas — Fase 1 do lado de venda ainda não estende os comparadores):" Margin="6,0,6,2" FontWeight="Bold" FontSize="11"/>
                 <WrapPanel Margin="6,0,6,8">
                     <Button x:Name="btnCompare" Content="Comparar Cenários (RR)" Width="160" Height="26" Click="BtnCompareScenarios_Click"/>
                     <Button x:Name="btnCompareStop" Content="Comparar Cenários (Stop)" Width="170" Height="26" Margin="8,0,0,0" Click="BtnCompareStopScenarios_Click"/>
@@ -180,6 +188,7 @@
             <DataGrid x:Name="dgTrades" Grid.Row="3" AutoGenerateColumns="False" IsReadOnly="True">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" Width="90"/>
+                    <DataGridTextColumn Header="Direção" Binding="{Binding Direction}" Width="70"/>
                     <DataGridTextColumn Header="Entrada" Binding="{Binding EntryTime, StringFormat=dd/MM/yy HH:mm}" Width="120"/>
                     <DataGridTextColumn Header="Preço Entrada" Binding="{Binding EntryPrice}" Width="100"/>
                     <DataGridTextColumn Header="Saída" Binding="{Binding ExitTime, StringFormat=dd/MM/yy HH:mm}" Width="120"/>

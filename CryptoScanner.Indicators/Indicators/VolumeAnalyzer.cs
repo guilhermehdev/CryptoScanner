@@ -23,6 +23,11 @@ namespace CryptoScanner.Indicators.Indicators
 
         public int Score { get; set; }
         public decimal VolumeSpike { get; set; }
+
+        // Espelho de Score pro lado de baixa (Fase A do lado de venda) — calculado junto,
+        // reaproveitando os mesmos sinais (Distribution, Absorption, etc.), não uma segunda
+        // passada pelos candles.
+        public int BearishScore { get; set; }
     }
 
     public static class VolumeAnalyzer
@@ -59,7 +64,7 @@ namespace CryptoScanner.Indicators.Indicators
             decimal avgVolume = recent.Take(19).Average(x => x.Volume);
             decimal lastVolume = recent.Last().Volume;
 
-            result.ClimaxVolume = lastVolume > avgVolume * 3m;
+            result.ClimaxVolume = avgVolume > 0 && lastVolume > avgVolume * 3m;
 
             Candle last = recent.Last();
 
@@ -79,7 +84,12 @@ namespace CryptoScanner.Indicators.Indicators
 
             result.Score = 50;
 
-            result.VolumeSpike = lastVolume / avgVolume;
+            // Sem volume médio nos candles anteriores (ativo pouco líquido nessa janela,
+            // mais comum em timeframes curtos como o Scalp) — não dá pra calcular um "spike"
+            // relativo a uma base zero. 0 aqui é seguro: cai naturalmente abaixo de qualquer
+            // piso de Volume Spike configurado, então o ativo já fica desqualificado por
+            // esse critério em vez de derrubar o app com uma divisão por zero.
+            result.VolumeSpike = avgVolume > 0 ? lastVolume / avgVolume : 0m;
 
             if (result.VolumeImbalance > 0.50m)
                 result.Score += 25;
@@ -99,6 +109,34 @@ namespace CryptoScanner.Indicators.Indicators
                 result.Score -= 15;
 
             result.Score = Math.Clamp(result.Score, 0, 100);
+
+            // Espelho pro lado de baixa — mesmos sinais, papéis invertidos onde faz sentido.
+            // Distribution já É um sinal de venda (predomínio vendedor + candle vermelho) —
+            // aqui soma em vez de subtrair. ClimaxVolume e Absorption ficam como bônus nos
+            // dois lados (intensidade/absorção de volume é ambígua quanto à direção sem
+            // inspecionar mais fundo — tratado como sinal geral, não específico de lado).
+            // Exhaustion também penaliza os dois lados pelo mesmo motivo: o sinal não diz
+            // se é uma sequência de alta ou de baixa que está perdendo fôlego.
+            result.BearishScore = 50;
+
+            if (result.VolumeImbalance < -0.50m)
+                result.BearishScore += 25;
+            else if (result.VolumeImbalance < -0.25m)
+                result.BearishScore += 15;
+
+            if (result.ClimaxVolume)
+                result.BearishScore += 10;
+
+            if (result.Absorption)
+                result.BearishScore += 10;
+
+            if (result.Distribution)
+                result.BearishScore += 20;
+
+            if (result.Exhaustion)
+                result.BearishScore -= 15;
+
+            result.BearishScore = Math.Clamp(result.BearishScore, 0, 100);
 
             return result;
         }

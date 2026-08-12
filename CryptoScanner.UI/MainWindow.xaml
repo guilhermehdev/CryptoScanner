@@ -193,13 +193,13 @@
                             <Setter Property="Foreground" Value="White"/>
                         </DataTrigger>
                         <DataTrigger Binding="{Binding DisplaySignal}" Value="MONITORAR">
-                            <Setter Property="Background" Value="BlueViolet"/>
+                            <Setter Property="Background" Value="SteelBlue"/>
                             <Setter Property="Foreground" Value="White"/>
                         </DataTrigger>
                         <!-- Alerta de risco: sobrepõe a cor do sinal quando há Bull Trap detectado -->
                         <DataTrigger Binding="{Binding IsBullTrap}" Value="True">
                             <Setter Property="Background" Value="DarkOrange"/>
-                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="Foreground" Value="#000000"/>
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>
@@ -215,6 +215,7 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
+                <DataGridCheckBoxColumn Header="Elegível" Binding="{Binding IsEligible}" />
                 <DataGridTemplateColumn Header="" Width="80">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
@@ -229,13 +230,13 @@
                 <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" />
                 <DataGridTextColumn Header="Preço" Binding="{Binding CloseFormatted}" />
                 <DataGridTextColumn Header="Score" Binding="{Binding Score, StringFormat=F2}" />
-                <DataGridCheckBoxColumn Header="Elegível" Binding="{Binding IsEligible}" />
                 <DataGridTextColumn Header="Var" Binding="{Binding VariationText}" />
-                <DataGridTextColumn Header="Elite" Binding="{Binding EliteText}" />
                 <DataGridTextColumn Header="Resistência" Binding="{Binding Resistance, StringFormat=0.########}" />
-                <DataGridTextColumn Header="Alvos (TP1|TP2|TP3)" Binding="{Binding PartialExitTargetsText}" />
-                <DataGridTextColumn Header="Romp" Binding="{Binding BreakoutSource}" />
+                <DataGridTextColumn Header="Res %" Binding="{Binding ResistanceDistance, StringFormat=F1}" />
+                <DataGridTextColumn Header="Sup %" Binding="{Binding SupportDistance, StringFormat=F1}" />
                 <DataGridTextColumn Header="RR" Binding="{Binding RiskReward, StringFormat=F2}" />
+                <DataGridTextColumn Header="Vol" Binding="{Binding VolumeSpike, StringFormat=F2}" />
+                <DataGridTextColumn Header="Romp" Binding="{Binding BreakoutSource}" />
                 <DataGridTextColumn Header="Trend" Binding="{Binding TrendDirection}" />
                 <DataGridTextColumn Header="Sinal" Binding="{Binding DisplaySignal}" />
                 <DataGridCheckBoxColumn Header="Consol.*" Binding="{Binding IsConsolidating}">
@@ -250,9 +251,6 @@
                         </Style>
                     </DataGridCheckBoxColumn.CellStyle>
                 </DataGridCheckBoxColumn>
-                <DataGridTextColumn Header="Vol" Binding="{Binding VolumeSpike, StringFormat=F2}" />
-                <DataGridTextColumn Header="Res %" Binding="{Binding ResistanceDistance, StringFormat=F1}" />
-                <DataGridTextColumn Header="Sup %" Binding="{Binding SupportDistance, StringFormat=F1}" />
                 <DataGridTextColumn Header="Força Rel." Binding="{Binding RelativeStrengthText}" />
                 <DataGridCheckBoxColumn Header="Exaustão" Binding="{Binding HasExhaustion}" />
                 <DataGridTextColumn Header="Padrão" Binding="{Binding PatternName}" />
@@ -311,10 +309,9 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Entrada" Binding="{Binding EntryTime, StringFormat=dd/MM HH:mm}" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Preço Entrada" Binding="{Binding EntryPrice, StringFormat=0.########}" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Preço Atual" Binding="{Binding CurrentPrice, StringFormat=0.########}" IsReadOnly="True" />
-                            <DataGridTextColumn Header="TP" Binding="{Binding TakeProfit, Mode=TwoWay}" IsReadOnly="False" />
+                            <DataGridTextColumn Header="Data" Binding="{Binding EntryTime, StringFormat=dd/MM HH:mm}" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Entrada" Binding="{Binding EntryPrice, StringFormat=0.########}" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Atual" Binding="{Binding CurrentPrice, StringFormat=0.########}" IsReadOnly="True" />
                             <DataGridTextColumn Header="Progresso" Binding="{Binding PartialExitProgressText}" IsReadOnly="True" />
                             <DataGridTextColumn Header="SL" Binding="{Binding StopLoss, Mode=TwoWay}" IsReadOnly="False" />
                             <DataGridTextColumn Header="Score" Binding="{Binding ScoreAtEntry, StringFormat=F2}" IsReadOnly="True" />
@@ -372,7 +369,7 @@
                 </DataGrid>
             </TabItem>
         </TabControl>
-        <Button x:Name="btAtualizar" Grid.Row="1" Content="Atualizar" HorizontalAlignment="Left" Height="19" Margin="614,7,0,0" VerticalAlignment="Top" Width="77" RenderTransformOrigin="0.509,0.601" Click="btAtualizar_Click" Background="SteelBlue"/>
+        <Button x:Name="btAtualizar" Grid.Row="1" Content="Atualizar" HorizontalAlignment="Left" Height="19" Margin="614,7,0,0" VerticalAlignment="Top" Width="77" RenderTransformOrigin="0.509,0.601" Click="btAtualizar_Click" Background="DarkSeaGreen"/>
         <TextBlock Grid.Row="1" Text="Auto (min):" HorizontalAlignment="Left" Height="19" Margin="690,9,0,0" VerticalAlignment="Top" FontSize="11" Foreground="White"   
                    ToolTip="Intervalo de atualização automática, em minutos. Digite o número e clique fora do campo (ou aperte Tab) pra salvar."/>
         <TextBox x:Name="txtAutoScanInterval" Grid.Row="1" HorizontalAlignment="Left" Height="19" Margin="754,7,0,0" VerticalAlignment="Top" Width="24" FontSize="11" TextAlignment="Center" LostFocus="TxtAutoScanInterval_LostFocus"
@@ -400,6 +397,10 @@
                            FontSize="12"
                            TextWrapping="Wrap"
                            Margin="0,0,0,10"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <TextBlock Text="Alvos (TP1|TP2|TP3): " FontSize="12" Foreground="Gray"/>
+                        <TextBlock Text="{Binding PartialExitTargetsText}" FontSize="12" FontWeight="Bold" TextWrapping="Wrap"/>
+                    </StackPanel>
                     <UniformGrid Columns="4"
                              Rows="2">
                         <StackPanel Margin="0,0,10,6">

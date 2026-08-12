@@ -17,4 +17,15 @@ public static class BreakoutIndicator
 
         return currentClose > resistance;
     }
+
+    // Espelho de IsBullishBreakout — rompimento de suporte pra venda (Fase 1 do lado de venda).
+    public static bool IsBearishBreakout(List<Candle> candles, decimal support)
+    {
+        if (candles.Count == 0)
+            return false;
+
+        decimal currentClose = candles.Last().Close;
+
+        return currentClose < support;
+    }
 }

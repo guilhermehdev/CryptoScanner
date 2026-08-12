@@ -14,6 +14,7 @@ public sealed class SqliteBacktestRunResultRepository : IBacktestRunResultReposi
     {
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
+
         const string sql = """
             CREATE TABLE IF NOT EXISTS BacktestRunResults
             (
@@ -122,6 +123,7 @@ public sealed class SqliteBacktestRunResultRepository : IBacktestRunResultReposi
     {
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
+
         const string sql = """
             INSERT OR IGNORE INTO BacktestRunResults
             (SignatureHash, SavedAt, Label, Profile, RiskMode, StartDate, EndDate, Symbols, SymbolCount,
@@ -180,19 +182,18 @@ public sealed class SqliteBacktestRunResultRepository : IBacktestRunResultReposi
         await connection.OpenAsync(cancellationToken);
         await using var command = new SqliteCommand("SELECT * FROM BacktestRunResults ORDER BY SavedAt DESC", connection);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-
         while (await reader.ReadAsync(cancellationToken))
         {
             result.Add(new BacktestRunResult
             {
                 Id = reader.GetInt32(reader.GetOrdinal("Id")),
                 SignatureHash = reader.GetString(reader.GetOrdinal("SignatureHash")),
-                SavedAt = DateTime.Parse(reader.GetString(reader.GetOrdinal("SavedAt"))),
+                SavedAt = ParseDateTimePreservingKind(reader.GetString(reader.GetOrdinal("SavedAt"))),
                 Label = GetStringOrDefault(reader, "Label"),
                 Profile = GetStringOrDefault(reader, "Profile"),
                 RiskMode = GetStringOrDefault(reader, "RiskMode"),
-                StartDate = DateTime.Parse(reader.GetString(reader.GetOrdinal("StartDate"))),
-                EndDate = DateTime.Parse(reader.GetString(reader.GetOrdinal("EndDate"))),
+                StartDate = ParseDateTimePreservingKind(reader.GetString(reader.GetOrdinal("StartDate"))),
+                EndDate = ParseDateTimePreservingKind(reader.GetString(reader.GetOrdinal("EndDate"))),
                 Symbols = GetStringOrDefault(reader, "Symbols"),
                 SymbolCount = reader.GetInt32(reader.GetOrdinal("SymbolCount")),
                 MinScore = GetDecimalSafe(reader, "MinScore"),
@@ -221,7 +222,6 @@ public sealed class SqliteBacktestRunResultRepository : IBacktestRunResultReposi
                 Edge = reader.GetDouble(reader.GetOrdinal("Edge"))
             });
         }
-
         return result;
     }
 
@@ -241,6 +241,17 @@ public sealed class SqliteBacktestRunResultRepository : IBacktestRunResultReposi
     }
 
     /// <summary>
+    /// Lê uma data/hora gravada com .ToString("O") (formato round-trip, ex.: guarda o "Z" no
+    /// final pra datas UTC) preservando o Kind original. DateTime.Parse simples, sem indicar
+    /// RoundtripKind, CONVERTE o valor pro horário local da máquina ao ver o "Z" — silencioso,
+    /// sem erro nenhum — o que fazia StartDate/EndDate aparecerem um dia antes pra quem está
+    /// num fuso atrás de UTC (ex.: Brasil, UTC-3): 01/01/2022 00:00 UTC virava 31/12/2021 21:00
+    /// local, e como o texto só mostra a data (sem hora), a mudança de dia passava despercebida.
+    /// </summary>
+    private static DateTime ParseDateTimePreservingKind(string value) =>
+        DateTime.Parse(value, null, System.Globalization.DateTimeStyles.RoundtripKind);
+
+    /// <summary>
     /// Lê um valor decimal do SQLite (guardado como double/REAL) com proteção contra
     /// overflow — registros antigos gravados antes de uma correção anterior podem ter
     /// valores como decimal.MaxValue que não sobrevivem intactos à ida-e-volta via double.
@@ -251,7 +262,6 @@ public sealed class SqliteBacktestRunResultRepository : IBacktestRunResultReposi
         int ordinal = reader.GetOrdinal(column);
         if (reader.IsDBNull(ordinal))
             return 0m;
-
         try
         {
             return Convert.ToDecimal(reader.GetDouble(ordinal));

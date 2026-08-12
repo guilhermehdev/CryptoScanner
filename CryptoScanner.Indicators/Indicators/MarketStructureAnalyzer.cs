@@ -14,8 +14,8 @@ public static class MarketStructureAnalyzer
         if (candles.Count < 50)
             return result;
 
-        List<Candle> swingHighs = new();
-        List<Candle> swingLows = new();
+        List<(Candle Candle, int Index)> swingHighs = new();
+        List<(Candle Candle, int Index)> swingLows = new();
 
         for (int i = 2; i < candles.Count - 2; i++)
         {
@@ -32,10 +32,10 @@ public static class MarketStructureAnalyzer
                 candles[i].Low < candles[i + 2].Low;
 
             if (isHigh)
-                swingHighs.Add(candles[i]);
+                swingHighs.Add((candles[i], i));
 
             if (isLow)
-                swingLows.Add(candles[i]);
+                swingLows.Add((candles[i], i));
         }
 
         result.SwingHighCount = swingHighs.Count;
@@ -48,11 +48,13 @@ public static class MarketStructureAnalyzer
             return result;
         }
 
-        Candle lastHigh = swingHighs[^1];
-        Candle prevHigh = swingHighs[^2];
+        Candle lastHigh = swingHighs[^1].Candle;
+        Candle prevHigh = swingHighs[^2].Candle;
+        result.LastSwingHighIndex = swingHighs[^1].Index;
+        result.PrevSwingHighIndex = swingHighs[^2].Index;
 
-        Candle lastLow = swingLows[^1];
-        Candle prevLow = swingLows[^2];
+        Candle lastLow = swingLows[^1].Candle;
+        Candle prevLow = swingLows[^2].Candle;
 
         result.HigherHigh = lastHigh.High > prevHigh.High;
         result.HigherLow = lastLow.Low > prevLow.Low;
@@ -85,6 +87,18 @@ public static class MarketStructureAnalyzer
             result.BreakOfStructure &&
             result.HigherLow;
 
+        // Espelhos pro lado de baixa (Fase A do lado de venda). BearishBreakOfStructure:
+        // preço fecha abaixo do fundo anterior — rompimento de suporte. BearishChangeOfCharacter:
+        // esse rompimento combinado com um topo mais baixo que o anterior (LowerHigh) — sinaliza
+        // reversão de uma tendência que vinha sendo de alta/lateral pra baixa, não só continuação
+        // de uma baixa que já estava confirmada.
+        result.BearishBreakOfStructure =
+            close < prevLow.Low;
+
+        result.BearishChangeOfCharacter =
+            result.BearishBreakOfStructure &&
+            result.LowerHigh;
+
         result.StrongUptrend =
             result.Uptrend &&
             result.BreakOfStructure &&
@@ -103,6 +117,11 @@ public static class MarketStructureAnalyzer
             result.Score = 85;
         else if (result.Sideways)
             result.Score = 50;
+        else if (result.StrongDowntrend)
+            // Antes caía no mesmo Score=15 do Downtrend comum, sem distinção — StrongUptrend
+            // já tinha esse tratamento (100 vs. 85), StrongDowntrend não. Corrigido pra manter
+            // a mesma simetria: baixa forte fica no extremo oposto (0), não empatada com fraca.
+            result.Score = 0;
         else if (result.Downtrend)
             result.Score = 15;
         else
