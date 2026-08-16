@@ -397,6 +397,7 @@ public sealed class StrategyBacktester
             if (eligibility.FailedStopDistanceTooHigh) diagnostics.FailedStopDistanceTooHigh++;
             if (eligibility.FailedBullTrap) diagnostics.FailedBullTrap++;
             if (eligibility.FailedTrendConfirmation) diagnostics.FailedTrendConfirmation++;
+            if (eligibility.FailedMomentumFilter) diagnostics.FailedMomentumFilter++;
 
             if (!eligibility.IsEligible)
                 continue;
@@ -431,7 +432,17 @@ public sealed class StrategyBacktester
                 TakeProfit1 = analysis.Risk.TakeProfit1,
                 TakeProfit3 = analysis.Risk.TakeProfit3,
                 Tp1Fraction = partialExitFractions?.Tp1 ?? 0.40m,
-                Tp2Fraction = partialExitFractions?.Tp2 ?? 0.40m
+                Tp2Fraction = partialExitFractions?.Tp2 ?? 0.40m,
+                // Instrumentação — Fase A do lado de venda. Capturados aqui na ENTRADA (é o
+                // único momento em que "analysis" existe) e guardados na posição aberta pra
+                // poderem ser repassados ao BacktestTradeResult quando o trade fechar, em
+                // CloseTrade/CloseTradeWeighted (ver esses métodos abaixo). Não influenciam
+                // Score nem elegibilidade — só instrumentação pra análise manual no grid.
+                HadBearishMomentumConfirmed = analysis.Trend.IsBearishMomentumConfirmed,
+                HadBearishRsiDivergence = analysis.Trend.IsBearishRsiDivergence,
+                // Diagnóstico adicional — ver TrendAnalysis.HadSwingHighDataAvailable pro
+                // contexto completo da investigação (12/2026).
+                HadSwingHighDataAvailable = analysis.Trend.HadSwingHighDataAvailable
             };
         }
 
@@ -479,6 +490,7 @@ public sealed class StrategyBacktester
         target.FailedStopDistanceTooHigh += source.FailedStopDistanceTooHigh;
         target.FailedBullTrap += source.FailedBullTrap;
         target.FailedTrendConfirmation += source.FailedTrendConfirmation;
+        target.FailedMomentumFilter += source.FailedMomentumFilter;
     }
 
     private static BacktestTradeResult CloseTrade(BacktestOpenPosition position, DateTime exitTime, decimal exitPrice, string reason)
@@ -503,7 +515,10 @@ public sealed class StrategyBacktester
             Direction = position.Direction,
             ResistanceDistancePercent = position.ResistanceDistancePercent,
             SupportDistancePercent = position.SupportDistancePercent,
-            RiskRewardAtEntry = position.RiskRewardAtEntry
+            RiskRewardAtEntry = position.RiskRewardAtEntry,
+            HadBearishMomentumConfirmed = position.HadBearishMomentumConfirmed,
+            HadBearishRsiDivergence = position.HadBearishRsiDivergence,
+            HadSwingHighDataAvailable = position.HadSwingHighDataAvailable
         };
     }
 
@@ -534,7 +549,10 @@ public sealed class StrategyBacktester
             Direction = position.Direction,
             ResistanceDistancePercent = position.ResistanceDistancePercent,
             SupportDistancePercent = position.SupportDistancePercent,
-            RiskRewardAtEntry = position.RiskRewardAtEntry
+            RiskRewardAtEntry = position.RiskRewardAtEntry,
+            HadBearishMomentumConfirmed = position.HadBearishMomentumConfirmed,
+            HadBearishRsiDivergence = position.HadBearishRsiDivergence,
+            HadSwingHighDataAvailable = position.HadSwingHighDataAvailable
         };
     }
 
@@ -673,5 +691,16 @@ public sealed class StrategyBacktester
         public bool Tp1Hit { get; set; }
         public bool Tp2Hit { get; set; }
         public decimal WeightedExitSum { get; set; } // soma ponderada (fração × retorno%) das pernas já realizadas
+
+        // Instrumentação — Fase A do lado de venda. Capturados na entrada (ver SimulateSymbol),
+        // repassados pro BacktestTradeResult em CloseTrade/CloseTradeWeighted. Não-obrigatórios
+        // de propósito (default false), pra não quebrar nenhuma outra construção de
+        // BacktestOpenPosition que venha a existir. Só instrumentação — não afetam Score nem
+        // elegibilidade ainda.
+        public bool HadBearishMomentumConfirmed { get; init; } = false;
+        public bool HadBearishRsiDivergence { get; init; } = false;
+
+        // Diagnóstico adicional (12/2026) — ver TrendAnalysis.HadSwingHighDataAvailable.
+        public bool HadSwingHighDataAvailable { get; init; } = false;
     }
 }

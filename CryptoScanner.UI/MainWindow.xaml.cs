@@ -36,12 +36,23 @@ public partial class MainWindow : Window
     private readonly CoinGeckoService _coinGeckoService = new();
     private IReadOnlyList<SimulatedTrade> _lastSimulatedTrades = Array.Empty<SimulatedTrade>();
     private bool _showClosedTrades; // Diário mostra só "em andamento" por padrão
-    private bool _isScanning;
     private bool _isWindowLoaded;
-    private ScanProfile _currentProfile = ScanProfile.Swing;
     private IReadOnlyList<SignalHistory> _lastHistory = Array.Empty<SignalHistory>();
-    private IReadOnlyList<AssetScore> _lastRanking = Array.Empty<AssetScore>();
     private Forms.NotifyIcon? _trayIcon;
+
+    // --- Scan Duplo (Swing + Intraday simultâneo) ---------------------------
+    // Os 2 perfis escaneiam sempre, em paralelo. _viewedProfile controla só o
+    // que aparece na tela agora — não é mais o gatilho de scan.
+    private readonly Dictionary<string, IReadOnlyList<AssetScore>> _rankingsByProfile = new()
+    {
+        [ScanProfile.Swing.Name] = Array.Empty<AssetScore>(),
+        [ScanProfile.Intraday.Name] = Array.Empty<AssetScore>()
+    };
+    private readonly Dictionary<string, FilterDiagnostics?> _diagnosticsByProfile = new();
+    private readonly Dictionary<string, bool> _isScanningByProfile = new();
+    private ScanProfile _viewedProfile = ScanProfile.Swing;
+    private string _lastMarketRegime = "—";
+    // -------------------------------------------------------------------------
 
     public MainWindow()
     {
@@ -118,47 +129,67 @@ public partial class MainWindow : Window
         base.OnClosed(e);
     }
 
-    private async void Timer_Tick(object? sender, EventArgs e) => await RunScannerAsync();
-
-    private async Task RunScannerAsync()
+    // Dispara os 2 perfis a cada tick — cada um com seu próprio lock, não se bloqueiam.
+    private void Timer_Tick(object? sender, EventArgs e)
     {
-        if (_isScanning)
-            return;
+        _ = RunScannerAsync(ScanProfile.Swing);
+        _ = RunScannerAsync(ScanProfile.Intraday);
+    }
 
-        _isScanning = true;
-        _timer.Stop();
-        btAtualizar.IsEnabled = false;
+    private async Task RunScannerAsync(ScanProfile profile)
+    {
+        if (_isScanningByProfile.GetValueOrDefault(profile.Name))
+            return; // só bloqueia scan sobreposto do MESMO perfil — o outro perfil roda livre
+
+        _isScanningByProfile[profile.Name] = true;
+        UpdateAtualizarButtonState();
         popupBreakdown.IsOpen = false;
 
         try
         {
-            var result = await _scanner.RunAsync(_currentProfile);
-            _lastHistory = result.History;
-            _lastRanking = result.Ranking;
-            ApplyRankingFilter();
+            var result = await _scanner.RunAsync(profile);
+
+            _lastHistory = result.History; // já é global (Signals não filtra por Profile)
+            _rankingsByProfile[profile.Name] = result.Ranking;
+            _diagnosticsByProfile[profile.Name] = result.Diagnostics;
+            _lastMarketRegime = result.MarketRegime;
+
+            // Só redesenha o grid de ranking se o perfil que terminou é o exibido agora —
+            // senão o usuário veria o grid trocar sozinho enquanto olha o outro perfil.
+            if (profile.Name == _viewedProfile.Name)
+                ApplyRankingFilter();
+
             await DispatchAlertsAsync(result.NewSignals);
             await EvaluateSimulatedTradesAsync();
             await LoadSimulatedTradesAsync(); // mantém o resumo do Diário (e o espelho no Dashboard) sempre fresco
+
             UpdateDashboard(result.MarketRegime);
             _ = UpdateBtcDominanceAsync(); // não bloqueia o scan — atualiza o Dashboard quando terminar
+
             dgHistory.ItemsSource = result.History;
             txtWinRate.Text = $"Win Rate: {result.WinRate:F1}%";
             txtAvgReturn.Text = $"Retorno Médio: {result.AverageReturn:F2}%";
             txtPending.Text = $"Pendentes: {result.History.Count(signal => !signal.Evaluated)}";
             txtEvaluated.Text = $"Avaliados: {result.History.Count(signal => signal.Evaluated)}";
-            txtDiagnostics.Text = $"Filtros (motivos de rejeição): {result.Diagnostics.Summary}";
-            Title = $"Scanner [{result.MarketRegime}] | Perfil: {_currentProfile.Name} | WinRate: {result.WinRate:F1}% | Avg: {result.AverageReturn:F2}%";
+
+            RefreshDiagnosticsDisplay();
+            RefreshTitle();
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Não foi possível concluir a atualização do scanner.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"Não foi possível concluir a atualização do scanner ({profile.Name}).\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {
-            btAtualizar.IsEnabled = true;
-            _isScanning = false;
-            _timer.Start();
+            _isScanningByProfile[profile.Name] = false;
+            UpdateAtualizarButtonState();
         }
+    }
+
+    // Botão "Atualizar" fica desabilitado enquanto QUALQUER perfil estiver escaneando.
+    private void UpdateAtualizarButtonState()
+    {
+        btAtualizar.IsEnabled = !_isScanningByProfile.Values.Any(scanning => scanning);
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -181,7 +212,10 @@ public partial class MainWindow : Window
         }
 
         await LoadSimulatedTradesAsync();
-        await RunScannerAsync();
+
+        // Os 2 perfis rodam já na abertura do app, em paralelo.
+        _ = RunScannerAsync(ScanProfile.Swing);
+        _ = RunScannerAsync(ScanProfile.Intraday);
     }
 
     private const string AutoScanIntervalSettingKey = "AutoScanIntervalMinutes";
@@ -230,16 +264,17 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void ProfileChanged(object sender, RoutedEventArgs e)
+    // Agora só troca QUAL RANKING JÁ CALCULADO aparece na tela — não dispara scan novo.
+    private void ProfileChanged(object sender, RoutedEventArgs e)
     {
         // Ignora o Checked disparado durante o carregamento inicial do XAML
         // (rbSwing já nasce com IsChecked="True").
         if (!_isWindowLoaded)
             return;
 
-        _currentProfile = ReferenceEquals(sender, rbIntraday) ? ScanProfile.Intraday : ScanProfile.Swing;
-
-        await RunScannerAsync();
+        _viewedProfile = ReferenceEquals(sender, rbIntraday) ? ScanProfile.Intraday : ScanProfile.Swing;
+        ApplyRankingFilter();
+        RefreshTitle();
     }
 
     private void BtnBacktestHistory_Click(object sender, RoutedEventArgs e)
@@ -319,7 +354,12 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void btAtualizar_Click(object sender, RoutedEventArgs e) => await RunScannerAsync();
+    // Atualização manual: dispara os 2 perfis, igual ao timer.
+    private void btAtualizar_Click(object sender, RoutedEventArgs e)
+    {
+        _ = RunScannerAsync(ScanProfile.Swing);
+        _ = RunScannerAsync(ScanProfile.Intraday);
+    }
 
     private void TxtSearchSymbol_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
@@ -339,7 +379,8 @@ public partial class MainWindow : Window
         btnSearch.IsEnabled = false;
         try
         {
-            var result = await _scanner.LookupSymbolAsync(input, _currentProfile);
+            // Busca sempre no perfil que está sendo exibido agora.
+            var result = await _scanner.LookupSymbolAsync(input, _viewedProfile);
             if (result == null)
             {
                 MessageBox.Show(
@@ -348,12 +389,14 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // Remove uma entrada antiga do mesmo símbolo (se existir) e insere a nova no topo.
-            var updated = _lastRanking
+            // Remove uma entrada antiga do mesmo símbolo (se existir) e insere a nova no topo,
+            // dentro do ranking do perfil exibido.
+            var currentRanking = _rankingsByProfile.GetValueOrDefault(_viewedProfile.Name, Array.Empty<AssetScore>());
+            var updated = currentRanking
                 .Where(a => !string.Equals(a.Symbol, result.Symbol, StringComparison.OrdinalIgnoreCase))
                 .ToList();
             updated.Insert(0, result);
-            _lastRanking = updated;
+            _rankingsByProfile[_viewedProfile.Name] = updated;
 
             // Se o filtro "só favoritos" estiver ativo e a moeda buscada não for favorita,
             // desativa o filtro pra garantir que o resultado apareça — senão o clique em
@@ -380,7 +423,9 @@ public partial class MainWindow : Window
         if (sender is not System.Windows.Controls.Button button || button.DataContext is not AssetScore asset)
             return;
 
-        var window = new SimulateTradeWindow(_simulatedTradeRepository, asset, _currentProfile.Name)
+        // O trade simulado herda o perfil que está sendo exibido (a linha clicada
+        // pertence ao grid do perfil exibido).
+        var window = new SimulateTradeWindow(_simulatedTradeRepository, asset, _viewedProfile.Name)
         {
             Owner = this
         };
@@ -437,14 +482,17 @@ public partial class MainWindow : Window
         }
     }
 
+    // Assina a UNIÃO dos símbolos dos 2 rankings — não só do perfil exibido, senão o
+    // preço em tempo real do perfil "escondido" para de atualizar.
     private async Task SyncWebSocketSubscriptionsAsync()
     {
         // BTCUSDT sempre inscrito, independente de estar no ranking — o Dashboard precisa
         // do preço dele sempre disponível.
         var desired = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "BTCUSDT" };
 
-        foreach (var asset in _lastRanking)
-            desired.Add(asset.Symbol);
+        foreach (var ranking in _rankingsByProfile.Values)
+            foreach (var asset in ranking)
+                desired.Add(asset.Symbol);
 
         foreach (var trade in _lastSimulatedTrades.Where(t => t.IsOpen))
             desired.Add(trade.Symbol);
@@ -468,6 +516,8 @@ public partial class MainWindow : Window
     /// se já estivermos na thread da UI — caso do scan — quanto vindo de outra thread — caso
     /// do WebSocket); a parte de I/O (persistir no banco) fica sempre fora do Invoke.
     /// Devolve true se o trade foi fechado por completo.
+    /// Sem mudança nesse método — já era Profile-agnóstico (cada trade guarda o próprio
+    /// Profile e o preço chega via WebSocket independente de qual perfil está sendo exibido).
     /// </summary>
     private async Task<bool> ProcessPartialExitTickAsync(SimulatedTrade trade, decimal price)
     {
@@ -583,9 +633,10 @@ public partial class MainWindow : Window
         return false;
     }
 
+    // Procura o símbolo atualizado nos 2 rankings (não só no exibido) — o preço fica
+    // fresco em ambos, mesmo no perfil "escondido", pra quando o usuário trocar de rádio.
     private async void OnWebSocketPriceUpdated(string symbol, decimal price)
     {
-        AssetScore? matchedAsset = null;
         var matchingTrades = new List<SimulatedTrade>();
 
         Dispatcher.Invoke(() =>
@@ -593,9 +644,12 @@ public partial class MainWindow : Window
             if (string.Equals(symbol, "BTCUSDT", StringComparison.OrdinalIgnoreCase))
                 txtDashboardBtcPrice.Text = price.ToString("N2");
 
-            matchedAsset = _lastRanking.FirstOrDefault(a => string.Equals(a.Symbol, symbol, StringComparison.OrdinalIgnoreCase));
-            if (matchedAsset != null)
-                matchedAsset.Close = price;
+            foreach (var ranking in _rankingsByProfile.Values)
+            {
+                var matchedAsset = ranking.FirstOrDefault(a => string.Equals(a.Symbol, symbol, StringComparison.OrdinalIgnoreCase));
+                if (matchedAsset != null)
+                    matchedAsset.Close = price;
+            }
 
             foreach (var trade in _lastSimulatedTrades.Where(t =>
                          t.IsOpen && string.Equals(t.Symbol, symbol, StringComparison.OrdinalIgnoreCase)))
@@ -611,22 +665,25 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Reage ao fechamento de um candle de BTCUSDT — dispara o scan no instante exato em
-    /// que o candle do timeframe do perfil ativo fecha, em vez de esperar o próximo tick
-    /// do timer. O timer continua existindo como rede de segurança (se esse evento se
-    /// perder por qualquer motivo, o scan roda de qualquer jeito, só um pouco mais tarde).
+    /// Reage ao fechamento de um candle de BTCUSDT — dispara o scan do PERFIL
+    /// CORRESPONDENTE ao timeframe que fechou (1h → Intraday, 4h → Swing), não mais
+    /// só "o perfil selecionado na tela". O timer continua existindo como rede de
+    /// segurança (se esse evento se perder por qualquer motivo, o scan roda de
+    /// qualquer jeito, só um pouco mais tarde).
     /// </summary>
     private void OnCandleClosed(string interval)
     {
-        // Ignora fechamento de um timeframe que não é o do perfil ativo agora (ex.: 4h
-        // fechando enquanto o usuário está no Intraday). Leitura simples de campo, segura
-        // de fazer direto na thread do WebSocket, sem precisar despachar pra UI primeiro.
-        if (!string.Equals(interval, _currentProfile.CandleInterval, StringComparison.OrdinalIgnoreCase))
-            return;
+        ScanProfile? matching =
+            string.Equals(interval, ScanProfile.Swing.CandleInterval, StringComparison.OrdinalIgnoreCase) ? ScanProfile.Swing :
+            string.Equals(interval, ScanProfile.Intraday.CandleInterval, StringComparison.OrdinalIgnoreCase) ? ScanProfile.Intraday :
+            null;
+
+        if (matching == null)
+            return; // não é 1h nem 4h — não deveria acontecer, únicos streams assinados
 
         // Esse evento chega pela thread de recebimento do WebSocket, não pela thread da UI —
         // RunScannerAsync mexe direto em elementos de tela, então precisa ser despachado.
-        Dispatcher.BeginInvoke(async () => await RunScannerAsync());
+        Dispatcher.BeginInvoke(async () => await RunScannerAsync(matching));
     }
 
     private async void DgSimulatedTrades_RowEditEnding(object sender, DataGridRowEditEndingEventArgs e)
@@ -761,11 +818,14 @@ public partial class MainWindow : Window
         // então não precisamos disparar isso aqui — evita duplicar a chamada.
     }
 
+    // Lê do dicionário — perfil que está sendo EXIBIDO agora, não necessariamente
+    // o que acabou de terminar de escanear.
     private void ApplyRankingFilter()
     {
+        var ranking = _rankingsByProfile.GetValueOrDefault(_viewedProfile.Name, Array.Empty<AssetScore>());
         dgRanking.ItemsSource = chkFavoritesOnly.IsChecked == true
-            ? _lastRanking.Where(a => a.IsFavorite).ToList()
-            : _lastRanking;
+            ? ranking.Where(a => a.IsFavorite).ToList()
+            : ranking;
     }
 
     private void ApplySimulatedTradesFilter()
@@ -782,6 +842,8 @@ public partial class MainWindow : Window
         ApplySimulatedTradesFilter();
     }
 
+    // Combina os 2 perfis pro Top Candidatos — cada item guarda de qual perfil veio,
+    // porque o mesmo símbolo pode aparecer elegível nos 2 ao mesmo tempo.
     private void UpdateDashboard(string marketRegime)
     {
         txtDashboardRegime.Text = marketRegime;
@@ -792,13 +854,16 @@ public partial class MainWindow : Window
             _ => Brushes.Goldenrod // LATERAL ou qualquer outro valor inesperado
         };
 
-        var eligible = _lastRanking.Where(a => a.IsEligible).OrderByDescending(a => a.Score).ToList();
+        var eligible = _rankingsByProfile
+            .SelectMany(kvp => kvp.Value.Where(a => a.IsEligible).Select(a => (Profile: kvp.Key, Asset: a)))
+            .OrderByDescending(x => x.Asset.Score)
+            .ToList();
 
         txtDashboardEligible.Text = eligible.Count.ToString();
 
         txtDashboardTopCandidates.Text = eligible.Count == 0
             ? "Nenhum no momento"
-            : string.Join("  |  ", eligible.Take(3).Select(a => $"{a.Symbol} ({a.Score:F1})"));
+            : string.Join("  |  ", eligible.Take(3).Select(x => $"{x.Asset.Symbol} ({x.Asset.Score:F1}, {x.Profile})"));
     }
 
     private bool _btcDominanceErrorShown; // diagnóstico temporário — remove depois de achar a causa
@@ -900,7 +965,8 @@ public partial class MainWindow : Window
         if (row?.Item is not AssetScore asset)
             return;
 
-        string interval = ToTradingViewInterval(_currentProfile.CandleInterval);
+        // Usa o perfil exibido agora pra escolher o intervalo do gráfico.
+        string interval = ToTradingViewInterval(_viewedProfile.CandleInterval);
         var chartWindow = new ChartWindow(asset.Symbol, interval) { Owner = this };
         chartWindow.Show();
     }
@@ -935,6 +1001,33 @@ public partial class MainWindow : Window
         if (!File.Exists(databasePath) && File.Exists(legacyPath))
             File.Copy(legacyPath, databasePath);
         return databasePath;
+    }
+
+    // --- Novos métodos auxiliares do Scan Duplo -------------------------------
+
+    // Mostra o diagnóstico dos 2 perfis lado a lado. Se txtDiagnostics não tiver
+    // TextWrapping="Wrap" / altura suficiente no XAML, troque "\n" por " || " abaixo
+    // pra não cortar a segunda linha visualmente.
+    private void RefreshDiagnosticsDisplay()
+    {
+        string Describe(string profileName) =>
+            _diagnosticsByProfile.TryGetValue(profileName, out var diag) && diag != null
+                ? diag.Summary
+                : "(ainda sem scan nesta sessão)";
+
+        txtDiagnostics.Text =
+            $"SWING — {Describe(ScanProfile.Swing.Name)}\n" +
+            $"INTRADAY — {Describe(ScanProfile.Intraday.Name)}";
+    }
+
+    // Centraliza o texto do título — antes ficava embutido em RunScannerAsync, agora
+    // ProfileChanged também precisa remontá-lo sem re-escanear.
+    // Simplificação em relação ao original: tirei WinRate/Avg do título (já aparecem em
+    // txtWinRate/txtAvgReturn na tela); se quiser manter, adicione de volta usando os
+    // valores já calculados em RunScannerAsync.
+    private void RefreshTitle()
+    {
+        Title = $"Scanner [{_lastMarketRegime}] | Exibindo: {_viewedProfile.Name}";
     }
 }
 

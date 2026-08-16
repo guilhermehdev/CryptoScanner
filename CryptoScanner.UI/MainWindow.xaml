@@ -129,14 +129,14 @@
                Foreground="Gray"
                TextWrapping="Wrap"/>
         <TextBlock Grid.Row="1"
-               Margin="10,50,10,0"
+               Margin="10,90,10,0"
                FontSize="13"
                FontStyle="Italic"
                Foreground="Gray"
                Text="*Consol.: exigido apenas quando o regime de mercado é BULL. Em BEAR/LATERAL (modo defensivo), esse critério é apenas informativo."/>
         <StackPanel Grid.Row="1"
                 Orientation="Horizontal"
-                Margin="10,68,0,0"
+                Margin="10,108,0,0"
                 VerticalAlignment="Top">
             <TextBlock Text="Perfil:"
                    VerticalAlignment="Center"
@@ -199,7 +199,7 @@
                         <!-- Alerta de risco: sobrepõe a cor do sinal quando há Bull Trap detectado -->
                         <DataTrigger Binding="{Binding IsBullTrap}" Value="True">
                             <Setter Property="Background" Value="DarkOrange"/>
-                            <Setter Property="Foreground" Value="#000000"/>
+                            <Setter Property="Foreground" Value="White"/>
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>

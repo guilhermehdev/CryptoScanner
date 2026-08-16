@@ -97,6 +97,7 @@
                     <CheckBox x:Name="chkEnablePullbackBounce" Content="Caminho A — Repique (pullback, experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
                     <CheckBox x:Name="chkEnableMeanReversionScalp" Content="Reversão à Média (Scalp, experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
                     <CheckBox x:Name="chkEnableBollingerReversal" Content="Reversão de Bollinger (Venda, experimental)" VerticalAlignment="Center"/>
+                    <CheckBox x:Name="chkRequireBearishMomentum" Content="Exigir Momentum Baixista confirmado (Venda, experimental)" VerticalAlignment="Center" Margin="12,0,0,0"/>
                 </WrapPanel>
             </StackPanel>
         </GroupBox>
@@ -185,62 +186,79 @@
                     <Canvas x:Name="cnvEquityCurve" Height="170" Margin="4" SizeChanged="CnvEquityCurve_SizeChanged"/>
                 </StackPanel>
             </Border>
-            <DataGrid x:Name="dgTrades" Grid.Row="3" AutoGenerateColumns="False" IsReadOnly="True">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" Width="90"/>
-                    <DataGridTextColumn Header="Direção" Binding="{Binding Direction}" Width="70"/>
-                    <DataGridTextColumn Header="Entrada" Binding="{Binding EntryTime, StringFormat=dd/MM/yy HH:mm}" Width="120"/>
-                    <DataGridTextColumn Header="Preço Entrada" Binding="{Binding EntryPrice}" Width="100"/>
-                    <DataGridTextColumn Header="Saída" Binding="{Binding ExitTime, StringFormat=dd/MM/yy HH:mm}" Width="120"/>
-                    <DataGridTextColumn Header="Preço Saída" Binding="{Binding ExitPrice}" Width="100"/>
-                    <DataGridTextColumn Header="Resultado %" Binding="{Binding OutcomePercent, StringFormat=F2}" Width="100"/>
-                    <DataGridTextColumn Header="Motivo" Binding="{Binding ExitReason}" Width="80"/>
-                    <DataGridTextColumn Header="Sinal" Binding="{Binding Signal}" Width="90"/>
-                    <DataGridTextColumn Header="Score" Binding="{Binding Score, StringFormat=F2}" Width="70"/>
-                    <DataGridTextColumn Header="Res % (entrada)" Binding="{Binding ResistanceDistancePercent, StringFormat=F1}" Width="110"/>
-                    <DataGridTextColumn Header="Sup % (entrada)" Binding="{Binding SupportDistancePercent, StringFormat=F1}" Width="110"/>
-                    <DataGridTextColumn Header="RR (entrada)" Binding="{Binding RiskRewardAtEntry, StringFormat=F2}" Width="90"/>
-                </DataGrid.Columns>
-                <DataGrid.RowStyle>
-                    <Style TargetType="DataGridRow">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding ExitReason}" Value="TP">
-                                <Setter Property="Background" Value="LightGreen"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding ExitReason}" Value="SL">
-                                <Setter Property="Background" Value="LightSalmon"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding ExitReason}" Value="TIMEOUT">
-                                <Setter Property="Background" Value="LightGray"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding ExitReason}" Value="EOT">
-                                <Setter Property="Background" Value="LightBlue"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding ExitReason}" Value="TP1TP2TP3">
-                                <Setter Property="Background" Value="MediumSeaGreen"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding ExitReason}" Value="TP1SL">
-                                <Setter Property="Background" Value="PaleGreen"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding ExitReason}" Value="TP1TP2SL">
-                                <Setter Property="Background" Value="PaleGreen"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding ExitReason}" Value="TP1TIMEOUT">
-                                <Setter Property="Background" Value="Khaki"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding ExitReason}" Value="TP1TP2TIMEOUT">
-                                <Setter Property="Background" Value="Khaki"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding ExitReason}" Value="TP1EOT">
-                                <Setter Property="Background" Value="LightBlue"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding ExitReason}" Value="TP1TP2EOT">
-                                <Setter Property="Background" Value="LightBlue"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </DataGrid.RowStyle>
-            </DataGrid>
+            <Grid Grid.Row="3">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,4">
+                    <Button x:Name="btnExportTrades" Content="Exportar Trades (CSV)" Padding="8,3" Click="BtnExportTradesCsv_Click"/>
+                </StackPanel>
+                <DataGrid x:Name="dgTrades" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" Width="90"/>
+                        <DataGridTextColumn Header="Direção" Binding="{Binding Direction}" Width="70"/>
+                        <DataGridTextColumn Header="Entrada" Binding="{Binding EntryTime, StringFormat=dd/MM/yy HH:mm}" Width="120"/>
+                        <DataGridTextColumn Header="Preço Entrada" Binding="{Binding EntryPrice}" Width="100"/>
+                        <DataGridTextColumn Header="Saída" Binding="{Binding ExitTime, StringFormat=dd/MM/yy HH:mm}" Width="120"/>
+                        <DataGridTextColumn Header="Preço Saída" Binding="{Binding ExitPrice}" Width="100"/>
+                        <DataGridTextColumn Header="Resultado %" Binding="{Binding OutcomePercent, StringFormat=F2}" Width="100"/>
+                        <DataGridTextColumn Header="Motivo" Binding="{Binding ExitReason}" Width="80"/>
+                        <DataGridTextColumn Header="Sinal" Binding="{Binding Signal}" Width="90"/>
+                        <DataGridTextColumn Header="Score" Binding="{Binding Score, StringFormat=F2}" Width="70"/>
+                        <DataGridTextColumn Header="Res % (entrada)" Binding="{Binding ResistanceDistancePercent, StringFormat=F1}" Width="110"/>
+                        <DataGridTextColumn Header="Sup % (entrada)" Binding="{Binding SupportDistancePercent, StringFormat=F1}" Width="110"/>
+                        <DataGridTextColumn Header="RR (entrada)" Binding="{Binding RiskRewardAtEntry, StringFormat=F2}" Width="90"/>
+                        <!-- Instrumentação Fase A do lado de venda — só exposição de dado, sem
+                         afetar Score/elegibilidade. Sempre em branco/desmarcado pra trades
+                         Long (conceito não existe desse lado). -->
+                        <DataGridCheckBoxColumn Header="Mom. Baixista" Binding="{Binding HadBearishMomentumConfirmed}" Width="95"/>
+                        <DataGridCheckBoxColumn Header="Div. RSI" Binding="{Binding HadBearishRsiDivergence}" Width="80"/>
+                        <!-- Diagnóstico: separa "dado indisponível" de "dado disponível mas
+                         sinal não ocorreu" nas 2 colunas acima -->
+                        <DataGridCheckBoxColumn Header="Dado Disp.?" Binding="{Binding HadSwingHighDataAvailable}" Width="90"/>
+                    </DataGrid.Columns>
+                    <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ExitReason}" Value="TP">
+                                    <Setter Property="Background" Value="LightGreen"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ExitReason}" Value="SL">
+                                    <Setter Property="Background" Value="LightSalmon"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ExitReason}" Value="TIMEOUT">
+                                    <Setter Property="Background" Value="LightGray"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ExitReason}" Value="EOT">
+                                    <Setter Property="Background" Value="LightBlue"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ExitReason}" Value="TP1TP2TP3">
+                                    <Setter Property="Background" Value="MediumSeaGreen"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ExitReason}" Value="TP1SL">
+                                    <Setter Property="Background" Value="PaleGreen"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ExitReason}" Value="TP1TP2SL">
+                                    <Setter Property="Background" Value="PaleGreen"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ExitReason}" Value="TP1TIMEOUT">
+                                    <Setter Property="Background" Value="Khaki"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ExitReason}" Value="TP1TP2TIMEOUT">
+                                    <Setter Property="Background" Value="Khaki"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ExitReason}" Value="TP1EOT">
+                                    <Setter Property="Background" Value="LightBlue"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ExitReason}" Value="TP1TP2EOT">
+                                    <Setter Property="Background" Value="LightBlue"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.RowStyle>
+                </DataGrid>
+            </Grid>
         </Grid>
     </Grid>
 </Window>

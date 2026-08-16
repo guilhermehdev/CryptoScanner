@@ -23,4 +23,20 @@ public sealed class BacktestTradeResult
     public required decimal ResistanceDistancePercent { get; init; }
     public required decimal SupportDistancePercent { get; init; }
     public required decimal RiskRewardAtEntry { get; init; }
+
+    // Instrumentação — Fase A do lado de venda. Esses 2 campos já eram calculados em
+    // TrendAnalysis (IsBearishMomentumConfirmed/IsBearishRsiDivergence) mas nunca tinham
+    // sido capturados no resultado do backtest. Não-obrigatórios de propósito (default
+    // false), mesmo padrão de Direction acima — só exposição de dado pra análise manual,
+    // NÃO influenciam Score nem elegibilidade ainda. Sempre false pra trades Long (o
+    // conceito não existe desse lado).
+    public bool HadBearishMomentumConfirmed { get; init; } = false;
+    public bool HadBearishRsiDivergence { get; init; } = false;
+
+    // Diagnóstico — investigação de 12/2026 sobre os 2 campos acima virem sempre false no
+    // Bollinger Reversal (63/63 trades desmarcados). True quando MarketStructureAnalyzer
+    // conseguiu identificar 2 swing highs válidos na janela (pré-requisito pra Momentum/
+    // Divergência sequer serem calculados) — separa "dado indisponível" (estrutura sem
+    // topos suficientes) de "dado disponível mas o sinal genuinamente não ocorreu".
+    public bool HadSwingHighDataAvailable { get; init; } = false;
 }

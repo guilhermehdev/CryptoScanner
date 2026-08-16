@@ -90,6 +90,15 @@ public sealed class AssetAnalyzer
         // EligibilityEvaluator). Cruza o RSI exatamente nos mesmos candles onde o preço
         // formou seus dois últimos topos (índices já calculados no MarketStructureAnalyzer,
         // pra não duplicar a lógica de detecção de pivô aqui).
+        //
+        // Diagnóstico (12/2026): hadSwingHighDataAvailable captura só o pré-requisito de
+        // índice válido, ANTES de qualquer checagem de RSI — separa "MarketStructureAnalyzer
+        // não achou 2 swing highs/lows na janela" (dado indisponível, sai cedo no guard
+        // swingHighs.Count<2||swingLows.Count<2) de "dado disponível mas Momentum/Divergência
+        // genuinamente não ocorreram". Investigação disparada por 63/63 trades de Bollinger
+        // Reversal (Short) terem vindo com os dois campos abaixo sempre false.
+        bool hadSwingHighDataAvailable = structure.LastSwingHighIndex >= 0 && structure.PrevSwingHighIndex >= 0;
+
         bool isBearishMomentumConfirmed = false;
         bool isBearishRsiDivergence = false;
         if (structure.LastSwingHighIndex >= 0 && structure.PrevSwingHighIndex >= 0 &&
@@ -132,7 +141,8 @@ public sealed class AssetAnalyzer
             Direction = structure.IsUptrend ? "ALTA" : structure.IsDowntrend ? "BAIXA" : "LATERAL",
             IsBearishTrendConfirmed = isBearishTrendConfirmed,
             IsBearishMomentumConfirmed = isBearishMomentumConfirmed,
-            IsBearishRsiDivergence = isBearishRsiDivergence
+            IsBearishRsiDivergence = isBearishRsiDivergence,
+            HadSwingHighDataAvailable = hadSwingHighDataAvailable
         };
     }
 

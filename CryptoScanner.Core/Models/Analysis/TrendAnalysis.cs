@@ -28,4 +28,11 @@ public sealed class TrendAnalysis
     public bool IsBearishMomentumConfirmed { get; init; }
 
     public bool IsBearishRsiDivergence { get; init; }
+
+    // Diagnóstico — investigação de 12/2026 sobre Momentum/Divergência sempre virem false
+    // no Bollinger Reversal (63/63 trades desmarcados). Indica se MarketStructureAnalyzer
+    // conseguiu identificar 2 swing highs válidos (pré-requisito pra Momentum/Divergência
+    // sequer serem calculados) — separa "dado indisponível" (estrutura sem 2 topos/fundos
+    // na janela) de "dado disponível mas o sinal genuinamente não ocorreu".
+    public bool HadSwingHighDataAvailable { get; init; }
 }

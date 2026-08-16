@@ -6,6 +6,8 @@ using CryptoScanner.Core.Utilities;
 using CryptoScanner.Infrastructure.Sqlite;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -139,6 +141,7 @@ public partial class BacktestWindow : Window
         sb.Append(thresholds.EnableBollingerScoring).Append('|');
         sb.Append(thresholds.EnableVolatilityScoringPhaseB).Append('|');
         sb.Append(thresholds.EnableMultiTimeframe).Append('|');
+        sb.Append(thresholds.RequireBearishMomentumConfirmed).Append('|');
         sb.Append(evaluationHoursOverride?.ToString() ?? "default").Append('|');
         sb.Append(tp1Fraction?.ToString() ?? "default").Append('|');
         sb.Append(tp2Fraction?.ToString() ?? "default").Append('|');
@@ -352,7 +355,8 @@ public partial class BacktestWindow : Window
             EnableVolatilityScoringPhaseB = chkEnableVolatilityScoringPhaseB.IsChecked == true,
             EnableMultiTimeframe = chkEnableMultiTimeframe.IsChecked == true,
             EnableMeanReversionScalp = chkEnableMeanReversionScalp.IsChecked == true,
-            EnableBollingerReversal = chkEnableBollingerReversal.IsChecked == true
+            EnableBollingerReversal = chkEnableBollingerReversal.IsChecked == true,
+            RequireBearishMomentumConfirmed = chkRequireBearishMomentum.IsChecked == true
         };
 
         return true;
@@ -1182,6 +1186,75 @@ public partial class BacktestWindow : Window
         catch (Exception ex)
         {
             MessageBox.Show($"Não foi possível copiar.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>
+    /// Exporta o grid de trades atualmente exibido (_lastDisplayedTrades, o mesmo que
+    /// alimenta dgTrades e a curva de equity) pra um CSV — inclui as colunas de
+    /// instrumentação (HadBearishMomentumConfirmed/HadBearishRsiDivergence/
+    /// HadSwingHighDataAvailable), que não aparecem no "Copiar Resumo" agregado.
+    /// Delimitador ';' (não ',') pra abrir bem direto no Excel em configuração PT-BR,
+    /// que costuma usar vírgula como separador decimal.
+    /// </summary>
+    private void BtnExportTradesCsv_Click(object sender, RoutedEventArgs e)
+    {
+        if (_lastDisplayedTrades.Count == 0)
+        {
+            MessageBox.Show("Nenhuma operação pra exportar ainda — rode um teste primeiro.", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            FileName = $"backtest_trades_{DateTime.Now:yyyyMMdd_HHmmss}.csv",
+            Filter = "Arquivo CSV (*.csv)|*.csv",
+            DefaultExt = ".csv"
+        };
+
+        if (dialog.ShowDialog() != true)
+            return;
+
+        try
+        {
+            var culture = CultureInfo.InvariantCulture;
+            var sb = new StringBuilder();
+            sb.AppendLine(string.Join(";",
+                "Symbol", "Direction", "EntryTime", "EntryPrice", "ExitTime", "ExitPrice",
+                "OutcomePercent", "ExitReason", "Signal", "Score",
+                "ResistanceDistancePercent", "SupportDistancePercent", "RiskRewardAtEntry",
+                "HadBearishMomentumConfirmed", "HadBearishRsiDivergence", "HadSwingHighDataAvailable"));
+
+            foreach (var t in _lastDisplayedTrades)
+            {
+                sb.AppendLine(string.Join(";",
+                    t.Symbol,
+                    t.Direction,
+                    t.EntryTime.ToString("yyyy-MM-dd HH:mm", culture),
+                    t.EntryPrice.ToString("0.########", culture),
+                    t.ExitTime.ToString("yyyy-MM-dd HH:mm", culture),
+                    t.ExitPrice.ToString("0.########", culture),
+                    t.OutcomePercent.ToString("F2", culture),
+                    t.ExitReason,
+                    t.Signal,
+                    t.Score.ToString("F2", culture),
+                    t.ResistanceDistancePercent.ToString("F2", culture),
+                    t.SupportDistancePercent.ToString("F2", culture),
+                    t.RiskRewardAtEntry.ToString("F2", culture),
+                    t.HadBearishMomentumConfirmed,
+                    t.HadBearishRsiDivergence,
+                    t.HadSwingHighDataAvailable));
+            }
+
+            // BOM UTF-8 — sem isso, o Excel às vezes abre acentos/caracteres especiais
+            // corrompidos mesmo o arquivo estando salvo certo.
+            File.WriteAllText(dialog.FileName, sb.ToString(), new UTF8Encoding(true));
+
+            MessageBox.Show($"Exportado com sucesso:\n{dialog.FileName}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Não foi possível exportar.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -2162,6 +2235,7 @@ public partial class BacktestWindow : Window
         btnComparePartialExitsRR.IsEnabled = !isRunning;
         btnComparePartialExitsFractions.IsEnabled = !isRunning;
         btnCompareTimeout.IsEnabled = !isRunning;
+        btnExportTrades.IsEnabled = !isRunning;
         btnCancel.IsEnabled = isRunning;
         pbProgress.Visibility = isRunning ? Visibility.Visible : Visibility.Collapsed;
 

@@ -20,12 +20,15 @@ public static class EligibilityEvaluator
         public bool FailedBullTrap { get; init; }
         public bool FailedTrendConfirmation { get; init; }
 
+        // Filtro experimental (12/2026) — ver EligibilityThresholds.RequireBearishMomentumConfirmed.
+        public bool FailedMomentumFilter { get; init; }
+
         public bool IsEligible =>
             !FailedScore && !FailedBreakout && !FailedConsolidation &&
             !FailedVolumeSpike && !FailedResistanceDistance &&
             !FailedDirection && !FailedRiskReward && !FailedStopDistance &&
             !FailedStopDistanceTooHigh && !FailedRiskRewardTooHigh && !FailedBullTrap &&
-            !FailedTrendConfirmation;
+            !FailedTrendConfirmation && !FailedMomentumFilter;
     }
 
     public static EligibilityResult Evaluate(AssetAnalysis asset, string marketRegime, EligibilityThresholds? thresholds = null, TradeDirection direction = TradeDirection.Long)
@@ -117,6 +120,19 @@ public static class EligibilityEvaluator
                    // asset.Risk.Mode != RiskCalculationMode.BollingerReversal &&
                    // !asset.Trend.IsBearishTrendConfirmed;
 
+        // Filtro experimental (12/2026) — exige Momentum Baixista confirmado (RSI com topo
+        // mais baixo acompanhando o topo de preço mais baixo), só pro Bollinger Reversal
+        // Short. Investigação: no teste agregado (101 trades), o subconjunto com Momentum
+        // confirmado teve PF 1,38 vs 1,06 sem confirmação — testando se formalizar esse
+        // filtro melhora o resultado da amostra completa. Default false (ver
+        // EligibilityThresholds.RequireBearishMomentumConfirmed) — não altera nenhum
+        // resultado já validado até ser explicitamente habilitado.
+        bool failedMomentumFilter =
+            thresholds.RequireBearishMomentumConfirmed &&
+            direction == TradeDirection.Short &&
+            asset.Risk.Mode == RiskCalculationMode.BollingerReversal &&
+            !asset.Trend.IsBearishMomentumConfirmed;
+
         return new EligibilityResult
         {
             FailedScore = failedScore,
@@ -130,7 +146,8 @@ public static class EligibilityEvaluator
             FailedStopDistanceTooHigh = failedStopDistanceTooHigh,
             FailedRiskRewardTooHigh = failedRiskRewardTooHigh,
             FailedBullTrap = failedBullTrap,
-            FailedTrendConfirmation = failedTrendConfirmation
+            FailedTrendConfirmation = failedTrendConfirmation,
+            FailedMomentumFilter = failedMomentumFilter
         };
     }
 }
