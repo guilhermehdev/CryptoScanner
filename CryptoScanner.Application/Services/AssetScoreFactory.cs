@@ -54,7 +54,12 @@ public static class AssetScoreFactory
         VolumeImbalance = analysis.Volume.Imbalance,
     };
 
-    private static string DetermineBreakoutSource(AssetAnalysis analysis)
+    // Visibilidade alterada de private pra internal (16/08/2026) — reaproveitado por
+    // StrategyBacktester.cs pra popular o mesmo BreakoutSource no resultado do Backtest
+    // (Fase 3 do roadmap: análise por fator precisa do mesmo contexto que o SignalHistory
+    // ao vivo já tem, mas com a amostra grande do Backtest). Mesma namespace
+    // (CryptoScanner.Application.Services), sem necessidade de using adicional.
+    internal static string DetermineBreakoutSource(AssetAnalysis analysis)
     {
         if (analysis.Setup.IsBreakout) return "Clássico";
         if (analysis.Setup.IsShortTermBreakout) return "Curto Prazo";

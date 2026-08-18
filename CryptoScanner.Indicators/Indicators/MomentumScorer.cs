@@ -41,5 +41,30 @@ namespace CryptoScanner.Indicators.Indicators
                 return 40;
             return 20;
         }
+
+        // Variante experimental (16/08/2026) — Fase 3 do roadmap (Aprendizado). Descoberta
+        // via análise por fator numa amostra de 3.885 trades (Long, limiares soltos pra
+        // exploração, SwingWithPartialExits): RSI baixo na entrada teve PF melhor (RSI<30:
+        // PF 1,75, Retorno médio +1,79%) que RSI alto (RSI>=70: PF 0,89, Retorno médio
+        // -0,66%) — padrão praticamente monotônico, com amostra >80 trades em cada faixa.
+        // É o OPOSTO do que Calculate() acima premia (nota máxima em RSI 55-70). Essa
+        // variante inverte a curva pra testar se isso melhora a config real validada.
+        // Ainda não validado — só testável via checkbox "Testar Momentum RSI invertido"
+        // no BacktestWindow (chkInvertedMomentum), Long apenas. Como MomentumScore pesa só
+        // 5% do OpportunityScore total (ScannerSettings.MomentumWeight), o efeito esperado
+        // é sutil — se não for suficiente, o próximo passo é testar como filtro de
+        // elegibilidade direto (mesmo padrão do RequireBearishMomentumConfirmed).
+        public static int CalculateInvertedRsi(decimal rsi)
+        {
+            if (rsi < 30)
+                return 100; // melhor faixa observada (PF 1,75)
+            if (rsi < 45)
+                return 80; // PF 1,35
+            if (rsi < 55)
+                return 60; // PF 1,25
+            if (rsi < 70)
+                return 40; // PF 1,08
+            return 20; // pior faixa observada (PF 0,89, retorno médio negativo)
+        }
     }
 }

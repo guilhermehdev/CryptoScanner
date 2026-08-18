@@ -43,6 +43,7 @@ public sealed class StrategyBacktester
      (decimal Tp1, decimal Tp2)? partialExitFractions = null,
      bool disableTimeout = false,
      TradeDirection direction = TradeDirection.Long,
+     bool useInvertedRsiMomentum = false,
      Action<string, double>? onProgress = null,
      CancellationToken cancellationToken = default)
     {
@@ -106,7 +107,7 @@ public sealed class StrategyBacktester
                 }
 
                 var (trades, symbolDiagnostics) = await Task.Run(
-                    () => SimulateSymbol(symbol, candles, btcCandles, btcDailyCandles, symbolDailyCandles, startUtc, profile, thresholds, riskMode, evaluationHoursOverride, partialExitFractions, disableTimeout, direction,
+                    () => SimulateSymbol(symbol, candles, btcCandles, btcDailyCandles, symbolDailyCandles, startUtc, profile, thresholds, riskMode, evaluationHoursOverride, partialExitFractions, disableTimeout, direction, useInvertedRsiMomentum,
                         (message, _) => { }),
                     cancellationToken);
 
@@ -143,6 +144,7 @@ public sealed class StrategyBacktester
         (decimal Tp1, decimal Tp2)? partialExitFractions,
         bool disableTimeout,
         TradeDirection direction,
+        bool useInvertedRsiMomentum,
         Action<string, double>? onProgress)
     {
         var trades = new List<BacktestTradeResult>();
@@ -293,7 +295,7 @@ public sealed class StrategyBacktester
             decimal btcEma200 = EmaIndicator.Calculate(btcDailySoFar, 200)[^1] ?? 0;
             string marketRegime = MarketRegimeIndicator.Calculate(btcDailySoFar[^1].Close, btcEma200);
 
-            var analysis = _assetAnalyzer.Analyze(symbol, candlesSoFar, btcCandlesSoFar, profile, riskMode, symbolDailySoFar, direction);
+            var analysis = _assetAnalyzer.Analyze(symbol, candlesSoFar, btcCandlesSoFar, profile, riskMode, symbolDailySoFar, direction, useInvertedRsiMomentum);
 
             if (thresholds?.EnableBollingerScoring == true)
             {
@@ -442,7 +444,35 @@ public sealed class StrategyBacktester
                 HadBearishRsiDivergence = analysis.Trend.IsBearishRsiDivergence,
                 // Diagnóstico adicional — ver TrendAnalysis.HadSwingHighDataAvailable pro
                 // contexto completo da investigação (12/2026).
-                HadSwingHighDataAvailable = analysis.Trend.HadSwingHighDataAvailable
+                HadSwingHighDataAvailable = analysis.Trend.HadSwingHighDataAvailable,
+                // Contexto completo (16/08/2026) — Fase 3 do roadmap. Mesmos campos que
+                // AssetScoreFactory.Create já extrai de AssetAnalysis pro AssetScore ao vivo —
+                // aqui capturados na entrada da posição simulada, pra análise por fator em
+                // cima da amostra grande do Backtest (ver BacktestTradeResult.cs).
+                Rsi = analysis.Trend.Rsi,
+                Adx = analysis.Trend.Adx,
+                AtrPercent = analysis.Trend.AtrPercent,
+                EmaDistanceAtr = analysis.Setup.EmaDistanceAtr,
+                SwingUsageAtr = analysis.Setup.SwingUsageAtr,
+                VolumeSpike = analysis.Volume.Spike,
+                VolumeImbalance = analysis.Volume.Imbalance,
+                RelativeStrength = analysis.Setup.RelativeStrength,
+                TrendScore = analysis.Trend.Score,
+                StructureScore = analysis.Structure.Score,
+                VolumeScore = analysis.Volume.Score,
+                CandleScore = analysis.Candle.Score,
+                SetupScore = analysis.Setup.Score,
+                MomentumScore = analysis.Trend.MomentumScore,
+                VolatilityScore = analysis.Trend.VolatilityScore,
+                TrendStrengthScore = analysis.Trend.TrendStrengthScore,
+                PatternName = analysis.Candle.PatternName,
+                SmartMoneyLabel = analysis.Structure.SmartMoneyLabel,
+                // Reaproveita a mesma lógica do AssetScoreFactory (agora internal) — evita
+                // duplicar a regra "Clássico / Curto Prazo / Força Rel." em 2 lugares.
+                BreakoutSource = AssetScoreFactory.DetermineBreakoutSource(analysis),
+                MarketRegime = marketRegime,
+                IsBullTrap = analysis.Structure.IsBullTrap,
+                IsBearTrap = analysis.Structure.IsBearTrap
             };
         }
 
@@ -518,7 +548,29 @@ public sealed class StrategyBacktester
             RiskRewardAtEntry = position.RiskRewardAtEntry,
             HadBearishMomentumConfirmed = position.HadBearishMomentumConfirmed,
             HadBearishRsiDivergence = position.HadBearishRsiDivergence,
-            HadSwingHighDataAvailable = position.HadSwingHighDataAvailable
+            HadSwingHighDataAvailable = position.HadSwingHighDataAvailable,
+            Rsi = position.Rsi,
+            Adx = position.Adx,
+            AtrPercent = position.AtrPercent,
+            EmaDistanceAtr = position.EmaDistanceAtr,
+            SwingUsageAtr = position.SwingUsageAtr,
+            VolumeSpike = position.VolumeSpike,
+            VolumeImbalance = position.VolumeImbalance,
+            RelativeStrength = position.RelativeStrength,
+            TrendScore = position.TrendScore,
+            StructureScore = position.StructureScore,
+            VolumeScore = position.VolumeScore,
+            CandleScore = position.CandleScore,
+            SetupScore = position.SetupScore,
+            MomentumScore = position.MomentumScore,
+            VolatilityScore = position.VolatilityScore,
+            TrendStrengthScore = position.TrendStrengthScore,
+            PatternName = position.PatternName,
+            SmartMoneyLabel = position.SmartMoneyLabel,
+            BreakoutSource = position.BreakoutSource,
+            MarketRegime = position.MarketRegime,
+            IsBullTrap = position.IsBullTrap,
+            IsBearTrap = position.IsBearTrap
         };
     }
 
@@ -552,7 +604,29 @@ public sealed class StrategyBacktester
             RiskRewardAtEntry = position.RiskRewardAtEntry,
             HadBearishMomentumConfirmed = position.HadBearishMomentumConfirmed,
             HadBearishRsiDivergence = position.HadBearishRsiDivergence,
-            HadSwingHighDataAvailable = position.HadSwingHighDataAvailable
+            HadSwingHighDataAvailable = position.HadSwingHighDataAvailable,
+            Rsi = position.Rsi,
+            Adx = position.Adx,
+            AtrPercent = position.AtrPercent,
+            EmaDistanceAtr = position.EmaDistanceAtr,
+            SwingUsageAtr = position.SwingUsageAtr,
+            VolumeSpike = position.VolumeSpike,
+            VolumeImbalance = position.VolumeImbalance,
+            RelativeStrength = position.RelativeStrength,
+            TrendScore = position.TrendScore,
+            StructureScore = position.StructureScore,
+            VolumeScore = position.VolumeScore,
+            CandleScore = position.CandleScore,
+            SetupScore = position.SetupScore,
+            MomentumScore = position.MomentumScore,
+            VolatilityScore = position.VolatilityScore,
+            TrendStrengthScore = position.TrendStrengthScore,
+            PatternName = position.PatternName,
+            SmartMoneyLabel = position.SmartMoneyLabel,
+            BreakoutSource = position.BreakoutSource,
+            MarketRegime = position.MarketRegime,
+            IsBullTrap = position.IsBullTrap,
+            IsBearTrap = position.IsBearTrap
         };
     }
 
@@ -702,5 +776,31 @@ public sealed class StrategyBacktester
 
         // Diagnóstico adicional (12/2026) — ver TrendAnalysis.HadSwingHighDataAvailable.
         public bool HadSwingHighDataAvailable { get; init; } = false;
+
+        // Contexto completo (16/08/2026) — Fase 3 do roadmap. Ver comentário equivalente
+        // em BacktestTradeResult.cs — mesmos campos, capturados aqui na entrada e repassados
+        // em CloseTrade/CloseTradeWeighted, mesmo padrão dos campos de instrumentação acima.
+        public decimal Rsi { get; init; } = 0m;
+        public decimal Adx { get; init; } = 0m;
+        public decimal AtrPercent { get; init; } = 0m;
+        public decimal EmaDistanceAtr { get; init; } = 0m;
+        public decimal SwingUsageAtr { get; init; } = 0m;
+        public decimal VolumeSpike { get; init; } = 0m;
+        public decimal VolumeImbalance { get; init; } = 0m;
+        public decimal RelativeStrength { get; init; } = 0m;
+        public int TrendScore { get; init; } = 0;
+        public int StructureScore { get; init; } = 0;
+        public int VolumeScore { get; init; } = 0;
+        public int CandleScore { get; init; } = 0;
+        public int SetupScore { get; init; } = 0;
+        public int MomentumScore { get; init; } = 0;
+        public int VolatilityScore { get; init; } = 0;
+        public int TrendStrengthScore { get; init; } = 0;
+        public string PatternName { get; init; } = "";
+        public string SmartMoneyLabel { get; init; } = "";
+        public string BreakoutSource { get; init; } = "";
+        public string MarketRegime { get; init; } = "";
+        public bool IsBullTrap { get; init; } = false;
+        public bool IsBearTrap { get; init; } = false;
     }
 }

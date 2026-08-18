@@ -98,6 +98,7 @@
                     <CheckBox x:Name="chkEnableMeanReversionScalp" Content="Reversão à Média (Scalp, experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
                     <CheckBox x:Name="chkEnableBollingerReversal" Content="Reversão de Bollinger (Venda, experimental)" VerticalAlignment="Center"/>
                     <CheckBox x:Name="chkRequireBearishMomentum" Content="Exigir Momentum Baixista confirmado (Venda, experimental)" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                    <CheckBox x:Name="chkInvertedMomentum" Content="Testar Momentum RSI invertido (Compra, experimental)" VerticalAlignment="Center" Margin="12,0,0,0"/>
                 </WrapPanel>
             </StackPanel>
         </GroupBox>

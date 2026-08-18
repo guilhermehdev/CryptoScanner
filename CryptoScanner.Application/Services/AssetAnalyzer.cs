@@ -11,10 +11,10 @@ namespace CryptoScanner.Application.Services;
 
 public sealed class AssetAnalyzer
 {
-    public AssetAnalysis Analyze(string symbol, List<Candle> candles, List<Candle> btcCandles, ScanProfile profile, RiskCalculationMode riskMode = RiskCalculationMode.SwingBased, List<Candle>? symbolDailyCandles = null, TradeDirection direction = TradeDirection.Long)
+    public AssetAnalysis Analyze(string symbol, List<Candle> candles, List<Candle> btcCandles, ScanProfile profile, RiskCalculationMode riskMode = RiskCalculationMode.SwingBased, List<Candle>? symbolDailyCandles = null, TradeDirection direction = TradeDirection.Long, bool useInvertedRsiMomentum = false)
     {
         var structure = AnalyzeStructure(candles);
-        var trend = AnalyzeTrend(candles, structure, direction);
+        var trend = AnalyzeTrend(candles, structure, direction, useInvertedRsiMomentum);
         var volume = AnalyzeVolume(candles, direction);
         var candle = AnalyzeCandle(candles);
 
@@ -47,7 +47,7 @@ public sealed class AssetAnalyzer
         return analysis;
     }
 
-    private static TrendAnalysis AnalyzeTrend(List<Candle> candles, StructureAnalysis structure, TradeDirection direction)
+    private static TrendAnalysis AnalyzeTrend(List<Candle> candles, StructureAnalysis structure, TradeDirection direction, bool useInvertedRsiMomentum = false)
     {
         decimal close = candles[^1].Close;
 
@@ -132,7 +132,7 @@ public sealed class AssetAnalyzer
                 ? TrendScorer.Calculate(close, ema21, ema50, ema200)
                 : TrendScorer.CalculateBearish(close, ema21, ema50, ema200),
             MomentumScore = direction == TradeDirection.Long
-                ? MomentumScorer.Calculate(rsi)
+                ? (useInvertedRsiMomentum ? MomentumScorer.CalculateInvertedRsi(rsi) : MomentumScorer.Calculate(rsi))
                 : MomentumScorer.CalculateBearish(rsi),
             VolatilityScore = VolatilityScorer.Calculate(atrPercent), // direção-neutro, só magnitude
             TrendStrengthScore = direction == TradeDirection.Long

@@ -119,7 +119,7 @@ public partial class BacktestWindow : Window
         IReadOnlyList<string> symbols, DateTime start, DateTime end, ScanProfile profile,
         EligibilityThresholds thresholds, RiskCalculationMode riskMode, int? evaluationHoursOverride,
         decimal? tp1Fraction = null, decimal? tp2Fraction = null, bool disableTimeout = false,
-        TradeDirection direction = TradeDirection.Long)
+        TradeDirection direction = TradeDirection.Long, bool useInvertedRsiMomentum = false)
     {
         var sb = new StringBuilder();
         sb.Append(profile.Name).Append('|');
@@ -142,6 +142,7 @@ public partial class BacktestWindow : Window
         sb.Append(thresholds.EnableVolatilityScoringPhaseB).Append('|');
         sb.Append(thresholds.EnableMultiTimeframe).Append('|');
         sb.Append(thresholds.RequireBearishMomentumConfirmed).Append('|');
+        sb.Append(useInvertedRsiMomentum).Append('|');
         sb.Append(evaluationHoursOverride?.ToString() ?? "default").Append('|');
         sb.Append(tp1Fraction?.ToString() ?? "default").Append('|');
         sb.Append(tp2Fraction?.ToString() ?? "default").Append('|');
@@ -156,7 +157,7 @@ public partial class BacktestWindow : Window
         string label, IReadOnlyList<string> symbols, DateTime start, DateTime end, ScanProfile profile,
         EligibilityThresholds thresholds, RiskCalculationMode riskMode, int? evaluationHoursOverride,
         BacktestSummary summary, decimal? tp1Fraction = null, decimal? tp2Fraction = null, bool disableTimeout = false,
-        TradeDirection direction = TradeDirection.Long)
+        TradeDirection direction = TradeDirection.Long, bool useInvertedRsiMomentum = false)
     {
         try
         {
@@ -165,7 +166,7 @@ public partial class BacktestWindow : Window
             // gerava a MESMA assinatura, e o sistema recusava salvar de novo (achando
             // que já existia um teste idêntico), mantendo o registro antigo — com a hora
             // antiga. Bug real, não comportamento esperado.
-            string signature = ComputeSignature(symbols, start, end, profile, thresholds, riskMode, evaluationHoursOverride, tp1Fraction, tp2Fraction, disableTimeout, direction);
+            string signature = ComputeSignature(symbols, start, end, profile, thresholds, riskMode, evaluationHoursOverride, tp1Fraction, tp2Fraction, disableTimeout, direction, useInvertedRsiMomentum);
 
             await _runResultRepository.InitializeAsync();
             if (await _runResultRepository.ExistsAsync(signature))
@@ -405,6 +406,7 @@ public partial class BacktestWindow : Window
                 : null;
 
             bool disableTimeout = chkDisableTimeout.IsChecked == true;
+            bool useInvertedRsiMomentum = chkInvertedMomentum.IsChecked == true;
 
             var summary = await backtester.RunAsync(
                 symbols,
@@ -416,6 +418,7 @@ public partial class BacktestWindow : Window
                 evaluationHoursOverride: evaluationHoursOverride,
                 disableTimeout: disableTimeout,
                 direction: direction,
+                useInvertedRsiMomentum: useInvertedRsiMomentum,
                 onProgress: (message, percent) => Dispatcher.Invoke(() =>
                 {
                     txtStatus.Text = message;
@@ -425,7 +428,7 @@ public partial class BacktestWindow : Window
 
             await SaveRunResultAsync(
                 direction == TradeDirection.Short ? "Rodar Backtest (VENDA)" : "Rodar Backtest",
-                symbols, start, end, profile, thresholds, GetSelectedRiskMode(), evaluationHoursOverride, summary, disableTimeout: disableTimeout, direction: direction);
+                symbols, start, end, profile, thresholds, GetSelectedRiskMode(), evaluationHoursOverride, summary, disableTimeout: disableTimeout, direction: direction, useInvertedRsiMomentum: useInvertedRsiMomentum);
 
             string skippedInfo = summary.SkippedSymbols.Count > 0
                 ? $"\n\n⚠ {summary.SkippedSymbols.Count} de {symbols.Count} moedas não entraram no teste:\n" +
@@ -439,7 +442,8 @@ public partial class BacktestWindow : Window
             txtSummaryResult.Text =
                 $"Direção: {(direction == TradeDirection.Short ? "VENDA (Fase 1)" : "Compra")} | " +
                 $"Score≥{thresholds.BuyOpportunityScore:F0} | RR mín.={thresholds.MinRiskReward:F1} | Stop mín.={thresholds.MinStopDistancePercent:F0}% | Stop máx.={maxStopText}" +
-                (disableTimeout ? " | Timeout=DESATIVADO (só TP/SL)" : "") + "\n\n" +
+                (disableTimeout ? " | Timeout=DESATIVADO (só TP/SL)" : "") +
+                (useInvertedRsiMomentum ? " | Momentum RSI=INVERTIDO (experimental)" : "") + "\n\n" +
                 $"Operações: {summary.TotalTrades}   |   " +
                 $"Win Rate: {summary.WinRate:F1}%   |   " +
                 $"Retorno Acumulado: {summary.TotalReturnPercent:F2}%   |   " +
@@ -1223,7 +1227,13 @@ public partial class BacktestWindow : Window
                 "Symbol", "Direction", "EntryTime", "EntryPrice", "ExitTime", "ExitPrice",
                 "OutcomePercent", "ExitReason", "Signal", "Score",
                 "ResistanceDistancePercent", "SupportDistancePercent", "RiskRewardAtEntry",
-                "HadBearishMomentumConfirmed", "HadBearishRsiDivergence", "HadSwingHighDataAvailable"));
+                "HadBearishMomentumConfirmed", "HadBearishRsiDivergence", "HadSwingHighDataAvailable",
+                "Rsi", "Adx", "AtrPercent", "EmaDistanceAtr", "SwingUsageAtr",
+                "VolumeSpike", "VolumeImbalance", "RelativeStrength",
+                "TrendScore", "StructureScore", "VolumeScore", "CandleScore", "SetupScore",
+                "MomentumScore", "VolatilityScore", "TrendStrengthScore",
+                "PatternName", "SmartMoneyLabel", "BreakoutSource", "MarketRegime",
+                "IsBullTrap", "IsBearTrap"));
 
             foreach (var t in _lastDisplayedTrades)
             {
@@ -1243,7 +1253,29 @@ public partial class BacktestWindow : Window
                     t.RiskRewardAtEntry.ToString("F2", culture),
                     t.HadBearishMomentumConfirmed,
                     t.HadBearishRsiDivergence,
-                    t.HadSwingHighDataAvailable));
+                    t.HadSwingHighDataAvailable,
+                    t.Rsi.ToString("F2", culture),
+                    t.Adx.ToString("F2", culture),
+                    t.AtrPercent.ToString("F2", culture),
+                    t.EmaDistanceAtr.ToString("F2", culture),
+                    t.SwingUsageAtr.ToString("F2", culture),
+                    t.VolumeSpike.ToString("F2", culture),
+                    t.VolumeImbalance.ToString("F2", culture),
+                    t.RelativeStrength.ToString("F2", culture),
+                    t.TrendScore,
+                    t.StructureScore,
+                    t.VolumeScore,
+                    t.CandleScore,
+                    t.SetupScore,
+                    t.MomentumScore,
+                    t.VolatilityScore,
+                    t.TrendStrengthScore,
+                    t.PatternName,
+                    t.SmartMoneyLabel,
+                    t.BreakoutSource,
+                    t.MarketRegime,
+                    t.IsBullTrap,
+                    t.IsBearTrap));
             }
 
             // BOM UTF-8 — sem isso, o Excel às vezes abre acentos/caracteres especiais
