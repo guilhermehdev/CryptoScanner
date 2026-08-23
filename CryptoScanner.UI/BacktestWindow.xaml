@@ -85,20 +85,14 @@
                 </WrapPanel>
                 <WrapPanel Orientation="Horizontal" Margin="6,0,6,6">
                     <TextBlock Text="Cálculo de Risco:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <RadioButton x:Name="rbRiskSwing" Content="Swing (atual)" GroupName="RiskMode" IsChecked="True" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                    <RadioButton x:Name="rbRiskAtr" Content="ATR (novo)" GroupName="RiskMode" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                    <RadioButton x:Name="rbRiskSwingBuffer" Content="Swing + Buffer ATR (novo)" GroupName="RiskMode" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                    <RadioButton x:Name="rbRiskPartialExits" Content="Swing + Resistência Pontuada (4.1)" GroupName="RiskMode" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <RadioButton x:Name="rbRiskPartialExits" Content="Swing + Resistência Pontuada (4.1)" GroupName="RiskMode" IsChecked="True" VerticalAlignment="Center" Margin="0,0,12,0"/>
                     <RadioButton x:Name="rbRiskMeanReversion" Content="Reversão à Média (Scalp, não validado)" GroupName="RiskMode" VerticalAlignment="Center" Margin="0,0,12,0"/>
                     <RadioButton x:Name="rbRiskBollingerReversal" Content="Reversão de Bollinger (Venda, não validado)" GroupName="RiskMode" VerticalAlignment="Center" Margin="0,0,24,0"/>
-                    <CheckBox x:Name="chkEnableBollingerScoring" Content="Bollinger Scoring (experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
                     <CheckBox x:Name="chkEnableVolatilityScoringPhaseB" Content="Volatility Scoring — Fase B (experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
                     <CheckBox x:Name="chkEnableMultiTimeframe" Content="Multi-timeframe (4.2, experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
                     <CheckBox x:Name="chkEnablePullbackBounce" Content="Caminho A — Repique (pullback, experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
                     <CheckBox x:Name="chkEnableMeanReversionScalp" Content="Reversão à Média (Scalp, experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
                     <CheckBox x:Name="chkEnableBollingerReversal" Content="Reversão de Bollinger (Venda, experimental)" VerticalAlignment="Center"/>
-                    <CheckBox x:Name="chkRequireBearishMomentum" Content="Exigir Momentum Baixista confirmado (Venda, experimental)" VerticalAlignment="Center" Margin="12,0,0,0"/>
-                    <CheckBox x:Name="chkInvertedMomentum" Content="Testar Momentum RSI invertido (Compra, experimental)" VerticalAlignment="Center" Margin="12,0,0,0"/>
                 </WrapPanel>
             </StackPanel>
         </GroupBox>
@@ -111,27 +105,13 @@
                     <TextBlock x:Name="txtStatus" VerticalAlignment="Center" Margin="15,0,0,0" Foreground="Gray"/>
                 </WrapPanel>
                 <ProgressBar x:Name="pbProgress" Height="6" Margin="6,0,6,8" Minimum="0" Maximum="100" Visibility="Collapsed"/>
-                <TextBlock Text="Comparadores de cenário (Long apenas — Fase 1 do lado de venda ainda não estende os comparadores):" Margin="6,0,6,2" FontWeight="Bold" FontSize="11"/>
-                <WrapPanel Margin="6,0,6,8">
-                    <Button x:Name="btnCompare" Content="Comparar Cenários (RR)" Width="160" Height="26" Click="BtnCompareScenarios_Click"/>
-                    <Button x:Name="btnCompareStop" Content="Comparar Cenários (Stop)" Width="170" Height="26" Margin="8,0,0,0" Click="BtnCompareStopScenarios_Click"/>
-                    <Button x:Name="btnCompareMaxStop" Content="Comparar Cenários (Stop Máx.)" Width="180" Height="26" Margin="8,0,0,0" Click="BtnCompareMaxStopScenarios_Click"/>
-                    <Button x:Name="btnCompareMaxRR" Content="Comparar Cenários (Teto RR)" Width="180" Height="26" Margin="8,0,0,0" Click="BtnCompareMaxRRScenarios_Click"/>
-                    <Button x:Name="btnCompareNewPaths" Content="Comparar Cenários (Caminhos)" Width="190" Height="26" Margin="8,0,0,0" Click="BtnCompareNewPathsScenarios_Click"/>
-                    <Button x:Name="btnCompareAtrDistance" Content="Comparar Dist. Resist. (ATR)" Height="26" Padding="8,0" Margin="8,0,0,0" Click="BtnCompareAtrDistanceScenarios_Click"/>
-                    <Button x:Name="btnComparePartialExitsDistance" Content="Comparar Dist. Resist. (Pontuada)" Height="26" Padding="8,0" Margin="8,0,0,0" Click="BtnComparePartialExitsDistanceScenarios_Click"/>
-                    <Button x:Name="btnComparePartialExitsRR" Content="Comparar RR mín. (Pontuada)" Height="26" Padding="8,0" Margin="8,0,0,0" Click="BtnComparePartialExitsRRScenarios_Click"/>
-                    <Button x:Name="btnComparePartialExitsFractions" Content="Comparar Frações (Pontuada)" Height="26" Padding="8,0" Margin="8,0,0,0" Click="BtnComparePartialExitsFractionsScenarios_Click"/>
-                    <Button x:Name="btnCompareTimeout" Content="Comparar Cenários (Timeout)" Height="26" Padding="8,0" Margin="8,0,0,0" Click="BtnCompareTimeoutScenarios_Click"/>
-                </WrapPanel>
                 <TextBlock Text="Padrão Scanner (múltiplos períodos, configuração real do app ao vivo):" Margin="6,0,6,2" FontWeight="Bold" FontSize="11"/>
                 <WrapPanel Margin="6,0,6,2">
                     <TextBlock Text="Anos por período:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox x:Name="txtPeriodYears" Width="40" Text="1" VerticalAlignment="Center" Margin="0,0,14,0"/>
                     <TextBlock Text="Quantidade de períodos:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox x:Name="txtPeriodCount" Width="40" Text="4" VerticalAlignment="Center" Margin="0,0,14,0"/>
-                    <Button x:Name="btnComparePeriods" Content="Rodar Padrão Scanner" Height="26" Padding="8,0" Margin="0,0,8,0" Click="BtnComparePeriods_Click"/>
-                    <Button x:Name="btnCompareRiskMode" Content="Comparar Swing vs ATR (Padrão Scanner)" Height="26" Padding="8,0" Click="BtnCompareRiskMode_Click"/>
+                    <Button x:Name="btnComparePeriods" Content="Rodar Padrão Scanner" Height="26" Padding="8,0" Click="BtnComparePeriods_Click"/>
                 </WrapPanel>
                 <TextBlock Margin="6,2,6,6" FontSize="10" FontStyle="Italic" Foreground="Gray"
                            Text="Ignora os limiares configurados acima — usa sempre a configuração padrão exata do ScannerSettings (a mesma do app ao vivo)."/>
@@ -193,6 +173,7 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
                 <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,4">
+                    <Button x:Name="btnAnalyzeFactors" Content="Análise por Fator" Padding="8,3" Margin="0,0,8,0" Click="BtnAnalyzeFactors_Click"/>
                     <Button x:Name="btnExportTrades" Content="Exportar Trades (CSV)" Padding="8,3" Click="BtnExportTradesCsv_Click"/>
                 </StackPanel>
                 <DataGrid x:Name="dgTrades" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True">

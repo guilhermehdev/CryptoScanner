@@ -48,7 +48,7 @@ public partial class BacktestWindow : Window
         txtMinResistDistanceAtr.Text = "10"; // provisório — a comparar empiricamente
         txtMinResistDistancePartialExits.Text = "4"; // provisório — a comparar empiricamente
         txtMinVolumeSpike.Text = ScannerSettings.MinVolumeSpike.ToString("F2");
-        txtMinRiskReward.Text = 1.5m.ToString("F1"); // valor de referência validado pro modo Swing+Resistência Pontuada
+        txtMinRiskReward.Text = 2.0m.ToString("F1"); // valor validado real do modo Swing+Resistência Pontuada (confirmado em ScannerService.cs) — corrigido de 1,5 (16/08/2026)
         txtMinStopDistance.Text = "0"; // 0 = sem piso, reproduz o comportamento atual do app ao vivo
         txtMaxStopDistance.Text = "25";
         txtMaxRiskReward.Text = "999"; // efetivamente sem teto
@@ -142,6 +142,7 @@ public partial class BacktestWindow : Window
         sb.Append(thresholds.EnableVolatilityScoringPhaseB).Append('|');
         sb.Append(thresholds.EnableMultiTimeframe).Append('|');
         sb.Append(thresholds.RequireBearishMomentumConfirmed).Append('|');
+        sb.Append(thresholds.EnableLowRsiPath).Append('|');
         sb.Append(useInvertedRsiMomentum).Append('|');
         sb.Append(evaluationHoursOverride?.ToString() ?? "default").Append('|');
         sb.Append(tp1Fraction?.ToString() ?? "default").Append('|');
@@ -219,12 +220,13 @@ public partial class BacktestWindow : Window
 
     private RiskCalculationMode GetSelectedRiskMode()
     {
-        if (rbRiskAtr.IsChecked == true) return RiskCalculationMode.AtrBased;
-        if (rbRiskSwingBuffer.IsChecked == true) return RiskCalculationMode.SwingWithAtrBuffer;
-        if (rbRiskPartialExits.IsChecked == true) return RiskCalculationMode.SwingWithPartialExits;
         if (rbRiskMeanReversion.IsChecked == true) return RiskCalculationMode.MeanReversionScalp;
         if (rbRiskBollingerReversal.IsChecked == true) return RiskCalculationMode.BollingerReversal;
-        return RiskCalculationMode.SwingBased;
+        // Fallback pro modo validado real — "Swing (atual)" (SwingBased) saiu da tela
+        // (22/08/2026), então não faz mais sentido cair nele se nenhum rádio bater
+        // (o que não deveria acontecer de qualquer forma, já que rbRiskPartialExits
+        // nasce marcado e o grupo é mutuamente exclusivo).
+        return RiskCalculationMode.SwingWithPartialExits;
     }
 
     // Fase 1 do lado de venda — hoje só conectado no botão "Rodar Backtest" (BtnRun_Click).
@@ -235,35 +237,39 @@ public partial class BacktestWindow : Window
         return rbDirectionShort.IsChecked == true ? TradeDirection.Short : TradeDirection.Long;
     }
 
-    private EligibilityThresholds BuildDefaultThresholdsWithCurrentAtrDistance()
+    /// <summary>
+    /// Config validada REAL por perfil (16/08/2026) — corrige o método antigo
+    /// (BuildDefaultThresholdsWithCurrentAtrDistance), que usava os genéricos do
+    /// ScannerSettings (RR=3, sem Caminho A) em vez dos valores calibrados por perfil que
+    /// ScannerService.cs realmente usa ao vivo hoje (SwingValidatedThresholds/
+    /// IntradayValidatedThresholds). Valores copiados diretamente de lá — se o app ao vivo
+    /// mudar, esse método precisa ser atualizado junto. Só cobre Swing e Intraday; Scalp
+    /// continua bloqueado (ver guard em BtnComparePeriods_Click) porque o próprio
+    /// ScannerService.cs marca esse perfil como "NÃO VALIDADO — não expor no app ao vivo".
+    /// </summary>
+    private static EligibilityThresholds BuildLiveValidatedThresholds(ScanProfile profile)
     {
-        if (!decimal.TryParse(txtMinResistDistanceAtr.Text, out decimal atrDistance))
-            atrDistance = EligibilityThresholds.Default.MinResistanceDistanceAtrMode;
-
-        if (!decimal.TryParse(txtMinResistDistancePartialExits.Text, out decimal partialExitsDistance))
-            partialExitsDistance = EligibilityThresholds.Default.MinResistanceDistancePartialExits;
+        bool isIntraday = profile.Name == ScanProfile.Intraday.Name;
 
         return new EligibilityThresholds
         {
-            BuyOpportunityScore = EligibilityThresholds.Default.BuyOpportunityScore,
-            BearRegimePenalty = EligibilityThresholds.Default.BearRegimePenalty,
-            SidewaysRegimePenalty = EligibilityThresholds.Default.SidewaysRegimePenalty,
-            MinVolumeSpike = EligibilityThresholds.Default.MinVolumeSpike,
-            DefensiveMinVolumeSpike = EligibilityThresholds.Default.DefensiveMinVolumeSpike,
-            MinResistanceDistance = EligibilityThresholds.Default.MinResistanceDistance,
-            MinResistanceDistanceAtrMode = atrDistance,
-            MinResistanceDistancePartialExits = partialExitsDistance,
-            MinRiskReward = EligibilityThresholds.Default.MinRiskReward,
-            MinRelativeStrengthPercent = EligibilityThresholds.Default.MinRelativeStrengthPercent,
-            MinStopDistancePercent = EligibilityThresholds.Default.MinStopDistancePercent,
-            MaxStopDistancePercent = EligibilityThresholds.Default.MaxStopDistancePercent,
-            EnableMeanReversionScalp = EligibilityThresholds.Default.EnableMeanReversionScalp,
-            EnableBollingerReversal = EligibilityThresholds.Default.EnableBollingerReversal,
-            MaxRiskReward = EligibilityThresholds.Default.MaxRiskReward,
-            EnablePullbackBounce = EligibilityThresholds.Default.EnablePullbackBounce,
-            EnableBollingerScoring = EligibilityThresholds.Default.EnableBollingerScoring,
-            EnableVolatilityScoringPhaseB = EligibilityThresholds.Default.EnableVolatilityScoringPhaseB,
-            EnableMultiTimeframe = EligibilityThresholds.Default.EnableMultiTimeframe
+            BuyOpportunityScore = ScannerSettings.BuyOpportunityScore,
+            BearRegimePenalty = ScannerSettings.BearRegimePenalty,
+            SidewaysRegimePenalty = ScannerSettings.SidewaysRegimePenalty,
+            MinVolumeSpike = ScannerSettings.MinVolumeSpike,
+            DefensiveMinVolumeSpike = ScannerSettings.DefensiveMinVolumeSpike,
+            MinResistanceDistance = ScannerSettings.MinResistanceDistance,
+            MinResistanceDistanceAtrMode = ScannerSettings.MinResistanceDistance, // não usado nesse modo
+            MinResistanceDistancePartialExits = isIntraday ? 15m : 4m,
+            MinRiskReward = isIntraday ? 2.5m : 2.0m,
+            MinRelativeStrengthPercent = ScannerSettings.MinRelativeStrengthPercent,
+            MinStopDistancePercent = 0m,
+            MaxStopDistancePercent = 25m,
+            MaxRiskReward = 999m,
+            EnablePullbackBounce = !isIntraday, // Caminho A: só no Swing
+            EnableBollingerScoring = true, // ligado nos 2 perfis
+            EnableVolatilityScoringPhaseB = false,
+            EnableMultiTimeframe = false
         };
     }
 
@@ -352,12 +358,20 @@ public partial class BacktestWindow : Window
             MaxStopDistancePercent = maxStopDistance,
             MaxRiskReward = maxRiskReward,
             EnablePullbackBounce = chkEnablePullbackBounce.IsChecked == true, // Caminho A reexposto na tela — antes fixo em false
-            EnableBollingerScoring = chkEnableBollingerScoring.IsChecked == true,
+            // Bollinger Scoring — validado e ativo nos 2 perfis reais (Swing e Intraday) via
+            // ScannerService.cs. Checkbox removido (22/08/2026); sempre true agora, já que
+            // nunca faz sentido testar sem ele dado que a config real sempre usa.
+            EnableBollingerScoring = true,
             EnableVolatilityScoringPhaseB = chkEnableVolatilityScoringPhaseB.IsChecked == true,
             EnableMultiTimeframe = chkEnableMultiTimeframe.IsChecked == true,
             EnableMeanReversionScalp = chkEnableMeanReversionScalp.IsChecked == true,
             EnableBollingerReversal = chkEnableBollingerReversal.IsChecked == true,
-            RequireBearishMomentumConfirmed = chkRequireBearishMomentum.IsChecked == true
+            // RequireBearishMomentumConfirmed (Venda) e EnableLowRsiPath (Compra) — testados
+            // e descartados (ver memória do projeto: efeito negativo no bear market isolado
+            // / trades novos sem catalisador de rompimento). Checkboxes removidos da tela
+            // (16/08/2026); campos mantidos em EligibilityThresholds caso retomados no futuro.
+            RequireBearishMomentumConfirmed = false,
+            EnableLowRsiPath = false
         };
 
         return true;
@@ -406,7 +420,13 @@ public partial class BacktestWindow : Window
                 : null;
 
             bool disableTimeout = chkDisableTimeout.IsChecked == true;
-            bool useInvertedRsiMomentum = chkInvertedMomentum.IsChecked == true;
+
+            // Momentum RSI invertido — testado e descartado (efeito quase nulo na config
+            // validada, 5% de peso é fraco demais pra mover a agulha). Checkbox removido
+            // da tela (16/08/2026) pra reduzir a quantidade de controles experimentais
+            // visíveis; parâmetro mantido no motor (RunAsync/Analyze) caso essa linha seja
+            // retomada no futuro — bastaria reativar aqui.
+            const bool useInvertedRsiMomentum = false;
 
             var summary = await backtester.RunAsync(
                 symbols,
@@ -442,8 +462,7 @@ public partial class BacktestWindow : Window
             txtSummaryResult.Text =
                 $"Direção: {(direction == TradeDirection.Short ? "VENDA (Fase 1)" : "Compra")} | " +
                 $"Score≥{thresholds.BuyOpportunityScore:F0} | RR mín.={thresholds.MinRiskReward:F1} | Stop mín.={thresholds.MinStopDistancePercent:F0}% | Stop máx.={maxStopText}" +
-                (disableTimeout ? " | Timeout=DESATIVADO (só TP/SL)" : "") +
-                (useInvertedRsiMomentum ? " | Momentum RSI=INVERTIDO (experimental)" : "") + "\n\n" +
+                (disableTimeout ? " | Timeout=DESATIVADO (só TP/SL)" : "") + "\n\n" +
                 $"Operações: {summary.TotalTrades}   |   " +
                 $"Win Rate: {summary.WinRate:F1}%   |   " +
                 $"Retorno Acumulado: {summary.TotalReturnPercent:F2}%   |   " +
@@ -470,619 +489,6 @@ public partial class BacktestWindow : Window
         catch (Exception ex)
         {
             MessageBox.Show($"Erro ao rodar o backtest.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
-            txtStatus.Text = "";
-        }
-        finally
-        {
-            SetRunningState(false);
-        }
-    }
-
-    private async void BtnCompareScenarios_Click(object sender, RoutedEventArgs e)
-    {
-        if (!TryGetDateRange(out var start, out var end))
-            return;
-
-        if (!TryBuildThresholds(out var baseThresholds))
-            return;
-
-        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
-
-        List<string>? symbols;
-        try
-        {
-            symbols = await ResolveSymbolsAsync();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Não foi possível obter a lista de moedas.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
-            txtStatus.Text = "";
-            return;
-        }
-
-        if (symbols == null)
-            return;
-
-        decimal[] riskRewardScenarios = { 1.5m, 2m, 2.5m, 3m, 3.5m };
-
-        SetRunningState(true);
-        dgTrades.ItemsSource = null;
-        cnvEquityCurve.Children.Clear();
-        _lastDisplayedTrades = new List<BacktestTradeResult>();
-        txtSummaryResult.Text = "";
-        var results = new List<ScenarioResult>();
-        _cts = new CancellationTokenSource();
-
-        try
-        {
-            var backtester = new StrategyBacktester(_marketData, _assetAnalyzer);
-
-            int rrScenarioIndex = 0;
-            foreach (var rr in riskRewardScenarios)
-            {
-                _cts.Token.ThrowIfCancellationRequested();
-                rrScenarioIndex++;
-
-                var scenarioThresholds = new EligibilityThresholds
-                {
-                    BuyOpportunityScore = baseThresholds.BuyOpportunityScore,
-                    BearRegimePenalty = baseThresholds.BearRegimePenalty,
-                    SidewaysRegimePenalty = baseThresholds.SidewaysRegimePenalty,
-                    MinVolumeSpike = baseThresholds.MinVolumeSpike,
-                    DefensiveMinVolumeSpike = baseThresholds.DefensiveMinVolumeSpike,
-                    MinResistanceDistance = baseThresholds.MinResistanceDistance,
-                    MinResistanceDistanceAtrMode = baseThresholds.MinResistanceDistanceAtrMode,
-                    MinResistanceDistancePartialExits = baseThresholds.MinResistanceDistancePartialExits,
-                    MinRiskReward = rr,
-                    MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
-                    MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
-                    MaxStopDistancePercent = baseThresholds.MaxStopDistancePercent,
-                    MaxRiskReward = baseThresholds.MaxRiskReward,
-                    EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
-                    EnableMeanReversionScalp = baseThresholds.EnableMeanReversionScalp,
-                    EnableBollingerReversal = baseThresholds.EnableBollingerReversal,
-                    EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
-                    EnableVolatilityScoringPhaseB = baseThresholds.EnableVolatilityScoringPhaseB,
-                    EnableMultiTimeframe = baseThresholds.EnableMultiTimeframe
-                };
-
-                var summary = await backtester.RunAsync(
-                    symbols,
-                    start,
-                    end,
-                    profile,
-                    scenarioThresholds,
-                    riskMode: GetSelectedRiskMode(),
-                    onProgress: (message, percent) => Dispatcher.Invoke(() =>
-                    {
-                        double overallPercent = ((rrScenarioIndex - 1) * 100.0 + percent) / riskRewardScenarios.Length;
-                        txtStatus.Text = $"[{rrScenarioIndex}/{riskRewardScenarios.Length}] [RR≥{rr}] {message}";
-                        pbProgress.Value = overallPercent;
-                    }),
-                    cancellationToken: _cts.Token);
-
-                await SaveRunResultAsync($"RR ≥ {rr}", symbols, start, end, profile, scenarioThresholds, GetSelectedRiskMode(), null, summary);
-
-                results.Add(new ScenarioResult
-                {
-                    Label = $"RR ≥ {rr}",
-                    TotalTrades = summary.TotalTrades,
-                    WinRate = summary.WinRate,
-                    TotalReturnPercent = summary.TotalReturnPercent,
-                    MaxDrawdownPercent = summary.MaxDrawdownPercent,
-                    ProfitFactor = summary.ProfitFactor,
-                    AvgRiskRewardAtEntry = summary.AvgRiskRewardAtEntry,
-                    BreakEvenWinRate = summary.BreakEvenWinRate,
-                    Edge = summary.Edge
-                });
-            }
-
-            dgComparison.ItemsSource = results;
-            dgComparison.Visibility = Visibility.Visible;
-            txtSummaryResult.Text = "Comparação de cenários concluída — veja a tabela de resultados por Risk/Reward mínimo abaixo. " +
-                                     "Os outros limiares (Score, Dist. Resist., Volume Spike) ficaram fixos nos valores informados acima.";
-            txtStatus.Text = "Concluído.";
-        }
-        catch (OperationCanceledException)
-        {
-            txtStatus.Text = "Comparação cancelada.";
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Erro ao comparar cenários.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
-            txtStatus.Text = "";
-        }
-        finally
-        {
-            SetRunningState(false);
-        }
-    }
-
-    private async void BtnCompareStopScenarios_Click(object sender, RoutedEventArgs e)
-    {
-        if (!TryGetDateRange(out var start, out var end))
-            return;
-
-        if (!TryBuildThresholds(out var baseThresholds))
-            return;
-
-        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
-
-        List<string>? symbols;
-        try
-        {
-            symbols = await ResolveSymbolsAsync();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Não foi possível obter a lista de moedas.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
-            txtStatus.Text = "";
-            return;
-        }
-
-        if (symbols == null)
-            return;
-
-        // RR fica fixo no valor da tela — só o piso de distância do stop varia,
-        // pra isolar o efeito desse critério especificamente.
-        decimal[] stopDistanceScenarios = { 0m, 2m, 3m, 5m, 8m };
-
-        SetRunningState(true);
-        dgTrades.ItemsSource = null;
-        cnvEquityCurve.Children.Clear();
-        _lastDisplayedTrades = new List<BacktestTradeResult>();
-        txtSummaryResult.Text = "";
-        var results = new List<ScenarioResult>();
-        _cts = new CancellationTokenSource();
-
-        try
-        {
-            var backtester = new StrategyBacktester(_marketData, _assetAnalyzer);
-
-            int stopScenarioIndex = 0;
-            foreach (var stopMin in stopDistanceScenarios)
-            {
-                _cts.Token.ThrowIfCancellationRequested();
-                stopScenarioIndex++;
-
-                var scenarioThresholds = new EligibilityThresholds
-                {
-                    BuyOpportunityScore = baseThresholds.BuyOpportunityScore,
-                    BearRegimePenalty = baseThresholds.BearRegimePenalty,
-                    SidewaysRegimePenalty = baseThresholds.SidewaysRegimePenalty,
-                    MinVolumeSpike = baseThresholds.MinVolumeSpike,
-                    DefensiveMinVolumeSpike = baseThresholds.DefensiveMinVolumeSpike,
-                    MinResistanceDistance = baseThresholds.MinResistanceDistance,
-                    MinResistanceDistanceAtrMode = baseThresholds.MinResistanceDistanceAtrMode,
-                    MinResistanceDistancePartialExits = baseThresholds.MinResistanceDistancePartialExits,
-                    MinRiskReward = baseThresholds.MinRiskReward,
-                    MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
-                    MinStopDistancePercent = stopMin,
-                    MaxStopDistancePercent = baseThresholds.MaxStopDistancePercent,
-                    MaxRiskReward = baseThresholds.MaxRiskReward,
-                    EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
-                    EnableMeanReversionScalp = baseThresholds.EnableMeanReversionScalp,
-                    EnableBollingerReversal = baseThresholds.EnableBollingerReversal,
-                    EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
-                    EnableVolatilityScoringPhaseB = baseThresholds.EnableVolatilityScoringPhaseB,
-                    EnableMultiTimeframe = baseThresholds.EnableMultiTimeframe
-                };
-
-                var summary = await backtester.RunAsync(
-                    symbols,
-                    start,
-                    end,
-                    profile,
-                    scenarioThresholds,
-                    riskMode: GetSelectedRiskMode(),
-                    onProgress: (message, percent) => Dispatcher.Invoke(() =>
-                    {
-                        double overallPercent = ((stopScenarioIndex - 1) * 100.0 + percent) / stopDistanceScenarios.Length;
-                        txtStatus.Text = $"[{stopScenarioIndex}/{stopDistanceScenarios.Length}] [Stop≥{stopMin}%] {message}";
-                        pbProgress.Value = overallPercent;
-                    }),
-                    cancellationToken: _cts.Token);
-
-                await SaveRunResultAsync($"Stop ≥ {stopMin}%", symbols, start, end, profile, scenarioThresholds, GetSelectedRiskMode(), null, summary);
-
-                results.Add(new ScenarioResult
-                {
-                    Label = $"Stop ≥ {stopMin}%",
-                    TotalTrades = summary.TotalTrades,
-                    WinRate = summary.WinRate,
-                    TotalReturnPercent = summary.TotalReturnPercent,
-                    MaxDrawdownPercent = summary.MaxDrawdownPercent,
-                    ProfitFactor = summary.ProfitFactor,
-                    AvgRiskRewardAtEntry = summary.AvgRiskRewardAtEntry,
-                    BreakEvenWinRate = summary.BreakEvenWinRate,
-                    Edge = summary.Edge
-                });
-            }
-
-            dgComparison.ItemsSource = results;
-            dgComparison.Visibility = Visibility.Visible;
-            txtSummaryResult.Text = $"Comparação por piso de Stop concluída — RR mínimo fixo em {baseThresholds.MinRiskReward}. " +
-                                     "Isso isola o efeito de exigir um stop com distância mínima, independente da proporção RR.";
-            txtStatus.Text = "Concluído.";
-        }
-        catch (OperationCanceledException)
-        {
-            txtStatus.Text = "Comparação cancelada.";
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Erro ao comparar cenários.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
-            txtStatus.Text = "";
-        }
-        finally
-        {
-            SetRunningState(false);
-        }
-    }
-
-    private async void BtnCompareMaxStopScenarios_Click(object sender, RoutedEventArgs e)
-    {
-        if (!TryGetDateRange(out var start, out var end))
-            return;
-
-        if (!TryBuildThresholds(out var baseThresholds))
-            return;
-
-        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
-
-        List<string>? symbols;
-        try
-        {
-            symbols = await ResolveSymbolsAsync();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Não foi possível obter a lista de moedas.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
-            txtStatus.Text = "";
-            return;
-        }
-
-        if (symbols == null)
-            return;
-
-        // RR fica fixo no valor da tela — só o teto de distância do stop varia, pra isolar
-        // o efeito desse critério (investigado depois do caso HEIUSDT: SL ~81% de distância,
-        // que passou ileso porque a proporção RR parecia normal mesmo o valor absoluto sendo
-        // um absurdo — TP e SL esticados na mesma escala).
-        decimal[] maxStopScenarios = { 15m, 20m, 30m, 50m, 999m };
-
-        SetRunningState(true);
-        dgTrades.ItemsSource = null;
-        cnvEquityCurve.Children.Clear();
-        _lastDisplayedTrades = new List<BacktestTradeResult>();
-        txtSummaryResult.Text = "";
-        var results = new List<ScenarioResult>();
-        _cts = new CancellationTokenSource();
-
-        try
-        {
-            var backtester = new StrategyBacktester(_marketData, _assetAnalyzer);
-
-            int scenarioIndex = 0;
-            foreach (var stopMax in maxStopScenarios)
-            {
-                _cts.Token.ThrowIfCancellationRequested();
-                scenarioIndex++;
-
-                var scenarioThresholds = new EligibilityThresholds
-                {
-                    BuyOpportunityScore = baseThresholds.BuyOpportunityScore,
-                    BearRegimePenalty = baseThresholds.BearRegimePenalty,
-                    SidewaysRegimePenalty = baseThresholds.SidewaysRegimePenalty,
-                    MinVolumeSpike = baseThresholds.MinVolumeSpike,
-                    DefensiveMinVolumeSpike = baseThresholds.DefensiveMinVolumeSpike,
-                    MinResistanceDistance = baseThresholds.MinResistanceDistance,
-                    MinResistanceDistanceAtrMode = baseThresholds.MinResistanceDistanceAtrMode,
-                    MinResistanceDistancePartialExits = baseThresholds.MinResistanceDistancePartialExits,
-                    MinRiskReward = baseThresholds.MinRiskReward,
-                    MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
-                    MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
-                    MaxStopDistancePercent = stopMax,
-                    MaxRiskReward = baseThresholds.MaxRiskReward,
-                    EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
-                    EnableMeanReversionScalp = baseThresholds.EnableMeanReversionScalp,
-                    EnableBollingerReversal = baseThresholds.EnableBollingerReversal,
-                    EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
-                    EnableVolatilityScoringPhaseB = baseThresholds.EnableVolatilityScoringPhaseB,
-                    EnableMultiTimeframe = baseThresholds.EnableMultiTimeframe
-                };
-
-                var summary = await backtester.RunAsync(
-                    symbols,
-                    start,
-                    end,
-                    profile,
-                    scenarioThresholds,
-                    riskMode: GetSelectedRiskMode(),
-                    onProgress: (message, percent) => Dispatcher.Invoke(() =>
-                    {
-                        double overallPercent = ((scenarioIndex - 1) * 100.0 + percent) / maxStopScenarios.Length;
-                        txtStatus.Text = $"[{scenarioIndex}/{maxStopScenarios.Length}] [Stop≤{stopMax}%] {message}";
-                        pbProgress.Value = overallPercent;
-                    }),
-                    cancellationToken: _cts.Token);
-
-                await SaveRunResultAsync($"Stop ≤ {stopMax}%", symbols, start, end, profile, scenarioThresholds, GetSelectedRiskMode(), null, summary);
-
-                results.Add(new ScenarioResult
-                {
-                    Label = $"Stop ≤ {stopMax}%",
-                    TotalTrades = summary.TotalTrades,
-                    WinRate = summary.WinRate,
-                    TotalReturnPercent = summary.TotalReturnPercent,
-                    MaxDrawdownPercent = summary.MaxDrawdownPercent,
-                    ProfitFactor = summary.ProfitFactor,
-                    AvgRiskRewardAtEntry = summary.AvgRiskRewardAtEntry,
-                    BreakEvenWinRate = summary.BreakEvenWinRate,
-                    Edge = summary.Edge
-                });
-            }
-
-            dgComparison.ItemsSource = results;
-            dgComparison.Visibility = Visibility.Visible;
-            txtSummaryResult.Text = $"Comparação por teto de Stop concluída — RR mínimo fixo em {baseThresholds.MinRiskReward}. " +
-                                     "Isola o efeito de rejeitar sinais com stop absurdamente distante, mesmo quando a proporção RR parece normal.";
-            txtStatus.Text = "Concluído.";
-        }
-        catch (OperationCanceledException)
-        {
-            txtStatus.Text = "Comparação cancelada.";
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Erro ao comparar cenários.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
-            txtStatus.Text = "";
-        }
-        finally
-        {
-            SetRunningState(false);
-        }
-    }
-
-    private async void BtnCompareMaxRRScenarios_Click(object sender, RoutedEventArgs e)
-    {
-        if (!TryGetDateRange(out var start, out var end))
-            return;
-
-        if (!TryBuildThresholds(out var baseThresholds))
-            return;
-
-        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
-
-        List<string>? symbols;
-        try
-        {
-            symbols = await ResolveSymbolsAsync();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Não foi possível obter a lista de moedas.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
-            txtStatus.Text = "";
-            return;
-        }
-
-        if (symbols == null)
-            return;
-
-        // MinRiskReward fica fixo no valor da tela — só o teto varia,
-        // pra isolar o efeito de excluir RRs extremos (potencialmente mal-calibrados).
-        decimal[] maxRiskRewardScenarios = { 999m, 10m, 8m, 6m, 4m };
-
-        SetRunningState(true);
-        dgTrades.ItemsSource = null;
-        cnvEquityCurve.Children.Clear();
-        _lastDisplayedTrades = new List<BacktestTradeResult>();
-        txtSummaryResult.Text = "";
-        var results = new List<ScenarioResult>();
-        _cts = new CancellationTokenSource();
-
-        try
-        {
-            var backtester = new StrategyBacktester(_marketData, _assetAnalyzer);
-
-            int maxRRScenarioIndex = 0;
-            foreach (var maxRR in maxRiskRewardScenarios)
-            {
-                _cts.Token.ThrowIfCancellationRequested();
-                maxRRScenarioIndex++;
-
-                var scenarioThresholds = new EligibilityThresholds
-                {
-                    BuyOpportunityScore = baseThresholds.BuyOpportunityScore,
-                    BearRegimePenalty = baseThresholds.BearRegimePenalty,
-                    SidewaysRegimePenalty = baseThresholds.SidewaysRegimePenalty,
-                    MinVolumeSpike = baseThresholds.MinVolumeSpike,
-                    DefensiveMinVolumeSpike = baseThresholds.DefensiveMinVolumeSpike,
-                    MinResistanceDistance = baseThresholds.MinResistanceDistance,
-                    MinResistanceDistanceAtrMode = baseThresholds.MinResistanceDistanceAtrMode,
-                    MinResistanceDistancePartialExits = baseThresholds.MinResistanceDistancePartialExits,
-                    MinRiskReward = baseThresholds.MinRiskReward,
-                    MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
-                    MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
-                    MaxStopDistancePercent = baseThresholds.MaxStopDistancePercent,
-                    MaxRiskReward = maxRR,
-                    EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
-                    EnableMeanReversionScalp = baseThresholds.EnableMeanReversionScalp,
-                    EnableBollingerReversal = baseThresholds.EnableBollingerReversal,
-                    EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
-                    EnableVolatilityScoringPhaseB = baseThresholds.EnableVolatilityScoringPhaseB,
-                    EnableMultiTimeframe = baseThresholds.EnableMultiTimeframe
-                };
-
-                var summary = await backtester.RunAsync(
-                    symbols,
-                    start,
-                    end,
-                    profile,
-                    scenarioThresholds,
-                    riskMode: GetSelectedRiskMode(),
-                    onProgress: (message, percent) => Dispatcher.Invoke(() =>
-                    {
-                        double overallPercent = ((maxRRScenarioIndex - 1) * 100.0 + percent) / maxRiskRewardScenarios.Length;
-                        txtStatus.Text = $"[{maxRRScenarioIndex}/{maxRiskRewardScenarios.Length}] [RR≤{maxRR}] {message}";
-                        pbProgress.Value = overallPercent;
-                    }),
-                    cancellationToken: _cts.Token);
-
-                await SaveRunResultAsync(
-                    maxRR >= 999m ? "Sem teto" : $"RR ≤ {maxRR}",
-                    symbols, start, end, profile, scenarioThresholds, GetSelectedRiskMode(), null, summary);
-
-                results.Add(new ScenarioResult
-                {
-                    Label = maxRR >= 999m ? "Sem teto" : $"RR ≤ {maxRR}",
-                    TotalTrades = summary.TotalTrades,
-                    WinRate = summary.WinRate,
-                    TotalReturnPercent = summary.TotalReturnPercent,
-                    MaxDrawdownPercent = summary.MaxDrawdownPercent,
-                    ProfitFactor = summary.ProfitFactor,
-                    AvgRiskRewardAtEntry = summary.AvgRiskRewardAtEntry,
-                    BreakEvenWinRate = summary.BreakEvenWinRate,
-                    Edge = summary.Edge
-                });
-            }
-
-            dgComparison.ItemsSource = results;
-            dgComparison.Visibility = Visibility.Visible;
-            txtSummaryResult.Text = $"Comparação por teto de RR concluída — RR mínimo fixo em {baseThresholds.MinRiskReward}. " +
-                                     "Isso isola o efeito de excluir operações com RR muito alto (possível resistência mal-calibrada).";
-            txtStatus.Text = "Concluído.";
-        }
-        catch (OperationCanceledException)
-        {
-            txtStatus.Text = "Comparação cancelada.";
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Erro ao comparar cenários.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
-            txtStatus.Text = "";
-        }
-        finally
-        {
-            SetRunningState(false);
-        }
-    }
-
-    private async void BtnCompareNewPathsScenarios_Click(object sender, RoutedEventArgs e)
-    {
-        if (!TryGetDateRange(out var start, out var end))
-            return;
-
-        if (!TryBuildThresholds(out var baseThresholds))
-            return;
-
-        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
-
-        List<string>? symbols;
-        try
-        {
-            symbols = await ResolveSymbolsAsync();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Não foi possível obter a lista de moedas.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
-            txtStatus.Text = "";
-            return;
-        }
-
-        if (symbols == null)
-            return;
-
-        // Dois cenários: sem o caminho novo (baseline) e com o Caminho A habilitado.
-        var pathScenarios = new (string Label, bool EnableA)[]
-        {
-            ("Baseline (sem Caminho A)", false),
-            ("+ Caminho A (Repique)", true)
-        };
-
-        SetRunningState(true);
-        dgTrades.ItemsSource = null;
-        cnvEquityCurve.Children.Clear();
-        _lastDisplayedTrades = new List<BacktestTradeResult>();
-        txtSummaryResult.Text = "";
-        var results = new List<ScenarioResult>();
-        _cts = new CancellationTokenSource();
-
-        try
-        {
-            var backtester = new StrategyBacktester(_marketData, _assetAnalyzer);
-
-            int pathScenarioIndex = 0;
-            foreach (var scenario in pathScenarios)
-            {
-                _cts.Token.ThrowIfCancellationRequested();
-                pathScenarioIndex++;
-
-                var scenarioThresholds = new EligibilityThresholds
-                {
-                    BuyOpportunityScore = baseThresholds.BuyOpportunityScore,
-                    BearRegimePenalty = baseThresholds.BearRegimePenalty,
-                    SidewaysRegimePenalty = baseThresholds.SidewaysRegimePenalty,
-                    MinVolumeSpike = baseThresholds.MinVolumeSpike,
-                    DefensiveMinVolumeSpike = baseThresholds.DefensiveMinVolumeSpike,
-                    MinResistanceDistance = baseThresholds.MinResistanceDistance,
-                    MinResistanceDistanceAtrMode = baseThresholds.MinResistanceDistanceAtrMode,
-                    MinResistanceDistancePartialExits = baseThresholds.MinResistanceDistancePartialExits,
-                    MinRiskReward = baseThresholds.MinRiskReward,
-                    MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
-                    MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
-                    MaxStopDistancePercent = baseThresholds.MaxStopDistancePercent,
-                    MaxRiskReward = baseThresholds.MaxRiskReward,
-                    EnablePullbackBounce = scenario.EnableA,
-                    EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
-                    EnableVolatilityScoringPhaseB = baseThresholds.EnableVolatilityScoringPhaseB,
-                    EnableMultiTimeframe = baseThresholds.EnableMultiTimeframe
-                };
-
-                var summary = await backtester.RunAsync(
-                    symbols,
-                    start,
-                    end,
-                    profile,
-                    scenarioThresholds,
-                    riskMode: GetSelectedRiskMode(),
-                    onProgress: (message, percent) => Dispatcher.Invoke(() =>
-                    {
-                        double overallPercent = ((pathScenarioIndex - 1) * 100.0 + percent) / pathScenarios.Length;
-                        txtStatus.Text = $"[{pathScenarioIndex}/{pathScenarios.Length}] [{scenario.Label}] {message}";
-                        pbProgress.Value = overallPercent;
-                    }),
-                    cancellationToken: _cts.Token);
-
-                await SaveRunResultAsync(scenario.Label, symbols, start, end, profile, scenarioThresholds, GetSelectedRiskMode(), null, summary);
-
-                results.Add(new ScenarioResult
-                {
-                    Label = scenario.Label,
-                    TotalTrades = summary.TotalTrades,
-                    WinRate = summary.WinRate,
-                    TotalReturnPercent = summary.TotalReturnPercent,
-                    MaxDrawdownPercent = summary.MaxDrawdownPercent,
-                    ProfitFactor = summary.ProfitFactor,
-                    AvgRiskRewardAtEntry = summary.AvgRiskRewardAtEntry,
-                    BreakEvenWinRate = summary.BreakEvenWinRate,
-                    Edge = summary.Edge
-                });
-            }
-
-            dgComparison.ItemsSource = results;
-            dgComparison.Visibility = Visibility.Visible;
-            txtSummaryResult.Text = "Comparação concluída — compare o baseline (comportamento atual do app) " +
-                                     "com a adição do Caminho A (repique dentro de tendência de alta já estabelecida).";
-            txtStatus.Text = "Concluído.";
-        }
-        catch (OperationCanceledException)
-        {
-            txtStatus.Text = "Comparação cancelada.";
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Erro ao comparar cenários.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
             txtStatus.Text = "";
         }
         finally
@@ -1201,6 +607,26 @@ public partial class BacktestWindow : Window
     /// Delimitador ';' (não ',') pra abrir bem direto no Excel em configuração PT-BR,
     /// que costuma usar vírgula como separador decimal.
     /// </summary>
+    /// <summary>
+    /// Fase 3 do roadmap, Passo 2 — abre a análise por fator (bucket por RSI/ADX/Score/etc.)
+    /// em cima dos trades atualmente exibidos (_lastDisplayedTrades, mesmo dado que alimenta
+    /// dgTrades/CSV). Substitui o processo manual de exportar CSV e analisar via Python.
+    /// </summary>
+    private void BtnAnalyzeFactors_Click(object sender, RoutedEventArgs e)
+    {
+        if (_lastDisplayedTrades.Count == 0)
+        {
+            MessageBox.Show("Nenhuma operação pra analisar ainda — rode um teste primeiro.", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var window = new BacktestAnalyticsWindow(_lastDisplayedTrades)
+        {
+            Owner = this
+        };
+        window.Show();
+    }
+
     private void BtnExportTradesCsv_Click(object sender, RoutedEventArgs e)
     {
         if (_lastDisplayedTrades.Count == 0)
@@ -1313,6 +739,17 @@ public partial class BacktestWindow : Window
         var anchorEnd = dpEnd.SelectedDate ?? DateTime.Today;
         var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
 
+        // Scalp ainda não foi validado (ver ScannerService.cs: "NÃO VALIDADO — não expor no
+        // app ao vivo") — esse botão promete reproduzir a config real, então não faz sentido
+        // rodar num perfil que não tem config real pra reproduzir.
+        if (profile.Name == ScanProfile.Scalp.Name)
+        {
+            MessageBox.Show(
+                "O perfil Scalp ainda não foi validado (ver ScannerService.cs) — \"Rodar Padrão Scanner\" só cobre Swing e Intraday, os únicos perfis promovidos pro app ao vivo.",
+                "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         List<string>? symbols;
         try
         {
@@ -1328,8 +765,8 @@ public partial class BacktestWindow : Window
         if (symbols == null)
             return;
 
-        // Ignora os campos da tela — força a configuração padrão exata do app ao vivo.
-        var defaultThresholds = BuildDefaultThresholdsWithCurrentAtrDistance();
+        // Config validada REAL do perfil (Swing ou Intraday) — a mesma que roda ao vivo hoje.
+        var liveThresholds = BuildLiveValidatedThresholds(profile);
 
         SetRunningState(true);
         dgTrades.ItemsSource = null;
@@ -1360,8 +797,8 @@ public partial class BacktestWindow : Window
                     periodStart,
                     periodEnd,
                     profile,
-                    defaultThresholds,
-                    riskMode: GetSelectedRiskMode(),
+                    liveThresholds,
+                    riskMode: RiskCalculationMode.SwingWithPartialExits,
                     onProgress: (message, percent) => Dispatcher.Invoke(() =>
                     {
                         double overallPercent = ((periodStepIndex - 1) * 100.0 + percent) / periodCount;
@@ -1370,7 +807,7 @@ public partial class BacktestWindow : Window
                     }),
                     cancellationToken: _cts.Token);
 
-                await SaveRunResultAsync(label, symbols, periodStart, periodEnd, profile, defaultThresholds, GetSelectedRiskMode(), null, summary);
+                await SaveRunResultAsync(label, symbols, periodStart, periodEnd, profile, liveThresholds, RiskCalculationMode.SwingWithPartialExits, null, summary);
 
                 results.Add(new ScenarioResult
                 {
@@ -1393,7 +830,7 @@ public partial class BacktestWindow : Window
             // do que qualquer período isolado.
             var pooledSummary = StrategyBacktester.BuildSummary(allTrades, aggregatedDiagnostics, new List<string>());
             var spanStart = DateTime.SpecifyKind(anchorEnd.AddYears(-periodCount * periodYears), DateTimeKind.Utc);
-            await SaveRunResultAsync("TOTAL (todos os períodos juntos)", symbols, spanStart, anchorEnd, profile, defaultThresholds, GetSelectedRiskMode(), null, pooledSummary);
+            await SaveRunResultAsync("TOTAL (todos os períodos juntos)", symbols, spanStart, anchorEnd, profile, liveThresholds, RiskCalculationMode.SwingWithPartialExits, null, pooledSummary);
 
             results.Add(new ScenarioResult
             {
@@ -1416,8 +853,10 @@ public partial class BacktestWindow : Window
             DrawEquityCurve(orderedAllTrades);
 
             txtSummaryResult.Text =
-                $"Padrão Scanner: configuração PADRÃO do scanner ao vivo (Score≥{ScannerSettings.BuyOpportunityScore:F0}, " +
-                $"RR≥{ScannerSettings.MinRiskReward:F1} sem teto, sem caminhos alternativos), testada em {periodCount} período(s) " +
+                $"Padrão Scanner: configuração VALIDADA REAL do perfil {profile.Name} (a mesma que roda ao vivo hoje — " +
+                $"ScannerService.cs) — RR≥{liveThresholds.MinRiskReward:F1}, Dist. Resist. Pontuada≥{liveThresholds.MinResistanceDistancePartialExits:F0}%, " +
+                $"Caminho A={(liveThresholds.EnablePullbackBounce ? "ligado" : "desligado")}, Stop máx.={liveThresholds.MaxStopDistancePercent:F0}%, " +
+                $"modo Swing+Resistência Pontuada forçado (independente do rádio selecionado) — testada em {periodCount} período(s) " +
                 $"de {periodYears} ano(s) cada, não sobrepostos, com {symbols.Count} moedas. " +
                 "A linha \"TOTAL\" junta todas as operações de todos os períodos numa amostra só, pra dar mais poder estatístico à conclusão " +
                 "do que qualquer período isolado.";
@@ -1430,631 +869,6 @@ public partial class BacktestWindow : Window
         catch (Exception ex)
         {
             MessageBox.Show($"Erro ao rodar o teste definitivo.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
-            txtStatus.Text = "";
-        }
-        finally
-        {
-            SetRunningState(false);
-        }
-    }
-
-    private async void BtnCompareRiskMode_Click(object sender, RoutedEventArgs e)
-    {
-        if (!int.TryParse(txtPeriodYears.Text, out int periodYears) || periodYears <= 0)
-        {
-            MessageBox.Show("Informe um número válido de anos por período (ex.: 1).", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        if (!int.TryParse(txtPeriodCount.Text, out int periodCount) || periodCount <= 0)
-        {
-            MessageBox.Show("Informe uma quantidade válida de períodos (ex.: 4).", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        var anchorEnd = dpEnd.SelectedDate ?? DateTime.Today;
-        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
-
-        List<string>? symbols;
-        try
-        {
-            symbols = await ResolveSymbolsAsync();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Não foi possível obter a lista de moedas.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
-            txtStatus.Text = "";
-            return;
-        }
-
-        if (symbols == null)
-            return;
-
-        var defaultThresholds = BuildDefaultThresholdsWithCurrentAtrDistance();
-
-        var modesToTest = new[]
-        {
-            (Mode: RiskCalculationMode.SwingBased, Label: "Swing"),
-            (Mode: RiskCalculationMode.AtrBased, Label: "ATR")
-        };
-
-        SetRunningState(true);
-        dgTrades.ItemsSource = null;
-        cnvEquityCurve.Children.Clear();
-        _lastDisplayedTrades = new List<BacktestTradeResult>();
-        txtSummaryResult.Text = "";
-        var results = new List<ScenarioResult>();
-        _cts = new CancellationTokenSource();
-
-        try
-        {
-            var backtester = new StrategyBacktester(_marketData, _assetAnalyzer);
-
-            int totalSteps = modesToTest.Length * periodCount;
-            int overallStepIndex = 0;
-
-            foreach (var modeInfo in modesToTest)
-            {
-                var allTrades = new List<BacktestTradeResult>();
-                var aggregatedDiagnostics = new FilterDiagnostics();
-
-                for (int i = periodCount; i >= 1; i--)
-                {
-                    _cts.Token.ThrowIfCancellationRequested();
-                    overallStepIndex++;
-
-                    var periodEnd = DateTime.SpecifyKind(anchorEnd.AddYears(-(i - 1) * periodYears), DateTimeKind.Utc);
-                    var periodStart = DateTime.SpecifyKind(anchorEnd.AddYears(-i * periodYears), DateTimeKind.Utc);
-                    string periodLabel = $"[{modeInfo.Label}] {periodStart:dd/MM/yy} – {periodEnd:dd/MM/yy}";
-
-                    var summary = await backtester.RunAsync(
-                        symbols,
-                        periodStart,
-                        periodEnd,
-                        profile,
-                        defaultThresholds,
-                        riskMode: modeInfo.Mode,
-                        onProgress: (message, percent) => Dispatcher.Invoke(() =>
-                        {
-                            double overallPercent = ((overallStepIndex - 1) * 100.0 + percent) / totalSteps;
-                            txtStatus.Text = $"[{overallStepIndex}/{totalSteps}] {periodLabel} {message}";
-                            pbProgress.Value = overallPercent;
-                        }),
-                        cancellationToken: _cts.Token);
-
-                    await SaveRunResultAsync($"[{modeInfo.Label}] {periodStart:dd/MM/yy}-{periodEnd:dd/MM/yy}",
-                        symbols, periodStart, periodEnd, profile, defaultThresholds, modeInfo.Mode, null, summary);
-
-                    allTrades.AddRange(summary.Trades);
-                    StrategyBacktester.MergeDiagnostics(aggregatedDiagnostics, summary.Diagnostics);
-                }
-
-                // Só a linha TOTAL de cada modo entra na comparação — os períodos individuais
-                // ficariam repetidos demais (2 modos x N períodos); o que importa aqui é o
-                // agregado de cada modo, pra comparação direta.
-                var pooledSummary = StrategyBacktester.BuildSummary(allTrades, aggregatedDiagnostics, new List<string>());
-                var spanStart = DateTime.SpecifyKind(anchorEnd.AddYears(-periodCount * periodYears), DateTimeKind.Utc);
-                await SaveRunResultAsync($"{modeInfo.Label} — TOTAL ({periodCount} período(s))",
-                    symbols, spanStart, anchorEnd, profile, defaultThresholds, modeInfo.Mode, null, pooledSummary);
-
-                results.Add(new ScenarioResult
-                {
-                    Label = $"{modeInfo.Label} — TOTAL ({periodCount} período(s))",
-                    TotalTrades = pooledSummary.TotalTrades,
-                    WinRate = pooledSummary.WinRate,
-                    TotalReturnPercent = pooledSummary.TotalReturnPercent,
-                    MaxDrawdownPercent = pooledSummary.MaxDrawdownPercent,
-                    ProfitFactor = pooledSummary.ProfitFactor,
-                    AvgRiskRewardAtEntry = pooledSummary.AvgRiskRewardAtEntry,
-                    BreakEvenWinRate = pooledSummary.BreakEvenWinRate,
-                    Edge = pooledSummary.Edge
-                });
-
-                if (modeInfo.Mode == GetSelectedRiskMode())
-                {
-                    var orderedModeTrades = allTrades.OrderBy(t => t.ExitTime).ToList();
-                    dgTrades.ItemsSource = orderedModeTrades;
-                    DrawEquityCurve(orderedModeTrades);
-                }
-            }
-
-            dgComparison.ItemsSource = results;
-            dgComparison.Visibility = Visibility.Visible;
-            txtSummaryResult.Text =
-                $"Comparação Swing vs ATR concluída — mesmos {periodCount} período(s) de {periodYears} ano(s), mesmas {symbols.Count} moedas, " +
-                "mesma configuração padrão de elegibilidade nos dois casos. Só muda como o alvo (Take Profit) e o stop (Stop Loss) são calculados: " +
-                "Swing usa a máxima/mínima dos últimos 50 candles; ATR usa múltiplos da volatilidade real de cada ativo " +
-                $"(stop={ScannerSettings.AtrStopMultiplier}x ATR, alvo={ScannerSettings.AtrTargetMultiplier}x ATR). " +
-                "A tabela de operações abaixo mostra o modo atualmente selecionado nos rádios \"Cálculo de Risco\" acima.";
-            txtStatus.Text = "Concluído.";
-        }
-        catch (OperationCanceledException)
-        {
-            txtStatus.Text = "Comparação cancelada.";
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Erro ao comparar modos de risco.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
-            txtStatus.Text = "";
-        }
-        finally
-        {
-            SetRunningState(false);
-        }
-    }
-
-    private async void BtnCompareAtrDistanceScenarios_Click(object sender, RoutedEventArgs e)
-    {
-        if (!TryGetDateRange(out var start, out var end))
-            return;
-
-        if (!TryBuildThresholds(out var baseThresholds))
-            return;
-
-        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
-
-        List<string>? symbols;
-        try
-        {
-            symbols = await ResolveSymbolsAsync();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Não foi possível obter a lista de moedas.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
-            txtStatus.Text = "";
-            return;
-        }
-
-        if (symbols == null)
-            return;
-
-        // Esse comparador só faz sentido no modo ATR — força o modo independente do rádio,
-        // já que estamos testando especificamente esse limiar.
-        decimal[] distanceScenarios = { 5m, 8m, 10m, 15m, 20m };
-
-        SetRunningState(true);
-        dgTrades.ItemsSource = null;
-        cnvEquityCurve.Children.Clear();
-        _lastDisplayedTrades = new List<BacktestTradeResult>();
-        txtSummaryResult.Text = "";
-        var results = new List<ScenarioResult>();
-        _cts = new CancellationTokenSource();
-
-        try
-        {
-            var backtester = new StrategyBacktester(_marketData, _assetAnalyzer);
-
-            int atrDistanceScenarioIndex = 0;
-            foreach (var distance in distanceScenarios)
-            {
-                _cts.Token.ThrowIfCancellationRequested();
-                atrDistanceScenarioIndex++;
-
-                var scenarioThresholds = new EligibilityThresholds
-                {
-                    BuyOpportunityScore = baseThresholds.BuyOpportunityScore,
-                    BearRegimePenalty = baseThresholds.BearRegimePenalty,
-                    SidewaysRegimePenalty = baseThresholds.SidewaysRegimePenalty,
-                    MinVolumeSpike = baseThresholds.MinVolumeSpike,
-                    DefensiveMinVolumeSpike = baseThresholds.DefensiveMinVolumeSpike,
-                    MinResistanceDistance = baseThresholds.MinResistanceDistance,
-                    MinResistanceDistanceAtrMode = distance,
-                    MinResistanceDistancePartialExits = baseThresholds.MinResistanceDistancePartialExits,
-                    MinRiskReward = baseThresholds.MinRiskReward,
-                    MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
-                    MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
-                    MaxStopDistancePercent = baseThresholds.MaxStopDistancePercent,
-                    MaxRiskReward = baseThresholds.MaxRiskReward,
-                    EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
-                    EnableMeanReversionScalp = baseThresholds.EnableMeanReversionScalp,
-                    EnableBollingerReversal = baseThresholds.EnableBollingerReversal,
-                    EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
-                    EnableVolatilityScoringPhaseB = baseThresholds.EnableVolatilityScoringPhaseB,
-                    EnableMultiTimeframe = baseThresholds.EnableMultiTimeframe
-                };
-
-                var summary = await backtester.RunAsync(
-                    symbols,
-                    start,
-                    end,
-                    profile,
-                    scenarioThresholds,
-                    riskMode: RiskCalculationMode.AtrBased,
-                    onProgress: (message, percent) => Dispatcher.Invoke(() =>
-                    {
-                        double overallPercent = ((atrDistanceScenarioIndex - 1) * 100.0 + percent) / distanceScenarios.Length;
-                        txtStatus.Text = $"[{atrDistanceScenarioIndex}/{distanceScenarios.Length}] [Dist.ATR≥{distance}%] {message}";
-                        pbProgress.Value = overallPercent;
-                    }),
-                    cancellationToken: _cts.Token);
-
-                await SaveRunResultAsync($"Dist. ATR ≥ {distance}%", symbols, start, end, profile, scenarioThresholds, RiskCalculationMode.AtrBased, null, summary);
-
-                results.Add(new ScenarioResult
-                {
-                    Label = $"Dist. ATR ≥ {distance}%",
-                    TotalTrades = summary.TotalTrades,
-                    WinRate = summary.WinRate,
-                    TotalReturnPercent = summary.TotalReturnPercent,
-                    MaxDrawdownPercent = summary.MaxDrawdownPercent,
-                    ProfitFactor = summary.ProfitFactor,
-                    AvgRiskRewardAtEntry = summary.AvgRiskRewardAtEntry,
-                    BreakEvenWinRate = summary.BreakEvenWinRate,
-                    Edge = summary.Edge
-                });
-            }
-
-            dgComparison.ItemsSource = results;
-            dgComparison.Visibility = Visibility.Visible;
-            txtSummaryResult.Text = "Comparação de distância mínima de resistência (modo ATR) concluída — modo ATR forçado " +
-                                     "independente do rádio selecionado, já que esse teste só faz sentido nesse modo. " +
-                                     "Os outros limiares ficaram fixos nos valores informados acima.";
-            txtStatus.Text = "Concluído.";
-        }
-        catch (OperationCanceledException)
-        {
-            txtStatus.Text = "Comparação cancelada.";
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Erro ao comparar cenários.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
-            txtStatus.Text = "";
-        }
-        finally
-        {
-            SetRunningState(false);
-        }
-    }
-
-    private async void BtnComparePartialExitsDistanceScenarios_Click(object sender, RoutedEventArgs e)
-    {
-        if (!TryGetDateRange(out var start, out var end))
-            return;
-
-        if (!TryBuildThresholds(out var baseThresholds))
-            return;
-
-        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
-
-        List<string>? symbols;
-        try
-        {
-            symbols = await ResolveSymbolsAsync();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Não foi possível obter a lista de moedas.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
-            txtStatus.Text = "";
-            return;
-        }
-
-        if (symbols == null)
-            return;
-
-        // Esse comparador só faz sentido no modo Swing+Resistência Pontuada (4.1) — força o
-        // modo independente do rádio. Valores menores que o comparador de ATR, já que a
-        // resistência pontuada busca o nível QUALIFICADO mais próximo, não o pico mais distante.
-        decimal[] distanceScenarios = { 1m, 2m, 3m, 4m, 6m, 8m };
-
-        SetRunningState(true);
-        dgTrades.ItemsSource = null;
-        cnvEquityCurve.Children.Clear();
-        _lastDisplayedTrades = new List<BacktestTradeResult>();
-        txtSummaryResult.Text = "";
-        var results = new List<ScenarioResult>();
-        _cts = new CancellationTokenSource();
-
-        try
-        {
-            var backtester = new StrategyBacktester(_marketData, _assetAnalyzer);
-
-            int partialExitsDistanceScenarioIndex = 0;
-            foreach (var distance in distanceScenarios)
-            {
-                _cts.Token.ThrowIfCancellationRequested();
-                partialExitsDistanceScenarioIndex++;
-
-                var scenarioThresholds = new EligibilityThresholds
-                {
-                    BuyOpportunityScore = baseThresholds.BuyOpportunityScore,
-                    BearRegimePenalty = baseThresholds.BearRegimePenalty,
-                    SidewaysRegimePenalty = baseThresholds.SidewaysRegimePenalty,
-                    MinVolumeSpike = baseThresholds.MinVolumeSpike,
-                    DefensiveMinVolumeSpike = baseThresholds.DefensiveMinVolumeSpike,
-                    MinResistanceDistance = baseThresholds.MinResistanceDistance,
-                    MinResistanceDistanceAtrMode = baseThresholds.MinResistanceDistanceAtrMode,
-                    MinResistanceDistancePartialExits = distance,
-                    MinRiskReward = baseThresholds.MinRiskReward,
-                    MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
-                    MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
-                    MaxStopDistancePercent = baseThresholds.MaxStopDistancePercent,
-                    MaxRiskReward = baseThresholds.MaxRiskReward,
-                    EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
-                    EnableMeanReversionScalp = baseThresholds.EnableMeanReversionScalp,
-                    EnableBollingerReversal = baseThresholds.EnableBollingerReversal,
-                    EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
-                    EnableVolatilityScoringPhaseB = baseThresholds.EnableVolatilityScoringPhaseB,
-                    EnableMultiTimeframe = baseThresholds.EnableMultiTimeframe
-                };
-
-                var summary = await backtester.RunAsync(
-                    symbols,
-                    start,
-                    end,
-                    profile,
-                    scenarioThresholds,
-                    riskMode: RiskCalculationMode.SwingWithPartialExits,
-                    onProgress: (message, percent) => Dispatcher.Invoke(() =>
-                    {
-                        double overallPercent = ((partialExitsDistanceScenarioIndex - 1) * 100.0 + percent) / distanceScenarios.Length;
-                        txtStatus.Text = $"[{partialExitsDistanceScenarioIndex}/{distanceScenarios.Length}] [Dist.Pontuada≥{distance}%] {message}";
-                        pbProgress.Value = overallPercent;
-                    }),
-                    cancellationToken: _cts.Token);
-
-                await SaveRunResultAsync($"Dist. Pontuada ≥ {distance}%", symbols, start, end, profile, scenarioThresholds, RiskCalculationMode.SwingWithPartialExits, null, summary);
-
-                results.Add(new ScenarioResult
-                {
-                    Label = $"Dist. Pontuada ≥ {distance}%",
-                    TotalTrades = summary.TotalTrades,
-                    WinRate = summary.WinRate,
-                    TotalReturnPercent = summary.TotalReturnPercent,
-                    MaxDrawdownPercent = summary.MaxDrawdownPercent,
-                    ProfitFactor = summary.ProfitFactor,
-                    AvgRiskRewardAtEntry = summary.AvgRiskRewardAtEntry,
-                    BreakEvenWinRate = summary.BreakEvenWinRate,
-                    Edge = summary.Edge
-                });
-            }
-
-            dgComparison.ItemsSource = results;
-            dgComparison.Visibility = Visibility.Visible;
-            txtSummaryResult.Text = "Comparação de distância mínima de resistência (modo Pontuada) concluída — modo " +
-                                     "Swing+Resistência Pontuada forçado independente do rádio selecionado. " +
-                                     "Os outros limiares ficaram fixos nos valores informados acima.";
-            txtStatus.Text = "Concluído.";
-        }
-        catch (OperationCanceledException)
-        {
-            txtStatus.Text = "Comparação cancelada.";
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Erro ao comparar cenários.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
-            txtStatus.Text = "";
-        }
-        finally
-        {
-            SetRunningState(false);
-        }
-    }
-
-    private async void BtnComparePartialExitsRRScenarios_Click(object sender, RoutedEventArgs e)
-    {
-        if (!TryGetDateRange(out var start, out var end))
-            return;
-
-        if (!TryBuildThresholds(out var baseThresholds))
-            return;
-
-        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
-
-        List<string>? symbols;
-        try
-        {
-            symbols = await ResolveSymbolsAsync();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Não foi possível obter a lista de moedas.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
-            txtStatus.Text = "";
-            return;
-        }
-
-        if (symbols == null)
-            return;
-
-        // Esse comparador só faz sentido no modo Swing+Resistência Pontuada — força o modo
-        // independente do rádio. A distância de resistência fica fixa no valor já configurado
-        // na tela (campo "Dist. Resist. mín. Pontuada %"), variando só o RR mínimo.
-        decimal[] rrScenarios = { 1.5m, 2.0m, 2.5m, 3.0m, 3.5m };
-
-        SetRunningState(true);
-        dgTrades.ItemsSource = null;
-        cnvEquityCurve.Children.Clear();
-        _lastDisplayedTrades = new List<BacktestTradeResult>();
-        txtSummaryResult.Text = "";
-        var results = new List<ScenarioResult>();
-        _cts = new CancellationTokenSource();
-
-        try
-        {
-            var backtester = new StrategyBacktester(_marketData, _assetAnalyzer);
-
-            int partialExitsRRScenarioIndex = 0;
-            foreach (var rr in rrScenarios)
-            {
-                _cts.Token.ThrowIfCancellationRequested();
-                partialExitsRRScenarioIndex++;
-
-                var scenarioThresholds = new EligibilityThresholds
-                {
-                    BuyOpportunityScore = baseThresholds.BuyOpportunityScore,
-                    BearRegimePenalty = baseThresholds.BearRegimePenalty,
-                    SidewaysRegimePenalty = baseThresholds.SidewaysRegimePenalty,
-                    MinVolumeSpike = baseThresholds.MinVolumeSpike,
-                    DefensiveMinVolumeSpike = baseThresholds.DefensiveMinVolumeSpike,
-                    MinResistanceDistance = baseThresholds.MinResistanceDistance,
-                    MinResistanceDistanceAtrMode = baseThresholds.MinResistanceDistanceAtrMode,
-                    MinResistanceDistancePartialExits = baseThresholds.MinResistanceDistancePartialExits,
-                    MinRiskReward = rr,
-                    MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
-                    MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
-                    MaxStopDistancePercent = baseThresholds.MaxStopDistancePercent,
-                    MaxRiskReward = baseThresholds.MaxRiskReward,
-                    EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
-                    EnableMeanReversionScalp = baseThresholds.EnableMeanReversionScalp,
-                    EnableBollingerReversal = baseThresholds.EnableBollingerReversal,
-                    EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
-                    EnableVolatilityScoringPhaseB = baseThresholds.EnableVolatilityScoringPhaseB,
-                    EnableMultiTimeframe = baseThresholds.EnableMultiTimeframe
-                };
-
-                var summary = await backtester.RunAsync(
-                    symbols,
-                    start,
-                    end,
-                    profile,
-                    scenarioThresholds,
-                    riskMode: RiskCalculationMode.SwingWithPartialExits,
-                    onProgress: (message, percent) => Dispatcher.Invoke(() =>
-                    {
-                        double overallPercent = ((partialExitsRRScenarioIndex - 1) * 100.0 + percent) / rrScenarios.Length;
-                        txtStatus.Text = $"[{partialExitsRRScenarioIndex}/{rrScenarios.Length}] [RR≥{rr}] {message}";
-                        pbProgress.Value = overallPercent;
-                    }),
-                    cancellationToken: _cts.Token);
-
-                await SaveRunResultAsync($"RR ≥ {rr} (Pontuada)", symbols, start, end, profile, scenarioThresholds, RiskCalculationMode.SwingWithPartialExits, null, summary);
-
-                results.Add(new ScenarioResult
-                {
-                    Label = $"RR ≥ {rr} (Pontuada)",
-                    TotalTrades = summary.TotalTrades,
-                    WinRate = summary.WinRate,
-                    TotalReturnPercent = summary.TotalReturnPercent,
-                    MaxDrawdownPercent = summary.MaxDrawdownPercent,
-                    ProfitFactor = summary.ProfitFactor,
-                    AvgRiskRewardAtEntry = summary.AvgRiskRewardAtEntry,
-                    BreakEvenWinRate = summary.BreakEvenWinRate,
-                    Edge = summary.Edge
-                });
-            }
-
-            dgComparison.ItemsSource = results;
-            dgComparison.Visibility = Visibility.Visible;
-            txtSummaryResult.Text = "Comparação de RR mínimo (modo Pontuada) concluída — modo Swing+Resistência Pontuada " +
-                                     "forçado independente do rádio selecionado. A distância de resistência ficou fixa no " +
-                                     "valor configurado na tela; os outros limiares também ficaram fixos.";
-            txtStatus.Text = "Concluído.";
-        }
-        catch (OperationCanceledException)
-        {
-            txtStatus.Text = "Comparação cancelada.";
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Erro ao comparar cenários.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
-            txtStatus.Text = "";
-        }
-        finally
-        {
-            SetRunningState(false);
-        }
-    }
-
-    private async void BtnComparePartialExitsFractionsScenarios_Click(object sender, RoutedEventArgs e)
-    {
-        if (!TryGetDateRange(out var start, out var end))
-            return;
-
-        if (!TryBuildThresholds(out var baseThresholds))
-            return;
-
-        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
-
-        List<string>? symbols;
-        try
-        {
-            symbols = await ResolveSymbolsAsync();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Não foi possível obter a lista de moedas.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
-            txtStatus.Text = "";
-            return;
-        }
-
-        if (symbols == null)
-            return;
-
-        // Esse comparador só faz sentido no modo Swing+Resistência Pontuada — força o modo
-        // independente do rádio. Testa as 3 configurações propostas: realizar pouco cedo
-        // (20/30/50), equilibrado (30/30/40), ou realizar bastante cedo (50/30/20) — a
-        // fração de TP3 é sempre o que sobra (não precisa ser informada à parte).
-        var fractionScenarios = new (string Label, decimal Tp1, decimal Tp2)[]
-        {
-            ("20/30/50", 0.20m, 0.30m),
-            ("30/30/40", 0.30m, 0.30m),
-            ("40/40/20 (padrão)", 0.40m, 0.40m),
-            ("50/30/20", 0.50m, 0.30m)
-        };
-
-        SetRunningState(true);
-        dgTrades.ItemsSource = null;
-        cnvEquityCurve.Children.Clear();
-        _lastDisplayedTrades = new List<BacktestTradeResult>();
-        txtSummaryResult.Text = "";
-        var results = new List<ScenarioResult>();
-        _cts = new CancellationTokenSource();
-
-        try
-        {
-            var backtester = new StrategyBacktester(_marketData, _assetAnalyzer);
-
-            int fractionScenarioIndex = 0;
-            foreach (var scenario in fractionScenarios)
-            {
-                _cts.Token.ThrowIfCancellationRequested();
-                fractionScenarioIndex++;
-
-                var summary = await backtester.RunAsync(
-                    symbols,
-                    start,
-                    end,
-                    profile,
-                    baseThresholds,
-                    riskMode: RiskCalculationMode.SwingWithPartialExits,
-                    partialExitFractions: (scenario.Tp1, scenario.Tp2),
-                    onProgress: (message, percent) => Dispatcher.Invoke(() =>
-                    {
-                        double overallPercent = ((fractionScenarioIndex - 1) * 100.0 + percent) / fractionScenarios.Length;
-                        txtStatus.Text = $"[{fractionScenarioIndex}/{fractionScenarios.Length}] [Frações {scenario.Label}] {message}";
-                        pbProgress.Value = overallPercent;
-                    }),
-                    cancellationToken: _cts.Token);
-
-                await SaveRunResultAsync($"Frações {scenario.Label} (Pontuada)", symbols, start, end, profile, baseThresholds,
-                    RiskCalculationMode.SwingWithPartialExits, null, summary, scenario.Tp1, scenario.Tp2);
-
-                results.Add(new ScenarioResult
-                {
-                    Label = $"Frações {scenario.Label}",
-                    TotalTrades = summary.TotalTrades,
-                    WinRate = summary.WinRate,
-                    TotalReturnPercent = summary.TotalReturnPercent,
-                    MaxDrawdownPercent = summary.MaxDrawdownPercent,
-                    ProfitFactor = summary.ProfitFactor,
-                    AvgRiskRewardAtEntry = summary.AvgRiskRewardAtEntry,
-                    BreakEvenWinRate = summary.BreakEvenWinRate,
-                    Edge = summary.Edge
-                });
-            }
-
-            dgComparison.ItemsSource = results;
-            dgComparison.Visibility = Visibility.Visible;
-            txtSummaryResult.Text = "Comparação de frações de saída parcial concluída — modo Swing+Resistência Pontuada " +
-                                     "forçado independente do rádio selecionado. Os outros limiares ficaram fixos nos valores informados acima.";
-            txtStatus.Text = "Concluído.";
-        }
-        catch (OperationCanceledException)
-        {
-            txtStatus.Text = "Comparação cancelada.";
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Erro ao comparar cenários.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
             txtStatus.Text = "";
         }
         finally
@@ -2148,126 +962,12 @@ public partial class BacktestWindow : Window
         cnvEquityCurve.Children.Add(label);
     }
 
-    private async void BtnCompareTimeoutScenarios_Click(object sender, RoutedEventArgs e)
-    {
-        if (!TryGetDateRange(out var start, out var end))
-            return;
-
-        if (!TryBuildThresholds(out var baseThresholds))
-            return;
-
-        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
-
-        List<string>? symbols;
-        try
-        {
-            symbols = await ResolveSymbolsAsync();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Não foi possível obter a lista de moedas.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
-            txtStatus.Text = "";
-            return;
-        }
-
-        if (symbols == null)
-            return;
-
-        // Testa frações e múltiplos do timeout padrão do perfil selecionado —
-        // funciona igual pra Intraday (24h) ou Swing (240h), já que é relativo.
-        decimal[] multipliers = { 0.5m, 0.75m, 1.0m, 1.5m, 2.0m };
-        var riskMode = GetSelectedRiskMode();
-
-        SetRunningState(true);
-        dgTrades.ItemsSource = null;
-        cnvEquityCurve.Children.Clear();
-        _lastDisplayedTrades = new List<BacktestTradeResult>();
-        txtSummaryResult.Text = "";
-        var results = new List<ScenarioResult>();
-        _cts = new CancellationTokenSource();
-
-        try
-        {
-            var backtester = new StrategyBacktester(_marketData, _assetAnalyzer);
-
-            int timeoutScenarioIndex = 0;
-            foreach (var multiplier in multipliers)
-            {
-                _cts.Token.ThrowIfCancellationRequested();
-                timeoutScenarioIndex++;
-
-                int hours = (int)(profile.EvaluationHours * multiplier);
-
-                var summary = await backtester.RunAsync(
-                    symbols,
-                    start,
-                    end,
-                    profile,
-                    baseThresholds,
-                    riskMode: riskMode,
-                    evaluationHoursOverride: hours,
-                    onProgress: (message, percent) => Dispatcher.Invoke(() =>
-                    {
-                        double overallPercent = ((timeoutScenarioIndex - 1) * 100.0 + percent) / multipliers.Length;
-                        txtStatus.Text = $"[{timeoutScenarioIndex}/{multipliers.Length}] [Timeout={hours}h] {message}";
-                        pbProgress.Value = overallPercent;
-                    }),
-                    cancellationToken: _cts.Token);
-
-                await SaveRunResultAsync($"Timeout = {hours}h ({multiplier:F2}x)", symbols, start, end, profile, baseThresholds, riskMode, hours, summary);
-
-                results.Add(new ScenarioResult
-                {
-                    Label = $"Timeout = {hours}h ({multiplier:F2}x padrão)",
-                    TotalTrades = summary.TotalTrades,
-                    WinRate = summary.WinRate,
-                    TotalReturnPercent = summary.TotalReturnPercent,
-                    MaxDrawdownPercent = summary.MaxDrawdownPercent,
-                    ProfitFactor = summary.ProfitFactor,
-                    AvgRiskRewardAtEntry = summary.AvgRiskRewardAtEntry,
-                    BreakEvenWinRate = summary.BreakEvenWinRate,
-                    Edge = summary.Edge
-                });
-            }
-
-            dgComparison.ItemsSource = results;
-            dgComparison.Visibility = Visibility.Visible;
-            txtSummaryResult.Text = $"Comparação de timeout concluída — perfil {profile.Name} (padrão: {profile.EvaluationHours}h), " +
-                                     $"modo de risco {(riskMode == RiskCalculationMode.AtrBased ? "ATR" : "Swing")}. " +
-                                     "Os outros limiares ficaram fixos nos valores informados acima.";
-            txtStatus.Text = "Concluído.";
-        }
-        catch (OperationCanceledException)
-        {
-            txtStatus.Text = "Comparação cancelada.";
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Erro ao comparar cenários.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
-            txtStatus.Text = "";
-        }
-        finally
-        {
-            SetRunningState(false);
-        }
-    }
-
     private void SetRunningState(bool isRunning)
     {
         btnRun.IsEnabled = !isRunning;
-        btnCompare.IsEnabled = !isRunning;
-        btnCompareStop.IsEnabled = !isRunning;
-        btnCompareMaxStop.IsEnabled = !isRunning;
-        btnCompareMaxRR.IsEnabled = !isRunning;
-        btnCompareNewPaths.IsEnabled = !isRunning;
         btnComparePeriods.IsEnabled = !isRunning;
-        btnCompareRiskMode.IsEnabled = !isRunning;
-        btnCompareAtrDistance.IsEnabled = !isRunning;
-        btnComparePartialExitsDistance.IsEnabled = !isRunning;
-        btnComparePartialExitsRR.IsEnabled = !isRunning;
-        btnComparePartialExitsFractions.IsEnabled = !isRunning;
-        btnCompareTimeout.IsEnabled = !isRunning;
         btnExportTrades.IsEnabled = !isRunning;
+        btnAnalyzeFactors.IsEnabled = !isRunning;
         btnCancel.IsEnabled = isRunning;
         pbProgress.Visibility = isRunning ? Visibility.Visible : Visibility.Collapsed;
 

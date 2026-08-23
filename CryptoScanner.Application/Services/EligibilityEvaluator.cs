@@ -62,7 +62,12 @@ public static class EligibilityEvaluator
         bool passesMeanReversionSetup = thresholds.EnableMeanReversionScalp && asset.Setup.IsMeanReversionSetup;
         bool passesBollingerReversal = thresholds.EnableBollingerReversal && asset.Setup.IsBollingerReversalSetup;
 
-        bool failedBreakout = !(passesClassicPaths || passesPullbackBounce || passesMeanReversionSetup || passesBollingerReversal);
+        // Caminho de RSI baixo (Fase 3, 16/08/2026) — mais uma opção no OR, atrás do
+        // próprio Setup.IsLowRsiSetup já ter checado tendência+RSI+candle. Ver comentário
+        // completo em SetupAnalysis.cs.
+        bool passesLowRsiPath = thresholds.EnableLowRsiPath && asset.Setup.IsLowRsiSetup;
+
+        bool failedBreakout = !(passesClassicPaths || passesPullbackBounce || passesMeanReversionSetup || passesBollingerReversal || passesLowRsiPath);
 
         bool failedConsolidation = defensiveMode ? false : !asset.Setup.IsConsolidating;
 

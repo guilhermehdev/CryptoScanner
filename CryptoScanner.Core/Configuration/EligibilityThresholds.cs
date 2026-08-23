@@ -47,6 +47,11 @@ public sealed class EligibilityThresholds
     // acima — não altera nenhum resultado já validado até ser explicitamente habilitado.
     public bool RequireBearishMomentumConfirmed { get; init; } = false;
 
+    // Caminho de RSI baixo (Fase 3, 16/08/2026) — ver comentário completo em
+    // SetupAnalysis.IsLowRsiSetup. Mesmo padrão não-obrigatório dos outros experimentais
+    // acima — default false, só entra no OR de elegibilidade quando explicitamente ligado.
+    public bool EnableLowRsiPath { get; init; } = false;
+
     public static readonly EligibilityThresholds Default = new()
     {
         BuyOpportunityScore = ScannerSettings.BuyOpportunityScore,

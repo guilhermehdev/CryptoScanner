@@ -22,4 +22,15 @@ public sealed class SetupAnalysis
     // zona de gatilho, com rejeição confirmada e filtro contra "andar na banda" (momentum
     // de alta forte demais pra brigar). Ver AssetAnalyzer.cs pros detalhes de cada condição.
     public bool IsBollingerReversalSetup { get; init; }
+
+    // Caminho de RSI baixo (Fase 3 do roadmap, 16/08/2026) — descoberto via análise por
+    // fator numa amostra de 3.885 trades (limiares soltos, pra exploração): RSI<45 na
+    // entrada teve Win Rate 64-79% nos trades que saíram por TIMEOUT (medida mais limpa,
+    // não depende de bater TP/SL num preço exato), contra 32-45% pra RSI≥55 — checado
+    // também que o lado "RSI alto prejudica" é robusto a outlier (retorno total negativo
+    // mesmo tirando os 5 melhores trades da faixa). Caminho ADICIONAL (OR) — não substitui
+    // nenhum dos outros, só abre mais uma porta de entrada pra candidatos com RSI favorável
+    // que não bateriam rompimento clássico. Long apenas, atrás de EnableLowRsiPath
+    // (desligado por padrão).
+    public bool IsLowRsiSetup { get; init; }
 }

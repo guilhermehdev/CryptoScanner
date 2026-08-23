@@ -314,6 +314,16 @@ public sealed class AssetAnalyzer
             }
         }
 
+        // Caminho de RSI baixo (Fase 3, 16/08/2026) — ver comentário completo em
+        // SetupAnalysis.cs. Mesmo pré-requisito de tendência do Caminho A (structure.
+        // IsUptrend), mais RSI<45 e candle não fortemente vendedor (evita entrar em cima
+        // de uma vela de rejeição clara só porque o RSI está baixo).
+        bool isLowRsiSetup =
+            direction == TradeDirection.Long &&
+            structure.IsUptrend &&
+            trend.Rsi < 45m &&
+            !candle.IsStrongBearish;
+
         return new SetupAnalysis
         {
             Score = result.Score,
@@ -326,7 +336,8 @@ public sealed class AssetAnalyzer
             SwingUsageAtr = result.SwingUsageAtr,
             IsPullbackBounce = isPullbackBounce,
             IsMeanReversionSetup = isMeanReversionSetup,
-            IsBollingerReversalSetup = isBollingerReversalSetup
+            IsBollingerReversalSetup = isBollingerReversalSetup,
+            IsLowRsiSetup = isLowRsiSetup
         };
     }
 
