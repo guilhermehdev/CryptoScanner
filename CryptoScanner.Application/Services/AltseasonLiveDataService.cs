@@ -28,10 +28,14 @@ public sealed class AltseasonLiveDataService
         LoadState();
     }
 
+    public DateTime? ReferenceTimestampUtc => _previous?.TimestampUtc;
+
     public async Task<(AltseasonSnapshot Snapshot, AltseasonScore Score)> GetAsync(CancellationToken ct = default)
     {
-        var global = await _http.GetFromJsonAsync<GlobalResponse>("https://api.coingecko.com/api/v3/global", ct)
+        var global = await _http.GetFromJsonAsync<GlobalResponse>(
+            "https://api.coingecko.com/api/v3/global", ct)
             ?? throw new InvalidOperationException("CoinGecko não retornou os dados globais.");
+
         var markets = await _http.GetFromJsonAsync<List<CoinMarket>>(
             "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false&price_change_percentage=7d,30d", ct) ?? [];
 
@@ -40,12 +44,24 @@ public sealed class AltseasonLiveDataService
         var total = global.Data.TotalMarketCap.GetValueOrDefault("usd");
         var btcCap = btc?.MarketCap ?? 0m;
         var ethCap = eth?.MarketCap ?? 0m;
-        var ethBtc = btc?.CurrentPrice > 0 && eth?.CurrentPrice > 0 ? eth.CurrentPrice / btc.CurrentPrice : 0m;
-        var alts = markets.Where(x => x.Id != "bitcoin" && x.Id != "ethereum" && !IsStablecoin(x)).ToList();
+        var ethBtc = btc?.CurrentPrice > 0 && eth?.CurrentPrice > 0
+            ? eth.CurrentPrice / btc.CurrentPrice
+            : 0m;
+
+        var alts = markets
+            .Where(x => x.Id != "bitcoin" && x.Id != "ethereum" && !IsStablecoin(x))
+            .ToList();
+
         var btc7d = btc?.Change7d ?? 0m;
-        var breadth = alts.Count == 0 ? 0m : alts.Count(x => x.Change7d > btc7d) * 100m / alts.Count;
+        var breadth = alts.Count == 0
+            ? 0m
+            : alts.Count(x => x.Change7d > btc7d) * 100m / alts.Count;
+
         var altVolume = alts.Sum(x => x.TotalVolume ?? 0m);
-        var volumeChange = _previousAltVolume <= 0m ? 0m : (altVolume - _previousAltVolume) / _previousAltVolume * 100m;
+        var volumeChange = _previousAltVolume <= 0m
+            ? 0m
+            : (altVolume - _previousAltVolume) / _previousAltVolume * 100m;
+
         var stablecoins = await GetStablecoinMarketCapAsync(ct);
         var defiChange = await GetDefiTvlChangeAsync(ct);
 
@@ -65,6 +81,7 @@ public sealed class AltseasonLiveDataService
 
         var score = Core.Scoring.AltseasonScorer.Calculate(snapshot);
 
+        // Guarda uma referência simples, sem encadear snapshots recursivamente.
         _previous = snapshot with { Previous = null };
         _previousAltVolume = altVolume;
         SaveState();
@@ -79,10 +96,13 @@ public sealed class AltseasonLiveDataService
             if (!File.Exists(_stateFilePath))
                 return;
 
-            var json = File.ReadAllText(_stateFilePath);
+            string json = File.ReadAllText(_stateFilePath);
             var state = JsonSerializer.Deserialize<PersistedState>(json);
-            _previous = state?.Snapshot;
-            _previousAltVolume = state?.PreviousAltVolume ?? 0m;
+            if (state?.Snapshot == null)
+                return;
+
+            _previous = state.Snapshot with { Previous = null };
+            _previousAltVolume = state.PreviousAltVolume;
         }
         catch
         {
@@ -100,7 +120,12 @@ public sealed class AltseasonLiveDataService
                 Snapshot = _previous,
                 PreviousAltVolume = _previousAltVolume
             };
-            var json = JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true });
+
+            var json = JsonSerializer.Serialize(state, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+
             File.WriteAllText(_stateFilePath, json);
         }
         catch
@@ -117,21 +142,29 @@ public sealed class AltseasonLiveDataService
                 "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=stablecoins&order=market_cap_desc&per_page=100&page=1&sparkline=false", ct) ?? [];
             return coins.Sum(x => x.MarketCap ?? 0m);
         }
-        catch { return 0m; }
+        catch
+        {
+            return 0m;
+        }
     }
 
     private async Task<decimal> GetDefiTvlChangeAsync(CancellationToken ct)
     {
         try
         {
-            var chains = await _http.GetFromJsonAsync<List<DefiChain>>("https://api.llama.fi/v2/chains", ct) ?? [];
+            var chains = await _http.GetFromJsonAsync<List<DefiChain>>(
+                "https://api.llama.fi/v2/chains", ct) ?? [];
             var tvl = chains.Sum(x => x.Tvl);
             return tvl <= 0m ? 0m : chains.Sum(x => x.Tvl * x.Change1d) / tvl;
         }
-        catch { return 0m; }
+        catch
+        {
+            return 0m;
+        }
     }
 
-    private static bool IsStablecoin(CoinMarket x) => x.Id is "tether" or "usd-coin" or "dai" or "usds" or "true-usd" or "frax" or "usde";
+    private static bool IsStablecoin(CoinMarket x) =>
+        x.Id is "tether" or "usd-coin" or "dai" or "usds" or "true-usd" or "frax" or "usde";
 
     private sealed class PersistedState
     {
@@ -139,23 +172,42 @@ public sealed class AltseasonLiveDataService
         public decimal PreviousAltVolume { get; set; }
     }
 
-    private sealed class GlobalResponse { public GlobalData Data { get; set; } = new(); }
+    private sealed class GlobalResponse
+    {
+        public GlobalData Data { get; set; } = new();
+    }
+
     private sealed class GlobalData
     {
-        [JsonPropertyName("total_market_cap")] public Dictionary<string, decimal> TotalMarketCap { get; set; } = [];
-        [JsonPropertyName("market_cap_percentage")] public Dictionary<string, decimal> MarketCapPercentage { get; set; } = [];
+        [JsonPropertyName("total_market_cap")]
+        public Dictionary<string, decimal> TotalMarketCap { get; set; } = [];
+
+        [JsonPropertyName("market_cap_percentage")]
+        public Dictionary<string, decimal> MarketCapPercentage { get; set; } = [];
     }
+
     private sealed class CoinMarket
     {
         public string Id { get; set; } = "";
-        [JsonPropertyName("current_price")] public decimal CurrentPrice { get; set; }
-        [JsonPropertyName("market_cap")] public decimal? MarketCap { get; set; }
-        [JsonPropertyName("total_volume")] public decimal? TotalVolume { get; set; }
-        [JsonPropertyName("price_change_percentage_7d_in_currency")] public decimal Change7d { get; set; }
+
+        [JsonPropertyName("current_price")]
+        public decimal CurrentPrice { get; set; }
+
+        [JsonPropertyName("market_cap")]
+        public decimal? MarketCap { get; set; }
+
+        [JsonPropertyName("total_volume")]
+        public decimal? TotalVolume { get; set; }
+
+        [JsonPropertyName("price_change_percentage_7d_in_currency")]
+        public decimal Change7d { get; set; }
     }
+
     private sealed class DefiChain
     {
         public decimal Tvl { get; set; }
-        [JsonPropertyName("change_1d")] public decimal Change1d { get; set; }
+
+        [JsonPropertyName("change_1d")]
+        public decimal Change1d { get; set; }
     }
 }
