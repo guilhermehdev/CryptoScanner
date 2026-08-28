@@ -1,25 +1,54 @@
 <Window x:Class="CryptoScanner.UI.AltseasonWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Altseason Monitor" Height="620" Width="980"
+        Title="Altseason Monitor" Height="660" Width="1040"
         WindowStartupLocation="CenterOwner" Background="#1E1E1E" Foreground="White">
     <Grid Margin="14">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
+
         <StackPanel Orientation="Horizontal">
             <Border Background="#2A2A2A" Padding="18,10" CornerRadius="5" Margin="0,0,12,0">
-                <StackPanel><TextBlock Text="ALTSEASON SCORE" FontSize="11" Foreground="Gray"/><TextBlock x:Name="txtScore" Text="—" FontSize="30" FontWeight="Bold"/></StackPanel>
+                <StackPanel>
+                    <TextBlock Text="ALTSEASON SCORE" FontSize="11" Foreground="Gray"/>
+                    <TextBlock x:Name="txtScore" Text="—" FontSize="30" FontWeight="Bold"/>
+                </StackPanel>
             </Border>
             <Border Background="#2A2A2A" Padding="18,10" CornerRadius="5" Margin="0,0,12,0">
-                <StackPanel><TextBlock Text="ESTADO" FontSize="11" Foreground="Gray"/><TextBlock x:Name="txtState" Text="—" FontSize="20" FontWeight="Bold"/></StackPanel>
+                <StackPanel>
+                    <TextBlock Text="ESTADO" FontSize="11" Foreground="Gray"/>
+                    <TextBlock x:Name="txtState" Text="—" FontSize="20" FontWeight="Bold"/>
+                </StackPanel>
             </Border>
             <Border Background="#2A2A2A" Padding="18,10" CornerRadius="5">
-                <StackPanel><TextBlock Text="AÇÃO" FontSize="11" Foreground="Gray"/><TextBlock x:Name="txtAction" Text="—" FontSize="20" FontWeight="Bold"/></StackPanel>
+                <StackPanel>
+                    <TextBlock Text="AÇÃO" FontSize="11" Foreground="Gray"/>
+                    <TextBlock x:Name="txtAction" Text="—" FontSize="20" FontWeight="Bold"/>
+                </StackPanel>
             </Border>
         </StackPanel>
+
         <TextBlock Grid.Row="1" x:Name="txtMarket" Margin="0,12,0,4" Foreground="LightGray"/>
-        <TextBlock Grid.Row="2" x:Name="txtReference" Margin="0,0,0,10" Foreground="DarkGray" FontSize="11"/>
+
+        <Grid Grid.Row="2" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="txtReference" Foreground="Gray" VerticalAlignment="Center"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Border Background="#163A2A" CornerRadius="4" Padding="7,3" Margin="0,0,8,0">
+                    <TextBlock x:Name="txtLive" Text="● LIVE" Foreground="LightGreen" FontWeight="Bold"/>
+                </Border>
+                <TextBlock x:Name="txtNextRefresh" VerticalAlignment="Center" Foreground="Gray"/>
+            </StackPanel>
+        </Grid>
+
         <DataGrid Grid.Row="3" x:Name="dgIndicators" AutoGenerateColumns="False" IsReadOnly="True">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Indicador" Binding="{Binding Name}" Width="*"/>
@@ -29,9 +58,17 @@
                 <DataGridTextColumn Header="Sinal" Binding="{Binding Signal}" Width="130"/>
             </DataGrid.Columns>
         </DataGrid>
-        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-            <TextBlock x:Name="txtUpdated" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,12,0"/>
-            <Button x:Name="btnRefresh" Content="Atualizar" Padding="14,5" Click="Refresh_Click"/>
-        </StackPanel>
+
+        <Grid Grid.Row="4" Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="txtAlert" VerticalAlignment="Center" Foreground="Gold" TextWrapping="Wrap"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <TextBlock x:Name="txtUpdated" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,12,0"/>
+                <Button x:Name="btnRefresh" Content="Atualizar base" Padding="14,5" Click="Refresh_Click"/>
+            </StackPanel>
+        </Grid>
     </Grid>
 </Window>
