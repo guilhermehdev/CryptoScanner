@@ -1,5 +1,6 @@
 using CryptoScanner.Application.Services;
 using System.Windows;
+using MessageBox = System.Windows.MessageBox;
 
 namespace CryptoScanner.UI;
 
