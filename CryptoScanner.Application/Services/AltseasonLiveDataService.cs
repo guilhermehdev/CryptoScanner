@@ -13,6 +13,10 @@ public sealed class AltseasonLiveDataService
     private readonly string _stateFilePath;
     private AltseasonSnapshot? _previous;
     private decimal _previousAltVolume;
+    private AltseasonSnapshot? _currentSnapshot;
+
+    public DateTime? ReferenceTimestampUtc => _previous?.TimestampUtc;
+    public AltseasonSnapshot? CurrentSnapshot => _currentSnapshot;
 
     public AltseasonLiveDataService(HttpClient? httpClient = null)
     {
@@ -27,8 +31,6 @@ public sealed class AltseasonLiveDataService
         _stateFilePath = Path.Combine(directory, StateFileName);
         LoadState();
     }
-
-    public DateTime? ReferenceTimestampUtc => _previous?.TimestampUtc;
 
     public async Task<(AltseasonSnapshot Snapshot, AltseasonScore Score)> GetAsync(CancellationToken ct = default)
     {
@@ -81,11 +83,33 @@ public sealed class AltseasonLiveDataService
 
         var score = Core.Scoring.AltseasonScorer.Calculate(snapshot);
 
-        // Guarda uma referência simples, sem encadear snapshots recursivamente.
         _previous = snapshot with { Previous = null };
         _previousAltVolume = altVolume;
+        _currentSnapshot = snapshot;
         SaveState();
 
+        return (snapshot, score);
+    }
+
+    /// <summary>
+    /// Atualiza preço de BTC e ETH a partir do WebSocket, sem fazer nova chamada REST.
+    /// Os demais indicadores permanecem com a última coleta base.
+    /// </summary>
+    public (AltseasonSnapshot Snapshot, AltseasonScore Score)? UpdateLivePrices(decimal btcPrice, decimal ethPrice)
+    {
+        if (_currentSnapshot is null || btcPrice <= 0m || ethPrice <= 0m)
+            return null;
+
+        var snapshot = _currentSnapshot with
+        {
+            TimestampUtc = DateTime.UtcNow,
+            BtcPrice = btcPrice,
+            EthBtc = ethPrice / btcPrice,
+            Previous = _currentSnapshot.Previous
+        };
+
+        var score = Core.Scoring.AltseasonScorer.Calculate(snapshot);
+        _currentSnapshot = snapshot;
         return (snapshot, score);
     }
 
