@@ -1,6 +1,7 @@
 using CryptoScanner.Application.Services;
 using CryptoScanner.Core.Models.Altseason;
 using CryptoScanner.Exchange.Services;
+using System.Net.Http;
 using System.Media;
 using System.Windows;
 using MessageBox = System.Windows.MessageBox;
