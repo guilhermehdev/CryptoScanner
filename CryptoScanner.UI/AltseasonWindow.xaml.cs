@@ -27,12 +27,21 @@ public partial class AltseasonWindow : Window
             txtAction.Text = result.Score.Action;
             txtMarket.Text = $"BTC ${result.Snapshot.BtcPrice:N0}  |  BTC.D {result.Snapshot.BtcDominance:F1}%  |  ETH/BTC {result.Snapshot.EthBtc:G6}  |  TOTAL3 ${result.Snapshot.Total3MarketCap / 1_000_000_000m:N1}B  |  Breadth {result.Snapshot.AltcoinBreadthPercent:F0}%";
             dgIndicators.ItemsSource = result.Score.Indicators;
+
+            txtReference.Text = _service.ReferenceTimestampUtc.HasValue
+                ? $"Referência anterior: {_service.ReferenceTimestampUtc.Value.ToLocalTime():dd/MM/yyyy HH:mm:ss} " +
+                  $"({Math.Max(0, (result.Snapshot.TimestampUtc - _service.ReferenceTimestampUtc.Value).TotalMinutes):F1} min atrás)"
+                : "Referência anterior: ainda não existe — esta leitura é o baseline inicial.";
+
             txtUpdated.Text = $"Atualizado {result.Snapshot.TimestampUtc.ToLocalTime():dd/MM/yyyy HH:mm:ss}";
         }
         catch (Exception ex)
         {
             MessageBox.Show($"Não foi possível atualizar o monitor de altseason.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
-        finally { btnRefresh.IsEnabled = true; }
+        finally
+        {
+            btnRefresh.IsEnabled = true;
+        }
     }
 }
