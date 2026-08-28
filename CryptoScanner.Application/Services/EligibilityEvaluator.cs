@@ -23,12 +23,19 @@ public static class EligibilityEvaluator
         // Filtro experimental (12/2026) — ver EligibilityThresholds.RequireBearishMomentumConfirmed.
         public bool FailedMomentumFilter { get; init; }
 
+        // Filtro experimental (22/08/2026) — ver EligibilityThresholds.BlockMeanReversionInBear.
+        public bool FailedMeanReversionRegimeFilter { get; init; }
+
+        // Filtro experimental (28/08/2026) — ver EligibilityThresholds.LimitAtrForMeanReversion.
+        public bool FailedMeanReversionAtrFilter { get; init; }
+
         public bool IsEligible =>
             !FailedScore && !FailedBreakout && !FailedConsolidation &&
             !FailedVolumeSpike && !FailedResistanceDistance &&
             !FailedDirection && !FailedRiskReward && !FailedStopDistance &&
             !FailedStopDistanceTooHigh && !FailedRiskRewardTooHigh && !FailedBullTrap &&
-            !FailedTrendConfirmation && !FailedMomentumFilter;
+            !FailedTrendConfirmation && !FailedMomentumFilter && !FailedMeanReversionRegimeFilter &&
+            !FailedMeanReversionAtrFilter;
     }
 
     public static EligibilityResult Evaluate(AssetAnalysis asset, string marketRegime, EligibilityThresholds? thresholds = null, TradeDirection direction = TradeDirection.Long)
@@ -138,6 +145,18 @@ public static class EligibilityEvaluator
             asset.Risk.Mode == RiskCalculationMode.BollingerReversal &&
             !asset.Trend.IsBearishMomentumConfirmed;
 
+        // Filtro experimental (22/08/2026) — ver EligibilityThresholds.BlockMeanReversionInBear.
+        bool failedMeanReversionRegimeFilter =
+            thresholds.BlockMeanReversionInBear &&
+            asset.Risk.Mode == RiskCalculationMode.MeanReversionScalp &&
+            marketRegime == "BEAR";
+
+        // Filtro experimental (28/08/2026) — ver EligibilityThresholds.LimitAtrForMeanReversion.
+        bool failedMeanReversionAtrFilter =
+            thresholds.LimitAtrForMeanReversion &&
+            asset.Risk.Mode == RiskCalculationMode.MeanReversionScalp &&
+            asset.Trend.AtrPercent > 4m;
+
         return new EligibilityResult
         {
             FailedScore = failedScore,
@@ -152,7 +171,9 @@ public static class EligibilityEvaluator
             FailedRiskRewardTooHigh = failedRiskRewardTooHigh,
             FailedBullTrap = failedBullTrap,
             FailedTrendConfirmation = failedTrendConfirmation,
-            FailedMomentumFilter = failedMomentumFilter
+            FailedMomentumFilter = failedMomentumFilter,
+            FailedMeanReversionRegimeFilter = failedMeanReversionRegimeFilter,
+            FailedMeanReversionAtrFilter = failedMeanReversionAtrFilter
         };
     }
 }

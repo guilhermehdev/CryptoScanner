@@ -21,6 +21,12 @@ public sealed class FilterDiagnostics
     // Filtro experimental (12/2026) — ver EligibilityThresholds.RequireBearishMomentumConfirmed.
     public int FailedMomentumFilter { get; set; }
 
+    // Filtro experimental (22/08/2026) — ver EligibilityThresholds.BlockMeanReversionInBear.
+    public int FailedMeanReversionRegimeFilter { get; set; }
+
+    // Filtro experimental (28/08/2026) — ver EligibilityThresholds.LimitAtrForMeanReversion.
+    public int FailedMeanReversionAtrFilter { get; set; }
+
     public int SkippedDuplicateToday { get; set; }
 
     public string Summary =>
@@ -28,7 +34,7 @@ public sealed class FilterDiagnostics
         $"Vol. spike: {FailedVolumeSpike} | Dist. resist.: {FailedResistanceDistance} | " +
         $"Direção: {FailedDirection} | Risk/Reward: {FailedRiskReward} | Stop mín.: {FailedStopDistance} | " +
         $"Stop máx.: {FailedStopDistanceTooHigh} | RR teto: {FailedRiskRewardTooHigh} | Bull Trap: {FailedBullTrap} | " +
-        $"Tendência (EMA): {FailedTrendConfirmation} | Momentum: {FailedMomentumFilter} | " +
+        $"Tendência (EMA): {FailedTrendConfirmation} | Momentum: {FailedMomentumFilter} | Regime MeanRev: {FailedMeanReversionRegimeFilter} | ATR MeanRev: {FailedMeanReversionAtrFilter} | " +
         $"Duplicado hoje: {SkippedDuplicateToday} | " +
         $"Passaram: {PassedAll}/{TotalAnalyzed}";
 }

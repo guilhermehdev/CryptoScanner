@@ -143,6 +143,8 @@ public partial class BacktestWindow : Window
         sb.Append(thresholds.EnableMultiTimeframe).Append('|');
         sb.Append(thresholds.RequireBearishMomentumConfirmed).Append('|');
         sb.Append(thresholds.EnableLowRsiPath).Append('|');
+        sb.Append(thresholds.BlockMeanReversionInBear).Append('|');
+        sb.Append(thresholds.LimitAtrForMeanReversion).Append('|');
         sb.Append(useInvertedRsiMomentum).Append('|');
         sb.Append(evaluationHoursOverride?.ToString() ?? "default").Append('|');
         sb.Append(tp1Fraction?.ToString() ?? "default").Append('|');
@@ -365,6 +367,8 @@ public partial class BacktestWindow : Window
             EnableVolatilityScoringPhaseB = chkEnableVolatilityScoringPhaseB.IsChecked == true,
             EnableMultiTimeframe = chkEnableMultiTimeframe.IsChecked == true,
             EnableMeanReversionScalp = chkEnableMeanReversionScalp.IsChecked == true,
+            BlockMeanReversionInBear = chkBlockMeanReversionInBear.IsChecked == true,
+            LimitAtrForMeanReversion = chkLimitAtrForMeanReversion.IsChecked == true,
             EnableBollingerReversal = chkEnableBollingerReversal.IsChecked == true,
             // RequireBearishMomentumConfirmed (Venda) e EnableLowRsiPath (Compra) — testados
             // e descartados (ver memória do projeto: efeito negativo no bear market isolado

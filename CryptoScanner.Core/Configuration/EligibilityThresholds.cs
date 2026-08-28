@@ -52,6 +52,24 @@ public sealed class EligibilityThresholds
     // acima — default false, só entra no OR de elegibilidade quando explicitamente ligado.
     public bool EnableLowRsiPath { get; init; } = false;
 
+    // Filtro experimental (22/08/2026) — bloqueia Reversão à Média (Scalp) em regime BEAR.
+    // Investigação: numa amostra de 1.585 trades (limiares soltos), regime BEAR sozinho
+    // carregava todo o prejuízo do agregado (PF 0,90 geral vs PF 1,34 fora do BEAR, 483
+    // trades, sem outlier dominando) — comprar recuo dentro de tendência de alta não
+    // funciona quando o recuo tende a continuar caindo, como em bear market. Mesmo padrão
+    // não-obrigatório dos outros experimentais — default false, não altera nenhum
+    // resultado até ser explicitamente habilitado.
+    public bool BlockMeanReversionInBear { get; init; } = false;
+
+    // Filtro experimental (28/08/2026) — teto de ATR% pro Reversão à Média (Scalp).
+    // Investigação: comparando período ruim (2020-2022, ATR% médio 4,85, 78% saída por
+    // SL) vs período bom (2024-2025, ATR% médio 2,94, 45,8% SL) — volatilidade alta
+    // parece causar stop-out antes da reversão acontecer (stop é múltiplo pequeno de
+    // ATR). Teto fixo de 4% (hardcoded no EligibilityEvaluator) escolhido por já ter
+    // aparecido como limiar ruim também na análise geral de fatores do Compra (amostra
+    // de 3.885 trades). Default false.
+    public bool LimitAtrForMeanReversion { get; init; } = false;
+
     public static readonly EligibilityThresholds Default = new()
     {
         BuyOpportunityScore = ScannerSettings.BuyOpportunityScore,

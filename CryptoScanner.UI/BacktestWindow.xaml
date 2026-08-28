@@ -92,6 +92,8 @@
                     <CheckBox x:Name="chkEnableMultiTimeframe" Content="Multi-timeframe (4.2, experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
                     <CheckBox x:Name="chkEnablePullbackBounce" Content="Caminho A — Repique (pullback, experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
                     <CheckBox x:Name="chkEnableMeanReversionScalp" Content="Reversão à Média (Scalp, experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
+                    <CheckBox x:Name="chkBlockMeanReversionInBear" Content="Bloquear Reversão à Média em BEAR (experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
+                    <CheckBox x:Name="chkLimitAtrForMeanReversion" Content="Limitar ATR% no Reversão à Média (experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
                     <CheckBox x:Name="chkEnableBollingerReversal" Content="Reversão de Bollinger (Venda, experimental)" VerticalAlignment="Center"/>
                 </WrapPanel>
             </StackPanel>

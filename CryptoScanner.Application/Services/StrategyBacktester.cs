@@ -400,6 +400,8 @@ public sealed class StrategyBacktester
             if (eligibility.FailedBullTrap) diagnostics.FailedBullTrap++;
             if (eligibility.FailedTrendConfirmation) diagnostics.FailedTrendConfirmation++;
             if (eligibility.FailedMomentumFilter) diagnostics.FailedMomentumFilter++;
+            if (eligibility.FailedMeanReversionRegimeFilter) diagnostics.FailedMeanReversionRegimeFilter++;
+            if (eligibility.FailedMeanReversionAtrFilter) diagnostics.FailedMeanReversionAtrFilter++;
 
             if (!eligibility.IsEligible)
                 continue;
@@ -521,6 +523,8 @@ public sealed class StrategyBacktester
         target.FailedBullTrap += source.FailedBullTrap;
         target.FailedTrendConfirmation += source.FailedTrendConfirmation;
         target.FailedMomentumFilter += source.FailedMomentumFilter;
+        target.FailedMeanReversionRegimeFilter += source.FailedMeanReversionRegimeFilter;
+        target.FailedMeanReversionAtrFilter += source.FailedMeanReversionAtrFilter;
     }
 
     private static BacktestTradeResult CloseTrade(BacktestOpenPosition position, DateTime exitTime, decimal exitPrice, string reason)
