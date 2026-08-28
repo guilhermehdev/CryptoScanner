@@ -979,20 +979,3 @@ public partial class BacktestWindow : Window
             _cts = null;
     }
 }
-
-/// <summary>
-/// Colore o valor de Edge (WinRate real - WinRate de equilíbrio): verde quando
-/// positivo (vantagem estatística), vermelho quando negativo (desvantagem).
-/// </summary>
-public sealed class EdgeColorConverter : IValueConverter
-{
-    public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-    {
-        if (value is double edge)
-            return edge >= 0 ? Brushes.DarkGreen : Brushes.DarkRed;
-        return Brushes.Black;
-    }
-
-    public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-        => throw new NotSupportedException();
-}

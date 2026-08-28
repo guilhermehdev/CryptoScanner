@@ -11,7 +11,7 @@ public sealed class EdgeColorConverter : IValueConverter
     {
         return value switch
         {
-            double d => d >= 0 ? Brushes.DarkGreen : Brushes.DarkRed,
+            double d => d >= 0 ?  Brushes.DarkGreen : Brushes.DarkRed,
             decimal d => d >= 0 ? Brushes.DarkGreen : Brushes.DarkRed,
             float d => d >= 0 ? Brushes.DarkGreen : Brushes.DarkRed,
             int d => d >= 0 ? Brushes.DarkGreen : Brushes.DarkRed,
