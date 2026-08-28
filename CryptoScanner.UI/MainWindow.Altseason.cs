@@ -4,7 +4,7 @@ namespace CryptoScanner.UI;
 
 public partial class MainWindow
 {
-    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    protected override void OnPreviewKeyDown(System.Windows.Input.KeyEventArgs e)
     {
         if (e.Key == Key.A && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Alt))
         {
