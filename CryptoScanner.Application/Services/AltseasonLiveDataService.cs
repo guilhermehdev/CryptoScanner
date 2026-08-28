@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using CryptoScanner.Core.Models.Altseason;
 
@@ -6,7 +7,10 @@ namespace CryptoScanner.Application.Services;
 
 public sealed class AltseasonLiveDataService
 {
+    private const string StateFileName = "altseason-snapshot.json";
+
     private readonly HttpClient _http;
+    private readonly string _stateFilePath;
     private AltseasonSnapshot? _previous;
     private decimal _previousAltVolume;
 
@@ -15,6 +19,13 @@ public sealed class AltseasonLiveDataService
         _http = httpClient ?? new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
         if (!_http.DefaultRequestHeaders.UserAgent.Any())
             _http.DefaultRequestHeaders.UserAgent.ParseAdd("CryptoScanner/1.0");
+
+        string directory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "CryptoScanner");
+        Directory.CreateDirectory(directory);
+        _stateFilePath = Path.Combine(directory, StateFileName);
+        LoadState();
     }
 
     public async Task<(AltseasonSnapshot Snapshot, AltseasonScore Score)> GetAsync(CancellationToken ct = default)
@@ -53,9 +64,49 @@ public sealed class AltseasonLiveDataService
         };
 
         var score = Core.Scoring.AltseasonScorer.Calculate(snapshot);
-        _previous = snapshot;
+
+        _previous = snapshot with { Previous = null };
         _previousAltVolume = altVolume;
+        SaveState();
+
         return (snapshot, score);
+    }
+
+    private void LoadState()
+    {
+        try
+        {
+            if (!File.Exists(_stateFilePath))
+                return;
+
+            var json = File.ReadAllText(_stateFilePath);
+            var state = JsonSerializer.Deserialize<PersistedState>(json);
+            _previous = state?.Snapshot;
+            _previousAltVolume = state?.PreviousAltVolume ?? 0m;
+        }
+        catch
+        {
+            _previous = null;
+            _previousAltVolume = 0m;
+        }
+    }
+
+    private void SaveState()
+    {
+        try
+        {
+            var state = new PersistedState
+            {
+                Snapshot = _previous,
+                PreviousAltVolume = _previousAltVolume
+            };
+            var json = JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(_stateFilePath, json);
+        }
+        catch
+        {
+            // Persistência é auxiliar; falha em disco não deve derrubar o monitor.
+        }
     }
 
     private async Task<decimal> GetStablecoinMarketCapAsync(CancellationToken ct)
@@ -81,6 +132,12 @@ public sealed class AltseasonLiveDataService
     }
 
     private static bool IsStablecoin(CoinMarket x) => x.Id is "tether" or "usd-coin" or "dai" or "usds" or "true-usd" or "frax" or "usde";
+
+    private sealed class PersistedState
+    {
+        public AltseasonSnapshot? Snapshot { get; set; }
+        public decimal PreviousAltVolume { get; set; }
+    }
 
     private sealed class GlobalResponse { public GlobalData Data { get; set; } = new(); }
     private sealed class GlobalData
