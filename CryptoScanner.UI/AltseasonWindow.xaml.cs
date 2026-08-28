@@ -5,6 +5,7 @@ using System.Media;
 using System.Windows;
 using MessageBox = System.Windows.MessageBox;
 
+
 namespace CryptoScanner.UI;
 
 public partial class AltseasonWindow : Window
