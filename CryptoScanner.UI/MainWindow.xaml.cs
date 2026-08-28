@@ -1030,23 +1030,3 @@ public partial class MainWindow : Window
         Title = $"Scanner [{_lastMarketRegime}] | Exibindo: {_viewedProfile.Name}";
     }
 }
-
-/// <summary>
-/// Colore o P/L: verde quando positivo, vermelho quando negativo, preto quando
-/// zero ou ainda não calculado (trade recém-criado, sem preço atual buscado ainda).
-/// </summary>
-public sealed class PnLColorConverter : IValueConverter
-{
-    public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-    {
-        if (value is decimal pnl)
-        {
-            if (pnl > 0) return Brushes.DarkGreen;
-            if (pnl < 0) return Brushes.DarkRed;
-        }
-        return Brushes.Black;
-    }
-
-    public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-        => throw new NotSupportedException();
-}
