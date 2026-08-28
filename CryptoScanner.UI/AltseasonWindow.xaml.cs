@@ -22,7 +22,7 @@ public partial class AltseasonWindow : Window
     {
         InitializeComponent();
 
-        _baseRefreshTimer.Interval = TimeSpan.FromMinutes(1);
+        _baseRefreshTimer.Interval = TimeSpan.FromMinutes(5);
         _baseRefreshTimer.Tick += async (_, _) => await RefreshBaseAsync();
 
         _webSocket.PriceUpdated += OnPriceUpdated;
@@ -91,6 +91,12 @@ public partial class AltseasonWindow : Window
             txtLive.Foreground = _hasLiveConnection
                 ? System.Windows.Media.Brushes.LightGreen
                 : System.Windows.Media.Brushes.Gold;
+        }
+        catch (HttpRequestException ex) when (ex.Message.Contains("HTTP 429", StringComparison.OrdinalIgnoreCase))
+        {
+            txtLive.Text = "● RATE LIMIT";
+            txtLive.Foreground = System.Windows.Media.Brushes.Orange;
+            txtAlert.Text = "CoinGecko limitou as requisições. O monitor mantém o último estado e tentará novamente em 5 min.";
         }
         catch (Exception ex)
         {
@@ -178,7 +184,7 @@ public partial class AltseasonWindow : Window
     private void UpdateNextRefreshText()
     {
         txtNextRefresh.Text = _baseRefreshTimer.IsEnabled
-            ? "Base REST: ~1 min"
+            ? "Base REST: ~5 min"
             : "Base REST: iniciando";
     }
 
@@ -192,7 +198,6 @@ public partial class AltseasonWindow : Window
         }
         catch
         {
-            // Fechamento do stream não deve bloquear a janela.
         }
     }
 }
