@@ -266,4 +266,8 @@ public async Task<List<Candle>> GetHistoricalCandlesAsync(
 
     return allCandles;
 }
+    public async Task<MarketFlowData> GetMarketFlowDataAsync(string symbol, CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
+    }
 }

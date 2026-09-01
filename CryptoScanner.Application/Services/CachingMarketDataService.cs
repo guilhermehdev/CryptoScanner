@@ -14,6 +14,9 @@ public sealed class CachingMarketDataService : IMarketDataService
         _cache = cache;
     }
 
+    public Task<MarketFlowData> GetMarketFlowDataAsync(string symbol, CancellationToken cancellationToken = default)
+    => _inner.GetMarketFlowDataAsync(symbol, cancellationToken);
+
     // Dados em tempo real (usados pelo scanner ao vivo) passam direto, sem cache —
     // fazem sentido só se estiverem sempre atualizados.
     public Task<List<Candle>> GetCandlesAsync(string symbol, string interval, int limit = 1000, CancellationToken cancellationToken = default)

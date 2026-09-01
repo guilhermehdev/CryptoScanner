@@ -23,4 +23,8 @@ public interface IMarketDataService
     Task<decimal> GetCurrentPriceAsync(
         string symbol,
         CancellationToken cancellationToken = default);
+
+    Task<MarketFlowData> GetMarketFlowDataAsync(
+    string symbol,
+    CancellationToken cancellationToken = default);
 }
