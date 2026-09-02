@@ -45,6 +45,7 @@ public static class AssetScoreFactory
         MomentumScore = analysis.Trend.MomentumScore,
         VolatilityScore = analysis.Trend.VolatilityScore,
         TrendStrengthScore = analysis.Trend.TrendStrengthScore,
+        RetailFlowScore = analysis.RetailFlowScore,
         Support = analysis.Risk.Support,
         Rsi = analysis.Trend.Rsi,
         Adx = analysis.Trend.Adx,
@@ -54,11 +55,6 @@ public static class AssetScoreFactory
         VolumeImbalance = analysis.Volume.Imbalance,
     };
 
-    // Visibilidade alterada de private pra internal (16/08/2026) — reaproveitado por
-    // StrategyBacktester.cs pra popular o mesmo BreakoutSource no resultado do Backtest
-    // (Fase 3 do roadmap: análise por fator precisa do mesmo contexto que o SignalHistory
-    // ao vivo já tem, mas com a amostra grande do Backtest). Mesma namespace
-    // (CryptoScanner.Application.Services), sem necessidade de using adicional.
     internal static string DetermineBreakoutSource(AssetAnalysis analysis)
     {
         if (analysis.Setup.IsBreakout) return "Clássico";
