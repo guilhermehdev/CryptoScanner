@@ -167,15 +167,15 @@ public class BinanceExchangeService : IMarketDataService
         var fundingTask = _http.GetStringAsync(fundingUrl, cancellationToken);
         await Task.WhenAll(takerTask, oiTask, fundingTask);
 
-        decimal takerBuyRatio = 0m;
+        decimal takerBuyRatio = 0.5m;
         using (JsonDocument takerDoc = JsonDocument.Parse(await takerTask))
         {
             JsonElement items = takerDoc.RootElement;
             if (items.ValueKind == JsonValueKind.Array && items.GetArrayLength() > 0)
             {
                 JsonElement item = items[0];
-                decimal buyVol = ParseDecimal(item, "buyVol");
-                decimal sellVol = ParseDecimal(item, "sellVol");
+                decimal buyVol = ParseDecimal(item, "takerBuyVol");
+                decimal sellVol = ParseDecimal(item, "takerSellVol");
                 decimal total = buyVol + sellVol;
                 takerBuyRatio = total > 0 ? buyVol / total : 0.5m;
             }
