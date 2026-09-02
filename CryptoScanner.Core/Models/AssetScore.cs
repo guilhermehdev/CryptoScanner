@@ -51,6 +51,7 @@ public sealed class AssetScore : ObservableModel
     public int MomentumScore { get; init; }
     public int VolatilityScore { get; init; }
     public int TrendStrengthScore { get; init; }
+    public decimal RetailFlowScore { get; init; }
     public string SmartMoneyLabel { get; init; } = "";
     public bool IsBullTrap { get; init; }
     public bool IsBearTrap { get; init; }
@@ -77,7 +78,7 @@ public sealed class AssetScore : ObservableModel
         get
         {
             if (TakeProfit1 == null && TakeProfit3 == null)
-                return ""; // modo de risco sem saída parcial
+                return "";
 
             string tp1 = TakeProfit1.HasValue ? TakeProfit1.Value.ToString("0.########") : "—";
             string tp2 = Resistance.ToString("0.########");
@@ -103,7 +104,6 @@ public sealed class AssetScore : ObservableModel
 
             var observations = new List<string>();
 
-            // Volume
             if (VolumeSpike >= 1.8m)
                 observations.Add($"Volume forte ({VolumeSpike:F2}× a média) — boa convicção por trás do movimento.");
             else if (VolumeSpike >= 1.5m)
@@ -113,15 +113,13 @@ public sealed class AssetScore : ObservableModel
             else
                 observations.Add($"Volume abaixo do piso normal ({VolumeSpike:F2}× a média).");
 
-            // Resistência
             if (ResistanceDistance >= 10m)
                 observations.Add($"Bastante espaço até a resistência ({ResistanceDistance:F1}%) — dá fôlego pro preço rodar antes de esbarrar num teto.");
             else if (ResistanceDistance >= 6m)
                 observations.Add($"Espaço razoável até a resistência ({ResistanceDistance:F1}%).");
             else
-                observations.Add($"Resistência próxima ({ResistanceDistance:F1}%) — pouco espaço pra rodar antes de esbarrar no teto, mesmo passando no piso mínimo.");
+                observations.Add($"Resistência próxima ({ResistanceDistance:F1}%) — pouco espaço pra rodar antes de esbarrar num teto, mesmo passando no piso mínimo.");
 
-            // Stop / suporte
             if (SupportDistance >= 15m)
                 observations.Add($"Stop bem distante ({SupportDistance:F1}%) — dentro do teto aceito, mas é uma posição de risco maior por operação.");
             else if (SupportDistance <= 2m)
@@ -129,29 +127,24 @@ public sealed class AssetScore : ObservableModel
             else
                 observations.Add($"Distância de stop equilibrada ({SupportDistance:F1}%).");
 
-            // Risk/Reward
             if (RiskReward >= 3m)
                 observations.Add($"Risk/Reward generoso ({RiskReward:F2}) — o alvo compensa bem o risco assumido.");
             else if (RiskReward < 2m)
                 observations.Add($"Risk/Reward próximo do piso validado ({RiskReward:F2}) — margem mais apertada que o ideal.");
 
-            // Força relativa
             if (RelativeStrength > 2m)
                 observations.Add($"Performando bem melhor que o BTC ({RelativeStrengthText}) — força própria, não só surfando o mercado.");
             else if (RelativeStrength < 0)
                 observations.Add($"Performando pior que o BTC ({RelativeStrengthText}) — a subida pode estar mais ligada ao mercado geral do que à moeda em si.");
 
-            // Exaustão
             if (HasExhaustion)
                 observations.Add("Sinal de exaustão de volume detectado — o movimento pode estar perdendo fôlego, não ganhando.");
 
-            // Padrão de candle
             if (!string.IsNullOrEmpty(PatternName) && PatternName != "Doji")
                 observations.Add($"Candle de força: {PatternName}.");
             else if (PatternName == "Doji")
                 observations.Add("Candle de indecisão (Doji) — sem confirmação forte de direção nesse candle específico.");
 
-            // Smart Money
             if (!string.IsNullOrEmpty(SmartMoneyLabel) && SmartMoneyLabel.Contains("Stop Hunt"))
                 observations.Add($"{SmartMoneyLabel} — sugere que vendedores foram varridos antes do movimento, leitura construtiva.");
 
@@ -165,18 +158,14 @@ public sealed class AssetScore : ObservableModel
         }
     }
 
-    // ATENÇÃO: esses valores espelham a configuração validada em ScannerService.cs
-    // (ValidatedThresholds). Se um dia mudarmos algum limiar lá (novo teto de RR, novo
-    // piso de volume, etc.), essa reconstrução precisa ser atualizada junto — senão a
-    // análise passa a mostrar um motivo de rejeição desatualizado.
     private string BuildIneligibilityReasons()
     {
         bool defensiveMode = MarketRegime != "BULL";
 
         decimal opportunity = MarketRegime switch
         {
-            "BEAR" => OpportunityScore - 10m,   // ScannerSettings.BearRegimePenalty
-            "LATERAL" => OpportunityScore - 8m, // ScannerSettings.SidewaysRegimePenalty
+            "BEAR" => OpportunityScore - 10m,
+            "LATERAL" => OpportunityScore - 8m,
             _ => OpportunityScore
         };
 
