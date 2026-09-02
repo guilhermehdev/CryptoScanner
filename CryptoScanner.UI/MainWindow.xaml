@@ -12,432 +12,54 @@
     <Window.Resources>
         <local:PnLColorConverter x:Key="PnLColorConverter"/>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
-        <!-- Tema escuro — rgb(30,30,30) de fundo, texto branco. A faixa do Dashboard (linha 0)
-             fica de fora de propósito, protegida com Foreground explícito nos seus próprios
-             elementos. O branco do texto vem por HERANÇA a partir da Window (não por estilo
-             implícito de TextBlock) — assim as linhas de destaque das tabelas (verde/vermelho/
-             etc.) conseguem sobrescrever pra preto sem conflito de precedência. -->
         <SolidColorBrush x:Key="DarkPanelBackground" Color="#2A2A2A"/>
         <SolidColorBrush x:Key="DarkAltRowBackground" Color="#252525"/>
         <SolidColorBrush x:Key="DarkBorder" Color="#444444"/>
-        <Style TargetType="RadioButton">
-            <Setter Property="Foreground" Value="White"/>
-        </Style>
-        <Style TargetType="CheckBox">
-            <Setter Property="Foreground" Value="White"/>
-        </Style>
-        <Style TargetType="Button">
-            <Setter Property="Background" Value="{StaticResource DarkPanelBackground}"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="{StaticResource DarkBorder}"/>
-        </Style>
-        <Style TargetType="TextBox">
-            <Setter Property="Background" Value="{StaticResource DarkPanelBackground}"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="{StaticResource DarkBorder}"/>
-            <Setter Property="CaretBrush" Value="White"/>
-        </Style>
-        <Style TargetType="TabControl">
-            <Setter Property="Background" Value="#1E1E1E"/>
-            <Setter Property="BorderBrush" Value="{StaticResource DarkBorder}"/>
-        </Style>
-        <Style TargetType="TabItem">
-            <Setter Property="Background" Value="{StaticResource DarkPanelBackground}"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Style.Triggers>
-                <!-- O fundo da aba selecionada volta pro branco padrão do sistema por baixo
-                     dos panos (o Setter acima só vale pra aba NÃO selecionada) — sem essa
-                     regra, o texto continuava branco em cima desse branco, ilegível. -->
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="White"/>
-                    <Setter Property="Foreground" Value="Black"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-        <!-- Os grids ficam de fora do tema escuro, de propósito — mantêm a aparência clara de
-             sempre. Sem essa restauração explícita, o texto herdaria o branco da Window. -->
-        <Style TargetType="DataGrid">
-            <Setter Property="Background" Value="#404040"/>
-            <Setter Property="Foreground" Value="Black"/>
-            <Setter Property="RowBackground" Value="White"/>
-            <Setter Property="AlternatingRowBackground" Value="White"/>
-            <Setter Property="FontSize" Value="13"/>
-        </Style>
-        <Style TargetType="DataGridColumnHeader">
-            <Setter Property="Background" Value="#282828"/>
-            <Setter Property="Foreground" Value="#00FFFF"/>
-            <Setter Property="FontSize" Value="14"/>
-        </Style>
+        <Style TargetType="RadioButton"><Setter Property="Foreground" Value="White"/></Style>
+        <Style TargetType="CheckBox"><Setter Property="Foreground" Value="White"/></Style>
+        <Style TargetType="Button"><Setter Property="Background" Value="{StaticResource DarkPanelBackground}"/><Setter Property="Foreground" Value="White"/><Setter Property="BorderBrush" Value="{StaticResource DarkBorder}"/></Style>
+        <Style TargetType="TextBox"><Setter Property="Background" Value="{StaticResource DarkPanelBackground}"/><Setter Property="Foreground" Value="White"/><Setter Property="BorderBrush" Value="{StaticResource DarkBorder}"/><Setter Property="CaretBrush" Value="White"/></Style>
+        <Style TargetType="TabControl"><Setter Property="Background" Value="#1E1E1E"/><Setter Property="BorderBrush" Value="{StaticResource DarkBorder}"/></Style>
+        <Style TargetType="TabItem"><Setter Property="Background" Value="{StaticResource DarkPanelBackground}"/><Setter Property="Foreground" Value="White"/><Style.Triggers><Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="White"/><Setter Property="Foreground" Value="Black"/></Trigger></Style.Triggers></Style>
+        <Style TargetType="DataGrid"><Setter Property="Background" Value="#404040"/><Setter Property="Foreground" Value="Black"/><Setter Property="RowBackground" Value="White"/><Setter Property="AlternatingRowBackground" Value="White"/><Setter Property="FontSize" Value="13"/></Style>
+        <Style TargetType="DataGridColumnHeader"><Setter Property="Background" Value="#282828"/><Setter Property="Foreground" Value="#00FFFF"/><Setter Property="FontSize" Value="14"/></Style>
     </Window.Resources>
     <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="1.6*" />
-            <RowDefinition Height="1*" />
-        </Grid.RowDefinitions>
-        <!-- Dashboard fixo — sempre visível, atualizado a cada scan -->
-        <Border Grid.Row="0" Background="#F5F5F5" BorderBrush="LightGray" BorderThickness="0,0,0,1" Padding="14,8">
-            <StackPanel Orientation="Horizontal">
-                <Border x:Name="borderRegime" Background="Gray" CornerRadius="4" Padding="12,6" Margin="0,0,28,0" VerticalAlignment="Center">
-                    <StackPanel>
-                        <TextBlock Text="REGIME DE MERCADO" FontSize="9" Foreground="White" Opacity="0.85"/>
-                        <TextBlock x:Name="txtDashboardRegime" Text="—" FontWeight="Bold" FontSize="14" Foreground="White"/>
-                    </StackPanel>
-                </Border>
-                <StackPanel Margin="0,0,28,0" VerticalAlignment="Center">
-                    <TextBlock Text="BTC" FontSize="9" Foreground="Gray"/>
-                    <TextBlock x:Name="txtDashboardBtcPrice" Text="—" FontWeight="Bold" FontSize="14" Foreground="Black"/>
-                </StackPanel>
-                <StackPanel Margin="0,0,28,0" VerticalAlignment="Center">
-                    <TextBlock Text="DOMINÂNCIA BTC" FontSize="9" Foreground="Gray"/>
-                    <TextBlock x:Name="txtDashboardBtcDominance" Text="—" FontWeight="Bold" FontSize="14" Foreground="Black"/>
-                </StackPanel>
-                <StackPanel Margin="0,0,28,0" VerticalAlignment="Center">
-                    <TextBlock Text="SINAIS ELEGÍVEIS AGORA" FontSize="9" Foreground="Gray"/>
-                    <TextBlock x:Name="txtDashboardEligible" Text="—" FontWeight="Bold" FontSize="14" Foreground="Black"/>
-                </StackPanel>
-                <StackPanel Margin="0,0,28,0" VerticalAlignment="Center">
-                    <TextBlock Text="TOP CANDIDATOS" FontSize="9" Foreground="Gray"/>
-                    <TextBlock x:Name="txtDashboardTopCandidates" Text="—" FontWeight="Bold" FontSize="14" Foreground="Black"/>
-                </StackPanel>
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="DIÁRIO DE TRADES SIMULADOS" FontSize="9" Foreground="Gray"/>
-                    <TextBlock x:Name="txtDashboardSimulated" Text="—" FontWeight="Bold" FontSize="14" Foreground="Black"/>
-                </StackPanel>
-            </StackPanel>
-        </Border>
-        <StackPanel Grid.Row="1"
-                Orientation="Horizontal"
-                Margin="10">
-            <TextBlock x:Name="txtWinRate"
-                   FontWeight="Bold"/>
-            <TextBlock x:Name="txtAvgReturn"
-                   Margin="20,0,0,0"
-                   FontWeight="Bold"/>
-            <TextBlock x:Name="txtPending"
-                   Margin="20,0,0,0"
-                   FontWeight="Bold"/>
-            <TextBlock x:Name="txtEvaluated"
-                   Margin="20,0,0,0"
-                   FontWeight="Bold"/>
-        </StackPanel>
-        <TextBlock x:Name="txtDiagnostics"
-               Grid.Row="1"
-               Margin="10,32,10,0"
-               FontSize="13"
-               Foreground="Gray"
-               TextWrapping="Wrap"/>
-        <TextBlock Grid.Row="1"
-               Margin="10,90,10,0"
-               FontSize="13"
-               FontStyle="Italic"
-               Foreground="Gray"
-               Text="*Consol.: exigido apenas quando o regime de mercado é BULL. Em BEAR/LATERAL (modo defensivo), esse critério é apenas informativo."/>
-        <StackPanel Grid.Row="1"
-                Orientation="Horizontal"
-                Margin="10,108,0,0"
-                VerticalAlignment="Top">
-            <TextBlock Text="Perfil:"
-                   VerticalAlignment="Center"
-                   FontWeight="Bold"
-                   Margin="0,0,8,0"/>
-            <RadioButton x:Name="rbIntraday"
-                     Content="Intraday (1h / 24h)"
-                     GroupName="Profile"
-                     Margin="0,0,12,0"
-                     VerticalAlignment="Center"
-                     Checked="ProfileChanged"/>
-            <RadioButton x:Name="rbSwing"
-                     Content="Swing (4h / 10 dias)"
-                     GroupName="Profile"
-                     IsChecked="True"
-                     VerticalAlignment="Center"
-                     Checked="ProfileChanged"/>
-            <CheckBox x:Name="chkFavoritesOnly"
-                  Content="★ Mostrar só favoritos"
-                  Margin="24,0,0,0"
-                  VerticalAlignment="Center"
-                  Checked="ChkFavoritesOnly_Changed"
-                  Unchecked="ChkFavoritesOnly_Changed"/>
-            <TextBlock Text="Buscar moeda:"
-                   VerticalAlignment="Center"
-                   Margin="24,0,6,0"/>
-            <TextBox x:Name="txtSearchSymbol"
-                 Width="120"
-                 VerticalAlignment="Center"
-                 Margin="0,0,6,0"
-                 KeyDown="TxtSearchSymbol_KeyDown"/>
-            <Button x:Name="btnSearch"
-                Content="Buscar"
-                Height="22"
-                Padding="8,0"
-                VerticalAlignment="Center"
-                Click="BtnSearch_Click"/>
-        </StackPanel>
-        <DataGrid x:Name="dgRanking"
-              Grid.Row="2"
-              AutoGenerateColumns="False"
-              IsReadOnly="True"
-              MouseLeftButtonUp="DgRanking_MouseLeftButtonUp"
-              MouseRightButtonUp="DgRanking_MouseRightButtonUp">
-            <DataGrid.RowStyle>
-                <Style TargetType="DataGridRow">
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding DisplaySignal}" Value="COMPRA+">
-                            <Setter Property="Background" Value="DarkGreen"/>
-                            <Setter Property="Foreground" Value="White"/>
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding DisplaySignal}" Value="COMPRA">
-                            <Setter Property="Background" Value="ForestGreen"/>
-                            <Setter Property="Foreground" Value="White"/>
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding DisplaySignal}" Value="MONITORAR">
-                            <Setter Property="Background" Value="SteelBlue"/>
-                            <Setter Property="Foreground" Value="White"/>
-                        </DataTrigger>
-                        <!-- Alerta de risco: sobrepõe a cor do sinal quando há Bull Trap detectado -->
-                        <DataTrigger Binding="{Binding IsBullTrap}" Value="True">
-                            <Setter Property="Background" Value="DarkOrange"/>
-                            <Setter Property="Foreground" Value="White"/>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </DataGrid.RowStyle>
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="1.6*"/><RowDefinition Height="1*"/></Grid.RowDefinitions>
+        <Border Grid.Row="0" Background="#F5F5F5" BorderBrush="LightGray" BorderThickness="0,0,0,1" Padding="14,8"><StackPanel Orientation="Horizontal">
+            <Border x:Name="borderRegime" Background="Gray" CornerRadius="4" Padding="12,6" Margin="0,0,28,0" VerticalAlignment="Center"><StackPanel><TextBlock Text="REGIME DE MERCADO" FontSize="9" Foreground="White" Opacity="0.85"/><TextBlock x:Name="txtDashboardRegime" Text="—" FontWeight="Bold" FontSize="14" Foreground="White"/></StackPanel></Border>
+            <StackPanel Margin="0,0,28,0" VerticalAlignment="Center"><TextBlock Text="BTC" FontSize="9" Foreground="Gray"/><TextBlock x:Name="txtDashboardBtcPrice" Text="—" FontWeight="Bold" FontSize="14" Foreground="Black"/></StackPanel>
+            <StackPanel Margin="0,0,28,0" VerticalAlignment="Center"><TextBlock Text="DOMINÂNCIA BTC" FontSize="9" Foreground="Gray"/><TextBlock x:Name="txtDashboardBtcDominance" Text="—" FontWeight="Bold" FontSize="14" Foreground="Black"/></StackPanel>
+            <StackPanel Margin="0,0,28,0" VerticalAlignment="Center"><TextBlock Text="SINAIS ELEGÍVEIS AGORA" FontSize="9" Foreground="Gray"/><TextBlock x:Name="txtDashboardEligible" Text="—" FontWeight="Bold" FontSize="14" Foreground="Black"/></StackPanel>
+            <StackPanel Margin="0,0,28,0" VerticalAlignment="Center"><TextBlock Text="TOP CANDIDATOS" FontSize="9" Foreground="Gray"/><TextBlock x:Name="txtDashboardTopCandidates" Text="—" FontWeight="Bold" FontSize="14" Foreground="Black"/></StackPanel>
+            <StackPanel VerticalAlignment="Center"><TextBlock Text="DIÁRIO DE TRADES SIMULADOS" FontSize="9" Foreground="Gray"/><TextBlock x:Name="txtDashboardSimulated" Text="—" FontWeight="Bold" FontSize="14" Foreground="Black"/></StackPanel>
+        </StackPanel></Border>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="10"><TextBlock x:Name="txtWinRate" FontWeight="Bold"/><TextBlock x:Name="txtAvgReturn" Margin="20,0,0,0" FontWeight="Bold"/><TextBlock x:Name="txtPending" Margin="20,0,0,0" FontWeight="Bold"/><TextBlock x:Name="txtEvaluated" Margin="20,0,0,0" FontWeight="Bold"/></StackPanel>
+        <TextBlock x:Name="txtDiagnostics" Grid.Row="1" Margin="10,32,10,0" FontSize="13" Foreground="Gray" TextWrapping="Wrap"/>
+        <TextBlock Grid.Row="1" Margin="10,90,10,0" FontSize="13" FontStyle="Italic" Foreground="Gray" Text="*Consol.: exigido apenas quando o regime de mercado é BULL. Em BEAR/LATERAL (modo defensivo), esse critério é apenas informativo."/>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="10,108,0,0" VerticalAlignment="Top"><TextBlock Text="Perfil:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,8,0"/><RadioButton x:Name="rbIntraday" Content="Intraday (1h / 24h)" GroupName="Profile" Margin="0,0,12,0" VerticalAlignment="Center" Checked="ProfileChanged"/><RadioButton x:Name="rbSwing" Content="Swing (4h / 10 dias)" GroupName="Profile" IsChecked="True" VerticalAlignment="Center" Checked="ProfileChanged"/><CheckBox x:Name="chkFavoritesOnly" Content="★ Mostrar só favoritos" Margin="24,0,0,0" VerticalAlignment="Center" Checked="ChkFavoritesOnly_Changed" Unchecked="ChkFavoritesOnly_Changed"/><TextBlock Text="Buscar moeda:" VerticalAlignment="Center" Margin="24,0,6,0"/><TextBox x:Name="txtSearchSymbol" Width="120" VerticalAlignment="Center" Margin="0,0,6,0" KeyDown="TxtSearchSymbol_KeyDown"/><Button x:Name="btnSearch" Content="Buscar" Height="22" Padding="8,0" VerticalAlignment="Center" Click="BtnSearch_Click"/></StackPanel>
+        <DataGrid x:Name="dgRanking" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True" MouseLeftButtonUp="DgRanking_MouseLeftButtonUp" MouseRightButtonUp="DgRanking_MouseRightButtonUp">
+            <DataGrid.RowStyle><Style TargetType="DataGridRow"><Style.Triggers><DataTrigger Binding="{Binding DisplaySignal}" Value="COMPRA+"><Setter Property="Background" Value="DarkGreen"/><Setter Property="Foreground" Value="White"/></DataTrigger><DataTrigger Binding="{Binding DisplaySignal}" Value="COMPRA"><Setter Property="Background" Value="ForestGreen"/><Setter Property="Foreground" Value="White"/></DataTrigger><DataTrigger Binding="{Binding DisplaySignal}" Value="MONITORAR"><Setter Property="Background" Value="SteelBlue"/><Setter Property="Foreground" Value="White"/></DataTrigger><DataTrigger Binding="{Binding IsBullTrap}" Value="True"><Setter Property="Background" Value="DarkOrange"/><Setter Property="Foreground" Value="White"/></DataTrigger></Style.Triggers></Style></DataGrid.RowStyle>
             <DataGrid.Columns>
-                <DataGridTemplateColumn Header="★" Width="30">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                            <CheckBox IsChecked="{Binding IsFavorite, Mode=OneWay}"
-                                  Click="ChkFavorite_Click"
-                                  HorizontalAlignment="Center"
-                                  VerticalAlignment="Center"/>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-                <DataGridCheckBoxColumn Header="Elegível" Binding="{Binding IsEligible}" />
-                <DataGridTemplateColumn Header="" Width="80">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                            <Button Content="Simular"
-                                FontSize="11"
-                                Padding="4,1"
-                                Foreground="#00FFFF"
-                                Click="BtnSimulateTrade_Click"/>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-                <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" />
-                <DataGridTextColumn Header="Preço" Binding="{Binding CloseFormatted}" />
-                <DataGridTextColumn Header="Score" Binding="{Binding Score, StringFormat=F2}" />
-                <DataGridTextColumn Header="Var" Binding="{Binding VariationText}" />
-                <DataGridTextColumn Header="Resistência" Binding="{Binding Resistance, StringFormat=0.########}" />
-                <DataGridTextColumn Header="Res %" Binding="{Binding ResistanceDistance, StringFormat=F1}" />
-                <DataGridTextColumn Header="Sup %" Binding="{Binding SupportDistance, StringFormat=F1}" />
-                <DataGridTextColumn Header="RR" Binding="{Binding RiskReward, StringFormat=F2}" />
-                <DataGridTextColumn Header="Vol" Binding="{Binding VolumeSpike, StringFormat=F2}" />
-                <DataGridTextColumn Header="Romp" Binding="{Binding BreakoutSource}" />
-                <DataGridTextColumn Header="Trend" Binding="{Binding TrendDirection}" />
-                <DataGridTextColumn Header="Sinal" Binding="{Binding DisplaySignal}" />
-                <DataGridCheckBoxColumn Header="Consol.*" Binding="{Binding IsConsolidating}">
-                    <DataGridCheckBoxColumn.CellStyle>
-                        <Style TargetType="DataGridCell">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsConsolidationRelevant}" Value="False">
-                                    <Setter Property="Opacity" Value="0.35"/>
-                                    <Setter Property="ToolTip" Value="Não exigido como critério no regime de mercado atual (modo defensivo)."/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </DataGridCheckBoxColumn.CellStyle>
-                </DataGridCheckBoxColumn>
-                <DataGridTextColumn Header="Força Rel." Binding="{Binding RelativeStrengthText}" />
-                <DataGridCheckBoxColumn Header="Exaustão" Binding="{Binding HasExhaustion}" />
-                <DataGridTextColumn Header="Padrão" Binding="{Binding PatternName}" />
-                <DataGridTextColumn Header="Smart Money" Binding="{Binding SmartMoneyLabel}" />
+                <DataGridTemplateColumn Header="★" Width="30"><DataGridTemplateColumn.CellTemplate><DataTemplate><CheckBox IsChecked="{Binding IsFavorite, Mode=OneWay}" Click="ChkFavorite_Click" HorizontalAlignment="Center" VerticalAlignment="Center"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                <DataGridCheckBoxColumn Header="Elegível" Binding="{Binding IsEligible}"/>
+                <DataGridTemplateColumn Header="" Width="80"><DataGridTemplateColumn.CellTemplate><DataTemplate><Button Content="Simular" FontSize="11" Padding="4,1" Foreground="#00FFFF" Click="BtnSimulateTrade_Click"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}"/>
+                <DataGridTextColumn Header="Preço" Binding="{Binding CloseFormatted}"/>
+                <DataGridTextColumn Header="Score" Binding="{Binding Score, StringFormat=F2}"/>
+                <DataGridTextColumn Header="Retail Flow" Binding="{Binding RetailFlowScore, StringFormat=F0}"/>
+                <DataGridTextColumn Header="Var" Binding="{Binding VariationText}"/>
+                <DataGridTextColumn Header="Resistência" Binding="{Binding Resistance, StringFormat=0.########}"/>
+                <DataGridTextColumn Header="Res %" Binding="{Binding ResistanceDistance, StringFormat=F1}"/>
+                <DataGridTextColumn Header="Sup %" Binding="{Binding SupportDistance, StringFormat=F1}"/>
+                <DataGridTextColumn Header="RR" Binding="{Binding RiskReward, StringFormat=F2}"/>
+                <DataGridTextColumn Header="Vol" Binding="{Binding VolumeSpike, StringFormat=F2}"/>
+                <DataGridTextColumn Header="Romp" Binding="{Binding BreakoutSource}"/>
+                <DataGridTextColumn Header="Trend" Binding="{Binding TrendDirection}"/>
+                <DataGridTextColumn Header="Sinal" Binding="{Binding DisplaySignal}"/>
+                <DataGridCheckBoxColumn Header="Consol.*" Binding="{Binding IsConsolidating}"/><DataGridTextColumn Header="Força Rel." Binding="{Binding RelativeStrengthText}"/><DataGridCheckBoxColumn Header="Exaustão" Binding="{Binding HasExhaustion}"/><DataGridTextColumn Header="Padrão" Binding="{Binding PatternName}"/><DataGridTextColumn Header="Smart Money" Binding="{Binding SmartMoneyLabel}"/>
             </DataGrid.Columns>
         </DataGrid>
-        <TabControl Grid.Row="3">
-            <TabItem Header="Diário de Trades Simulados" IsSelected="True">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <TextBlock x:Name="txtSimulatedSummary" Grid.Row="0" Margin="4" FontWeight="Bold" Foreground="White"/>
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="4,0,4,4">
-                        <Button Content="Atualizar Diário" Click="BtnRefreshSimulatedTrades_Click" Padding="8,3"/>
-                        <Button x:Name="btnToggleClosedTrades" Content="Mostrar Concluídos" Click="BtnToggleClosedTrades_Click" Padding="8,3" Margin="8,0,0,0"/>
-                    </StackPanel>
-                    <DataGrid x:Name="dgSimulatedTrades" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="False" RowEditEnding="DgSimulatedTrades_RowEditEnding"
-                          PreviewMouseRightButtonDown="DgSimulatedTrades_PreviewMouseRightButtonDown">
-                        <DataGrid.ContextMenu>
-                            <ContextMenu>
-                                <MenuItem Header="Copiar linha" Click="BtnCopySimulatedTradeRow_Click"/>
-                            </ContextMenu>
-                        </DataGrid.ContextMenu>
-                        <DataGrid.RowStyle>
-                            <Style TargetType="DataGridRow">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding ExitReason}" Value="TP">
-                                        <Setter Property="Background" Value="LightGreen"/>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding ExitReason}" Value="SL">
-                                        <Setter Property="Background" Value="LightSalmon"/>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding ExitReason}" Value="Manual">
-                                        <Setter Property="Background" Value="LightGray"/>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding Closed}" Value="False">
-                                        <Setter Property="Background" Value="LightYellow"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </DataGrid.RowStyle>
-                        <DataGrid.Columns>
-                            <DataGridTemplateColumn Header="" Width="30">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <Button Content="X"
-                                            FontSize="11"
-                                            Padding="4,1"
-                                            Foreground="#00FFFF"
-                                            Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisibilityConverter}}"
-                                            Click="BtnCloseSimulatedTradeRow_Click"/>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Data" Binding="{Binding EntryTime, StringFormat=dd/MM HH:mm}" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Entrada" Binding="{Binding EntryPrice, StringFormat=0.########}" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Atual" Binding="{Binding CurrentPrice, StringFormat=0.########}" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Progresso" Binding="{Binding PartialExitProgressText}" IsReadOnly="True" />
-                            <DataGridTextColumn Header="SL" Binding="{Binding StopLoss, Mode=TwoWay}" IsReadOnly="False" />
-                            <DataGridTextColumn Header="Score" Binding="{Binding ScoreAtEntry, StringFormat=F2}" IsReadOnly="True" />
-                            <DataGridCheckBoxColumn Header="Aberto?" Binding="{Binding IsOpen, Mode=OneWay}" IsReadOnly="True" />
-                            <DataGridTextColumn Header="P/L Atual %" Binding="{Binding UnrealizedPnLPercent, StringFormat='+0.00;-0.00;0.00'}" IsReadOnly="True">
-                                <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{Binding UnrealizedPnLPercent, Converter={StaticResource PnLColorConverter}}"/>
-                                        <Setter Property="FontWeight" Value="Bold"/>
-                                    </Style>
-                                </DataGridTextColumn.ElementStyle>
-                            </DataGridTextColumn>
-                            <DataGridTextColumn Header="Saída" Binding="{Binding ExitTime, StringFormat=dd/MM HH:mm}" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Resultado %" Binding="{Binding OutcomePercent, StringFormat=F2}" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Motivo" Binding="{Binding ExitReason}" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Observação" Binding="{Binding Note, Mode=TwoWay}" IsReadOnly="False" Width="*" />
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </Grid>
-            </TabItem>
-            <TabItem Header="Histórico de Sinais">
-                <DataGrid x:Name="dgHistory"
-                      AutoGenerateColumns="False"
-                      IsReadOnly="True">
-                    <DataGrid.RowStyle>
-                        <Style TargetType="DataGridRow">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding ExitReason}"
-                                         Value="TP">
-                                    <Setter Property="Background"
-                                        Value="LightGreen"/>
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding ExitReason}"
-                                         Value="SL">
-                                    <Setter Property="Background"
-                                        Value="LightSalmon"/>
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding ExitReason}"
-                                         Value="TIMEOUT">
-                                    <Setter Property="Background"
-                                        Value="LightGray"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </DataGrid.RowStyle>
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Data" Binding="{Binding Timestamp, StringFormat=dd/MM HH:mm}" />
-                        <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" />
-                        <DataGridTextColumn Header="Entrada" Binding="{Binding Price}" />
-                        <DataGridTextColumn Header="Score" Binding="{Binding FinalScore}" />
-                        <DataGridTextColumn Header="Resultado %" Binding="{Binding OutcomePercent, StringFormat=F2}" />
-                        <DataGridTextColumn Header="Motivo" Binding="{Binding ExitReason}" />
-                        <DataGridCheckBoxColumn Header="Avaliado" Binding="{Binding Evaluated}" />
-                    </DataGrid.Columns>
-                </DataGrid>
-            </TabItem>
-        </TabControl>
-        <Button x:Name="btAtualizar" Grid.Row="1" Content="Atualizar" HorizontalAlignment="Left" Height="19" Margin="614,7,0,0" VerticalAlignment="Top" Width="77" RenderTransformOrigin="0.509,0.601" Click="btAtualizar_Click" Background="DarkSeaGreen"/>
-        <TextBlock Grid.Row="1" Text="Auto (min):" HorizontalAlignment="Left" Height="19" Margin="690,9,0,0" VerticalAlignment="Top" FontSize="11" Foreground="White"   
-                   ToolTip="Intervalo de atualização automática, em minutos. Digite o número e clique fora do campo (ou aperte Tab) pra salvar."/>
-        <TextBox x:Name="txtAutoScanInterval" Grid.Row="1" HorizontalAlignment="Left" Height="19" Margin="754,7,0,0" VerticalAlignment="Top" Width="24" FontSize="11" TextAlignment="Center" LostFocus="TxtAutoScanInterval_LostFocus"
-                 ToolTip="Intervalo de atualização automática, em minutos. Digite o número e clique fora do campo (ou aperte Tab) pra salvar."/>
-        <Button Grid.Row="1" Content="Análise" Click="BtnAnalytics_Click" HorizontalAlignment="Left" Height="19" Margin="782,7,0,0" VerticalAlignment="Top" Width="78"/>
-        <Button Grid.Row="1" Content="Backtest" Click="BtnFullBacktest_Click" HorizontalAlignment="Left" Height="19" Margin="868,7,0,0" VerticalAlignment="Top" Width="80"/>
-        <Button Grid.Row="1" Content="Histórico" Click="BtnBacktestHistory_Click" HorizontalAlignment="Left" Height="19" Margin="954,7,0,0" VerticalAlignment="Top" Width="80"/>
-        <Button Grid.Row="1" Content="Alertas" Click="BtnAlertSettings_Click" HorizontalAlignment="Left" Height="19" Margin="1040,7,0,0" VerticalAlignment="Top" Width="70"/>
-        <Popup x:Name="popupBreakdown"
-               StaysOpen="False"
-               AllowsTransparency="True"
-               Placement="Bottom"
-               PopupAnimation="Fade">
-            <Border Background="#2A2A2A"
-                    BorderBrush="{StaticResource DarkBorder}"
-                    BorderThickness="1"
-                    Padding="10"
-                    MaxWidth="400"
-                    TextElement.Foreground="White">
-                <StackPanel>
-                    <TextBlock Text="Score Breakdown"
-                           FontWeight="Bold"
-                           Margin="0,0,0,6"/>
-                    <TextBlock Text="{Binding QualityAnalysis}"
-                           FontSize="12"
-                           TextWrapping="Wrap"
-                           Margin="0,0,0,10"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                        <TextBlock Text="Alvos (TP1|TP2|TP3): " FontSize="12" Foreground="Gray"/>
-                        <TextBlock Text="{Binding PartialExitTargetsText}" FontSize="12" FontWeight="Bold" TextWrapping="Wrap"/>
-                    </StackPanel>
-                    <UniformGrid Columns="4"
-                             Rows="2">
-                        <StackPanel Margin="0,0,10,6">
-                            <TextBlock Text="Trend" FontSize="12" Foreground="Gray"/>
-                            <TextBlock Text="{Binding TrendScore}" FontWeight="Bold"/>
-                        </StackPanel>
-                        <StackPanel Margin="0,0,10,6">
-                            <TextBlock Text="Structure" FontSize="12" Foreground="Gray"/>
-                            <TextBlock Text="{Binding StructureScore}" FontWeight="Bold"/>
-                        </StackPanel>
-                        <StackPanel Margin="0,0,10,6">
-                            <TextBlock Text="Volume" FontSize="12" Foreground="Gray"/>
-                            <TextBlock Text="{Binding VolumeScore}" FontWeight="Bold"/>
-                        </StackPanel>
-                        <StackPanel Margin="0,0,10,6">
-                            <TextBlock Text="Candle" FontSize="12" Foreground="Gray"/>
-                            <TextBlock Text="{Binding CandleScore}" FontWeight="Bold"/>
-                        </StackPanel>
-                        <StackPanel Margin="0,0,10,0">
-                            <TextBlock Text="Setup" FontSize="12" Foreground="Gray"/>
-                            <TextBlock Text="{Binding SetupScore}" FontWeight="Bold"/>
-                        </StackPanel>
-                        <StackPanel Margin="0,0,10,0">
-                            <TextBlock Text="Momentum" FontSize="12" Foreground="Gray"/>
-                            <TextBlock Text="{Binding MomentumScore}" FontWeight="Bold"/>
-                        </StackPanel>
-                        <StackPanel Margin="0,0,10,0">
-                            <TextBlock Text="Volatility" FontSize="12" Foreground="Gray"/>
-                            <TextBlock Text="{Binding VolatilityScore}" FontWeight="Bold"/>
-                        </StackPanel>
-                        <StackPanel Margin="0,0,10,0">
-                            <TextBlock Text="Trend Strength" FontSize="12" Foreground="Gray"/>
-                            <TextBlock Text="{Binding TrendStrengthScore}" FontWeight="Bold"/>
-                        </StackPanel>
-                    </UniformGrid>
-                </StackPanel>
-            </Border>
-        </Popup>
+        <TabControl Grid.Row="3"><TabItem Header="Diário de Trades Simulados" IsSelected="True"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions><TextBlock x:Name="txtSimulatedSummary" Grid.Row="0" Margin="4" FontWeight="Bold" Foreground="White"/><StackPanel Grid.Row="1" Orientation="Horizontal" Margin="4,0,4,4"><Button Content="Atualizar Diário" Click="BtnRefreshSimulatedTrades_Click" Padding="8,3"/><Button x:Name="btnToggleClosedTrades" Content="Mostrar Concluídos" Click="BtnToggleClosedTrades_Click" Padding="8,3" Margin="8,0,0,0"/></StackPanel><DataGrid x:Name="dgSimulatedTrades" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="False" RowEditEnding="DgSimulatedTrades_RowEditEnding" PreviewMouseRightButtonDown="DgSimulatedTrades_PreviewMouseRightButtonDown"><DataGrid.ContextMenu><ContextMenu><MenuItem Header="Copiar linha" Click="BtnCopySimulatedTradeRow_Click"/></ContextMenu></DataGrid.ContextMenu><DataGrid.RowStyle><Style TargetType="DataGridRow"><Style.Triggers><DataTrigger Binding="{Binding ExitReason}" Value="TP"><Setter Property="Background" Value="LightGreen"/></DataTrigger><DataTrigger Binding="{Binding ExitReason}" Value="SL"><Setter Property="Background" Value="LightSalmon"/></DataTrigger><DataTrigger Binding="{Binding ExitReason}" Value="Manual"><Setter Property="Background" Value="LightGray"/></DataTrigger><DataTrigger Binding="{Binding Closed}" Value="False"><Setter Property="Background" Value="LightYellow"/></DataTrigger></Style.Triggers></Style></DataGrid.RowStyle><DataGrid.Columns><DataGridTemplateColumn Header="" Width="30"><DataGridTemplateColumn.CellTemplate><DataTemplate><Button Content="X" Click="BtnCloseSimulatedTrade_Click" Padding="4,0"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn><DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}"/><DataGridTextColumn Header="Entrada" Binding="{Binding EntryPrice, StringFormat=0.########}"/><DataGridTextColumn Header="Saída" Binding="{Binding ExitPrice, StringFormat=0.########}"/><DataGridTextColumn Header="Resultado %" Binding="{Binding ResultPercent, StringFormat=F2}"/><DataGridTextColumn Header="Resultado R$" Binding="{Binding ResultAmount, StringFormat=F2}"/><DataGridTextColumn Header="Data" Binding="{Binding EntryTime, StringFormat=g}"/><DataGridTextColumn Header="Status" Binding="{Binding Closed}"/></DataGrid.Columns></DataGrid></Grid></TabItem></TabControl>
     </Grid>
 </Window>
