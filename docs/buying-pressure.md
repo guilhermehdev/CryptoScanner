@@ -40,13 +40,57 @@ os alertas, a elegibilidade ou a regra COMPRA/COMPRA+. A contribuição legada d
 RetailFlowScore no OpportunityScore permanece separada para não alterar a estratégia
 existente durante esta avaliação. Funding não compõe a nova nota.
 
+## Gravação e vínculo com trades
+
+A partir desta versão, o scan e a busca manual gravam no mesmo SQLite do aplicativo
+(`%LOCALAPPDATA%/CryptoScanner/signals.db`), com criação/migração automática:
+
+- `BuyingPressureSnapshots`: uma leitura por ativo, fechamento de 5 minutos e versão
+  da fórmula, compartilhada por Swing e Intraday. Guarda horários UTC em milissegundos,
+  nota, qualidade, componentes numéricos, referências e entradas completas em JSON.
+- `BuyingPressureFailures`: primeira falha por ativo/janela/versão, com os dados recebidos.
+  Se uma tentativa posterior recuperar a janela, a nota passa a ter o horário real dessa
+  recuperação. Uma leitura já válida nunca é substituída por dados posteriores.
+- `BuyingPressureOutcomes`: avaliações de 30, 60, 240 e 1440 minutos após o fechamento
+  de referência, com preço exato do candle, retorno bruto, coleta e origem histórica.
+- `BuyingPressurePrices`: fechamentos de futuros reaproveitados entre avaliações.
+
+Todo ativo que chega à análise de fluxo é gravado, mesmo que não apareça entre os
+melhores candidatos ou não gere trade. O intervalo efetivo depende dos scans:
+não existe coleta enquanto o aplicativo está fechado, e scans espaçados deixam lacunas.
+O histórico começa com o uso desta versão; não são inventadas notas para janelas perdidas.
+
+Na abertura do trade, o banco escolhe atomicamente a leitura válida mais recente
+do mesmo ativo e versão, **coletada antes ou no horário da entrada**, cujo fechamento
+não tem mais de 10 minutos. O `BuyingPressureSnapshotId` fica salvo no trade. Sem leitura
+válida, o vínculo fica nulo. Trades antigos não são preenchidos retroativamente.
+A coluna **Pressão na entrada** no diário exibe a nota vinculada.
+
+Para resultados posteriores, usa-se primeiro o preço dos candles já recebidos. Após
+cada scan concluído, o aplicativo busca até 20 fechamentos históricos pendentes,
+sempre no endpoint de futuros e no horário exato, sem substituir por cotação atual.
+Tentativas sem sucesso voltam à fila após pelo menos 5 minutos. Pendências e vínculos
+sobrevivem ao reinício. Resultados coletados historicamente são marcados como
+`Reconstructed=1`; essa marca não transforma a nota original em uma nota reconstruída.
+
+Os retornos são **movimentos brutos de mercado a partir do preço de referência**,
+não lucros executáveis nem resultados líquidos de trades. A nota só ficou disponível
+em `CollectedAtMs`; a validação deve respeitar esse atraso, além de taxas e slippage.
+Falhas de gravação/recuperação aparecem no diagnóstico do scanner. Não há exclusão
+automática de registros nesta versão. A tela de análise das faixas de nota fica para
+a etapa seguinte; a gravação e as avaliações já ocorrem automaticamente.
+
 ## Verificação e próxima etapa
 
 `dotnet run --project tests/BuyingPressure.Checks` executa verificações determinísticas
 de direção, persistência, esticamento, dados ausentes, parsing e cancelamento.
 Essas verificações não demonstram rentabilidade.
 
-Antes de transformar a nota em gatilho: registrar snapshots e resultados futuros,
+`dotnet run --project tests/BuyingPressure.HistoryChecks` verifica a migração de banco
+antigo, concorrência, deduplicação, vínculos sem informação futura, qualidade dos dados,
+recuperação após reinício e retornos em horários exatos, usando bancos temporários.
+
+Antes de transformar a nota em gatilho: acumular snapshots e resultados futuros,
 separar treino e teste cronologicamente, avaliar cada perfil e regime, incluir taxas
 e slippage e comparar com a estratégia sem esse filtro. O histórico de OI disponível
 na API é limitado; o backtest atual não reconstrói automaticamente estes dados.

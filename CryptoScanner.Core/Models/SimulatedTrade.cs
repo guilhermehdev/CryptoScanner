@@ -6,6 +6,8 @@ public sealed class SimulatedTrade : ObservableModel
     public string Symbol { get; set; } = "";
     public DateTime EntryTime { get; set; }
     public decimal EntryPrice { get; set; }
+    public long? BuyingPressureSnapshotId { get; set; }
+    public decimal? BuyingPressureAtEntry { get; set; }
     public decimal TakeProfit { get; set; }
     private decimal _stopLoss;
     public decimal StopLoss

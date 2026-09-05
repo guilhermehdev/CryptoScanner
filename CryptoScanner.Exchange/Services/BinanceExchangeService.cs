@@ -6,13 +6,28 @@ using System.Text.Json;
 
 namespace CryptoScanner.Exchange.Services;
 
-public class BinanceExchangeService : IMarketDataService
+public class BinanceExchangeService : IMarketDataService, IBuyingPressurePriceSource
 {
     private readonly HttpClient _http;
 
     public BinanceExchangeService() : this(new HttpClient()) { }
 
     public BinanceExchangeService(HttpClient http) => _http = http;
+
+    public async Task<decimal?> GetFuturesCloseAsync(string symbol, long closeTimeMs, CancellationToken cancellationToken = default)
+    {
+        if (closeTimeMs % 300_000 != 0 || closeTimeMs > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())
+            return null;
+        string url = $"https://fapi.binance.com/fapi/v1/klines?symbol={Uri.EscapeDataString(symbol)}&interval=5m&startTime={closeTimeMs - 300_000}&endTime={closeTimeMs - 1}&limit=1";
+        string json = await _http.GetStringAsync(url, cancellationToken);
+        using var doc = JsonDocument.Parse(json);
+        if (doc.RootElement.GetArrayLength() != 1) return null;
+        var candle = doc.RootElement[0];
+        if (candle[0].GetInt64() != closeTimeMs - 300_000 || candle[6].GetInt64() != closeTimeMs - 1)
+            return null;
+        decimal price = ReadFlowDecimal(candle[4]);
+        return price > 0 ? price : null;
+    }
 
     private static readonly HashSet<string> StablecoinBaseAssets = new(StringComparer.OrdinalIgnoreCase)
     {

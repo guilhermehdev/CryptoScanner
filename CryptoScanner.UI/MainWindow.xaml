@@ -113,6 +113,7 @@
                             <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Data" Binding="{Binding EntryTime, StringFormat=dd/MM HH:mm}" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Entrada" Binding="{Binding EntryPrice, StringFormat=0.########}" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Pressão na entrada" Binding="{Binding BuyingPressureAtEntry, StringFormat=F0, TargetNullValue=—}" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Atual" Binding="{Binding CurrentPrice, StringFormat=0.########}" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Progresso" Binding="{Binding PartialExitProgressText}" IsReadOnly="True"/>
                             <DataGridTextColumn Header="SL" Binding="{Binding StopLoss, Mode=TwoWay}" IsReadOnly="False"/>

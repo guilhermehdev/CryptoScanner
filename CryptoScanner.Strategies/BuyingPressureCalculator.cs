@@ -70,6 +70,10 @@ public static class BuyingPressureCalculator
             $"Compras agressivas: {buyRatio:P1} | Predomínio comprador: {recent.Count(c => c.BuyVolume > c.Volume / 2m)}/6 períodos\n" +
             $"Preço: {priceChange:+0.00;-0.00;0.00}% | Volume: {volumeRatio:F2}× | OI: {oiChange:+0.00;-0.00;0.00}%\n" +
             $"Penalização por esticamento: {penalty:F1} pontos.\n" +
-            "Experimental: não é probabilidade de acerto nem identifica varejo. Sem corte automático de compra.");
+            "Experimental: não é probabilidade de acerto nem identifica varejo. Sem corte automático de compra.")
+        {
+            Measurements = new(end, recent[^1].Close, buyRatio, persistence, priceChange,
+                volumeRatio, oiChange, penalty, baselinePrice, atr)
+        };
     }
 }

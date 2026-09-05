@@ -86,13 +86,17 @@ public sealed class ScannerService
     private readonly ISignalRepository _signals;
     private readonly IWatchlistRepository _watchlist;
     private readonly AssetAnalyzer _assetAnalyzer;
+    private readonly BuyingPressureHistoryService? _pressureHistory;
+    public event Action<string>? PressureHistoryError;
 
-    public ScannerService(IMarketDataService marketData, ISignalRepository signals, IWatchlistRepository watchlist, AssetAnalyzer assetAnalyzer)
+    public ScannerService(IMarketDataService marketData, ISignalRepository signals, IWatchlistRepository watchlist, AssetAnalyzer assetAnalyzer,
+        BuyingPressureHistoryService? pressureHistory = null)
     {
         _marketData = marketData;
         _signals = signals;
         _watchlist = watchlist;
         _assetAnalyzer = assetAnalyzer;
+        _pressureHistory = pressureHistory;
     }
 
     public async Task<ScannerRunResult> RunAsync(ScanProfile profile, CancellationToken cancellationToken = default)
@@ -219,18 +223,7 @@ public sealed class ScannerService
             var candles = await _marketData.GetCandlesAsync(symbol, profile.CandleInterval, 300, cancellationToken);
             var analysis = _assetAnalyzer.Analyze(symbol, candles, btcCandles, profile, ValidatedRiskMode);
 
-            try
-            {
-                var flow = await _marketData.GetMarketFlowDataAsync(symbol, cancellationToken);
-                analysis.RetailFlowScore = RetailFlowScoreCalculator.Calculate(flow);
-                analysis.BuyingPressure = BuyingPressureCalculator.Calculate(flow, DateTimeOffset.UtcNow);
-                analysis.OpportunityScore = OpportunityScoreCalculator.Calculate(analysis);
-            }
-            catch (Exception) when (!cancellationToken.IsCancellationRequested)
-            {
-                analysis.RetailFlowScore = 50m;
-                analysis.BuyingPressure = BuyingPressureResult.Unavailable("falha ao consultar o fluxo de mercado.");
-            }
+            await UpdateMarketFlowAsync(symbol, analysis, cancellationToken);
 
             return analysis;
         }
@@ -330,19 +323,40 @@ public sealed class ScannerService
         var favoriteSet = new HashSet<string>(favoriteSymbols, StringComparer.OrdinalIgnoreCase);
 
         var analysis = _assetAnalyzer.Analyze(symbol, candles, btcCandles, profile, ValidatedRiskMode);
+        await UpdateMarketFlowAsync(symbol, analysis, cancellationToken);
+
+        return AssetScoreFactory.Create(analysis, marketRegime, favoriteSet, GetValidatedThresholds(profile));
+    }
+
+    private async Task UpdateMarketFlowAsync(string symbol, AssetAnalysis analysis, CancellationToken cancellationToken)
+    {
+        var flow = new MarketFlowData();
+        DateTimeOffset collectedAt;
         try
         {
-            var flow = await _marketData.GetMarketFlowDataAsync(symbol, cancellationToken);
+            flow = await _marketData.GetMarketFlowDataAsync(symbol, cancellationToken);
+            collectedAt = DateTimeOffset.UtcNow;
             analysis.RetailFlowScore = RetailFlowScoreCalculator.Calculate(flow);
-            analysis.BuyingPressure = BuyingPressureCalculator.Calculate(flow, DateTimeOffset.UtcNow);
+            analysis.BuyingPressure = BuyingPressureCalculator.Calculate(flow, collectedAt);
             analysis.OpportunityScore = OpportunityScoreCalculator.Calculate(analysis);
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
+            collectedAt = DateTimeOffset.UtcNow;
             analysis.RetailFlowScore = 50m;
             analysis.BuyingPressure = BuyingPressureResult.Unavailable("falha ao consultar o fluxo de mercado.");
         }
 
-        return AssetScoreFactory.Create(analysis, marketRegime, favoriteSet, GetValidatedThresholds(profile));
+        if (_pressureHistory is null) return;
+        try
+        {
+            await _pressureHistory.RecordAsync(symbol, flow, analysis.BuyingPressure, collectedAt, cancellationToken);
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            analysis.BuyingPressure = analysis.BuyingPressure with
+                { Details = analysis.BuyingPressure.Details + "\nNão foi possível gravar esta leitura no histórico." };
+            PressureHistoryError?.Invoke($"{symbol}: {ex.Message}");
+        }
     }
 }

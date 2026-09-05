@@ -7,11 +7,17 @@ namespace CryptoScanner.Infrastructure.Sqlite;
 public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
 {
     private readonly string _connectionString;
+    private readonly SqliteBuyingPressureRepository _pressureRepository;
 
-    public SqliteSimulatedTradeRepository(string databasePath) => _connectionString = $"Data Source={databasePath}";
+    public SqliteSimulatedTradeRepository(string databasePath)
+    {
+        _connectionString = $"Data Source={databasePath}";
+        _pressureRepository = new(databasePath);
+    }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
+        await _pressureRepository.InitializeAsync(cancellationToken);
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
 
@@ -35,6 +41,7 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
 
         var expectedColumns = new (string Name, string Type)[]
         {
+            ("BuyingPressureSnapshotId", "INTEGER REFERENCES BuyingPressureSnapshots(Id)"),
             ("Note", "TEXT"),
             ("Profile", "TEXT"),
             ("ScoreAtEntry", "REAL"),
@@ -105,7 +112,7 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
              TrendScore, StructureScore, VolumeScore, CandleScore, SetupScore,
              MomentumScore, VolatilityScore, TrendStrengthScore,
              PatternName, SmartMoneyLabel, BreakoutSource, MarketRegime, IsBullTrap, IsBearTrap,
-             TakeProfit1, TakeProfit3, Tp1Hit, Tp2Hit, RemainingFraction, WeightedExitSum, Closed)
+             TakeProfit1, TakeProfit3, Tp1Hit, Tp2Hit, RemainingFraction, WeightedExitSum, Closed, BuyingPressureSnapshotId)
             VALUES
             (@Symbol, @EntryTime, @EntryPrice, @TakeProfit, @StopLoss, @Note, @Profile,
              @ScoreAtEntry, @Rsi, @Adx, @AtrPercent, @EmaDistanceAtr, @SwingUsageAtr,
@@ -113,12 +120,18 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
              @TrendScore, @StructureScore, @VolumeScore, @CandleScore, @SetupScore,
              @MomentumScore, @VolatilityScore, @TrendStrengthScore,
              @PatternName, @SmartMoneyLabel, @BreakoutSource, @MarketRegime, @IsBullTrap, @IsBearTrap,
-             @TakeProfit1, @TakeProfit3, 0, 0, 1.0, 0, 0);
+             @TakeProfit1, @TakeProfit3, 0, 0, 1.0, 0, 0,
+             (SELECT Id FROM BuyingPressureSnapshots
+              WHERE Symbol=@Symbol COLLATE NOCASE AND Score IS NOT NULL AND FormulaVersion=@PressureVersion
+                AND CollectedAtMs<=@EntryUnix AND WindowEndMs<=@EntryUnix AND WindowEndMs>=@EntryUnix-600000
+              ORDER BY WindowEndMs DESC, CollectedAtMs DESC, Id DESC LIMIT 1));
             SELECT last_insert_rowid();
             """;
         await using var command = new SqliteCommand(sql, connection);
         command.Parameters.AddWithValue("@Symbol", trade.Symbol);
         command.Parameters.AddWithValue("@EntryTime", trade.EntryTime.ToString("O"));
+        command.Parameters.AddWithValue("@EntryUnix", new DateTimeOffset(trade.EntryTime.ToUniversalTime()).ToUnixTimeMilliseconds());
+        command.Parameters.AddWithValue("@PressureVersion", BuyingPressureSnapshot.FormulaVersion);
         command.Parameters.AddWithValue("@EntryPrice", (double)trade.EntryPrice);
         command.Parameters.AddWithValue("@TakeProfit", (double)trade.TakeProfit);
         command.Parameters.AddWithValue("@StopLoss", (double)trade.StopLoss);
@@ -156,10 +169,10 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
     }
 
     public async Task<IReadOnlyList<SimulatedTrade>> GetAllAsync(CancellationToken cancellationToken = default) =>
-        await ReadTradesAsync("SELECT * FROM SimulatedTrades ORDER BY Id DESC", cancellationToken);
+        await ReadTradesAsync("SELECT t.*,p.Score AS BuyingPressureAtEntry FROM SimulatedTrades t LEFT JOIN BuyingPressureSnapshots p ON p.Id=t.BuyingPressureSnapshotId ORDER BY t.Id DESC", cancellationToken);
 
     public async Task<IReadOnlyList<SimulatedTrade>> GetOpenAsync(CancellationToken cancellationToken = default) =>
-        await ReadTradesAsync("SELECT * FROM SimulatedTrades WHERE Closed = 0", cancellationToken);
+        await ReadTradesAsync("SELECT t.*,p.Score AS BuyingPressureAtEntry FROM SimulatedTrades t LEFT JOIN BuyingPressureSnapshots p ON p.Id=t.BuyingPressureSnapshotId WHERE t.Closed = 0", cancellationToken);
 
     public async Task UpdateTradeDetailsAsync(int id, decimal takeProfit, decimal stopLoss, string note, CancellationToken cancellationToken = default)
     {
@@ -237,6 +250,8 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
                 Symbol = reader.GetString(reader.GetOrdinal("Symbol")),
                 EntryTime = DateTime.Parse(reader.GetString(reader.GetOrdinal("EntryTime"))),
                 EntryPrice = Convert.ToDecimal(reader.GetDouble(reader.GetOrdinal("EntryPrice"))),
+                BuyingPressureSnapshotId = reader.IsDBNull(reader.GetOrdinal("BuyingPressureSnapshotId")) ? null : reader.GetInt64(reader.GetOrdinal("BuyingPressureSnapshotId")),
+                BuyingPressureAtEntry = GetNullableDecimal(reader, "BuyingPressureAtEntry"),
                 TakeProfit = Convert.ToDecimal(reader.GetDouble(reader.GetOrdinal("TakeProfit"))),
                 StopLoss = Convert.ToDecimal(reader.GetDouble(reader.GetOrdinal("StopLoss"))),
                 Note = GetStringOrDefault(reader, "Note"),

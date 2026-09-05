@@ -26,6 +26,9 @@ public partial class MainWindow : Window
 {
     private readonly DispatcherTimer _timer = new();
     private readonly ScannerService _scanner;
+    private readonly BuyingPressureHistoryService _pressureHistory;
+    private int _pressureHistoryErrors;
+    private string _lastPressureHistoryError = "";
     private readonly IWatchlistRepository _watchlistRepository;
     private readonly ISimulatedTradeRepository _simulatedTradeRepository;
     private readonly IBacktestRunResultRepository _runResultRepository;
@@ -63,11 +66,13 @@ public partial class MainWindow : Window
         _runResultRepository = new SqliteBacktestRunResultRepository(databasePath);
         _alertSettingsRepository = new SqliteAlertSettingsRepository(databasePath);
         _appSettingsRepository = new SqliteAppSettingsRepository(databasePath);
+        _pressureHistory = new BuyingPressureHistoryService(new SqliteBuyingPressureRepository(databasePath), _priceCheckService);
         _scanner = new ScannerService(
             new BinanceExchangeService(),
             new SqliteSignalRepository(databasePath),
             _watchlistRepository,
-            new AssetAnalyzer());
+            new AssetAnalyzer(), _pressureHistory);
+        _scanner.PressureHistoryError += ReportPressureHistoryError;
 
         Loaded += MainWindow_Loaded;
         _timer.Interval = TimeSpan.FromMinutes(1); // padrão inicial — o valor real (persistido) é carregado no Loaded
@@ -162,6 +167,8 @@ public partial class MainWindow : Window
             await DispatchAlertsAsync(result.NewSignals);
             await EvaluateSimulatedTradesAsync();
             await LoadSimulatedTradesAsync(); // mantém o resumo do Diário (e o espelho no Dashboard) sempre fresco
+            try { await _pressureHistory.CompleteDueAsync(DateTimeOffset.UtcNow); }
+            catch (Exception ex) { ReportPressureHistoryError($"Preços posteriores: {ex.Message}"); }
 
             UpdateDashboard(result.MarketRegime);
             _ = UpdateBtcDominanceAsync(); // não bloqueia o scan — atualiza o Dashboard quando terminar
@@ -1016,7 +1023,19 @@ public partial class MainWindow : Window
 
         txtDiagnostics.Text =
             $"SWING — {Describe(ScanProfile.Swing.Name)}\n" +
-            $"INTRADAY — {Describe(ScanProfile.Intraday.Name)}";
+            $"INTRADAY — {Describe(ScanProfile.Intraday.Name)}\n" +
+            (_pressureHistoryErrors == 0 ? "Histórico da pressão: gravação automática ativa."
+                : $"Histórico da pressão: {_pressureHistoryErrors} falha(s) nesta sessão — {_lastPressureHistoryError}");
+    }
+
+    private void ReportPressureHistoryError(string message)
+    {
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            _pressureHistoryErrors++;
+            _lastPressureHistoryError = message;
+            RefreshDiagnosticsDisplay();
+        }));
     }
 
     // Centraliza o texto do título — antes ficava embutido em RunScannerAsync, agora
