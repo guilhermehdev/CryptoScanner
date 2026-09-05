@@ -7,7 +7,12 @@ public sealed class SimulatedTrade : ObservableModel
     public DateTime EntryTime { get; set; }
     public decimal EntryPrice { get; set; }
     public decimal TakeProfit { get; set; }
-    public decimal StopLoss { get; set; }
+    private decimal _stopLoss;
+    public decimal StopLoss
+    {
+        get => _stopLoss;
+        set => SetField(ref _stopLoss, value);
+    }
     public string Note { get; set; } = "";
     public string Profile { get; set; } = "";
 
@@ -99,8 +104,7 @@ public sealed class SimulatedTrade : ObservableModel
         set => SetField(ref _unrealizedPnLPercent, value);
     }
 
-    // Etapa 3.3 — estado da saída parcial (TP1→breakeven→TP2→TP3), espelhando a mesma
-    // lógica já validada no Backtest (SwingWithPartialExits). TakeProfit já existente
+    // Estado da saída parcial (TP1→TP2→breakeven→TP3). TakeProfit já existente
     // continua sendo o TP2 (resistência estrutural); TakeProfit1/3 são os alvos extras.
     public decimal? TakeProfit1 { get; set; }
     public decimal? TakeProfit3 { get; set; }

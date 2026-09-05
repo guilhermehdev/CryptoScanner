@@ -7,8 +7,8 @@
     <StackPanel Margin="15">
         <TextBlock x:Name="txtSymbolHeader" FontWeight="Bold" FontSize="16" Margin="0,0,0,10"/>
 
-        <TextBlock Text="Preço de Entrada:" FontSize="11" Foreground="Gray"/>
-        <TextBox x:Name="txtEntryPrice" Margin="0,2,0,10"/>
+        <TextBlock Text="Preço de Entrada (atualizado ao salvar):" FontSize="11" Foreground="Gray"/>
+        <TextBox x:Name="txtEntryPrice" IsReadOnly="True" Margin="0,2,0,10"/>
 
         <TextBlock Text="Take Profit:" FontSize="11" Foreground="Gray"/>
         <TextBox x:Name="txtTakeProfit" Margin="0,2,0,10"/>

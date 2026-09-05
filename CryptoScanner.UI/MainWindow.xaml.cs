@@ -425,7 +425,8 @@ public partial class MainWindow : Window
 
         // O trade simulado herda o perfil que está sendo exibido (a linha clicada
         // pertence ao grid do perfil exibido).
-        var window = new SimulateTradeWindow(_simulatedTradeRepository, asset, _viewedProfile.Name)
+        var window = new SimulateTradeWindow(_simulatedTradeRepository, asset, _viewedProfile.Name,
+            () => _priceCheckService.GetCurrentPriceAsync(asset.Symbol))
         {
             Owner = this
         };
@@ -509,8 +510,8 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Processa um preço novo pra um trade simulado, seguindo TP1→breakeven→TP2→TP3 (mesma
-    /// lógica já validada no Backtest, ProcessPartialExits) — ou o fechamento único de sempre,
+    /// Processa um preço novo pra um trade simulado, seguindo TP1→TP2→breakeven→TP3
+    /// — ou o fechamento único de sempre,
     /// se o trade não tiver TP1 (modo de risco antigo, ou trade criado antes dessa etapa).
     /// A parte que mexe em objetos ligados à UI roda dentro de Dispatcher.Invoke (seguro tanto
     /// se já estivermos na thread da UI — caso do scan — quanto vindo de outra thread — caso
@@ -546,7 +547,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // 1. Stop Loss sempre tem prioridade — pode já estar no breakeven se TP1 bateu antes.
+            // 1. Stop Loss sempre tem prioridade — pode estar na entrada após o TP2.
             if (price <= trade.StopLoss)
             {
                 decimal legReturn = (trade.StopLoss - trade.EntryPrice) / trade.EntryPrice * 100m;
@@ -556,7 +557,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // 2. TP1 — realiza 40%, move o stop pro breakeven.
+            // 2. TP1 — realiza 40% e mantém o stop original.
             if (!trade.Tp1Hit && price >= trade.TakeProfit1.Value)
             {
                 const decimal tp1Fraction = 0.40m;
@@ -565,9 +566,7 @@ public partial class MainWindow : Window
                 trade.WeightedExitSum += tp1Fraction * legReturn;
                 trade.RemainingFraction -= tp1Fraction;
                 trade.Tp1Hit = true;
-                trade.StopLoss = trade.EntryPrice * 1.001m; // breakeven + 0,1% de folga
                 partialHit = true;
-                return;
             }
 
             // 3. TP2 — a resistência estrutural (TakeProfit "principal" de sempre). Realiza mais 40%.
@@ -579,8 +578,8 @@ public partial class MainWindow : Window
                 trade.WeightedExitSum += tp2Fraction * legReturn;
                 trade.RemainingFraction -= tp2Fraction;
                 trade.Tp2Hit = true;
+                trade.StopLoss = Math.Max(trade.StopLoss, trade.EntryPrice);
                 partialHit = true;
-                return;
             }
 
             // 4. TP3 — fecha o restante da posição.
