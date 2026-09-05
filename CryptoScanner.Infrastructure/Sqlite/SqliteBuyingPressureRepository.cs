@@ -34,6 +34,7 @@ public sealed class SqliteBuyingPressureRepository(string databasePath) : IBuyin
                     UNIQUE(Symbol, WindowEndMs, FormulaVersion)
                 );
                 CREATE INDEX IF NOT EXISTS IX_PressureEntry ON BuyingPressureSnapshots(Symbol, CollectedAtMs, WindowEndMs);
+                CREATE INDEX IF NOT EXISTS IX_PressureReport ON BuyingPressureSnapshots(FormulaVersion, CollectedAtMs);
                 CREATE TABLE IF NOT EXISTS BuyingPressureFailures (
                     Symbol TEXT NOT NULL COLLATE NOCASE, WindowEndMs INTEGER NOT NULL,
                     FormulaVersion TEXT NOT NULL, CollectedAtMs INTEGER NOT NULL,

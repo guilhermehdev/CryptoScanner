@@ -77,8 +77,31 @@ Os retornos são **movimentos brutos de mercado a partir do preço de referênci
 não lucros executáveis nem resultados líquidos de trades. A nota só ficou disponível
 em `CollectedAtMs`; a validação deve respeitar esse atraso, além de taxas e slippage.
 Falhas de gravação/recuperação aparecem no diagnóstico do scanner. Não há exclusão
-automática de registros nesta versão. A tela de análise das faixas de nota fica para
-a etapa seguinte; a gravação e as avaliações já ocorrem automaticamente.
+automática de registros nesta versão.
+
+## Tela de análise
+
+Abra **Análise da pressão** na barra superior do scanner. O botão **Atualizar** consulta
+o histórico local; não faz operações de mercado nem solicita preços à Binance.
+
+- Filtros: datas de **coleta** (dias locais, incluindo o último dia), ativo exato
+  ou todos, e resultado de 30 minutos, 1 hora, 4 horas ou 24 horas.
+- A versão da fórmula é fixada na versão atual e aparece no resumo; versões diferentes
+  não são misturadas. Swing e Intraday compartilham os mesmos registros.
+- Faixas de 10 pontos: limite inferior incluso e superior exclusivo, exceto 90–100,
+  que inclui 100. As faixas são agrupamentos descritivos, não recomendações de entrada.
+- Cada faixa mostra N avaliado, pendências, recuperação atrasada, proporção de retornos
+  positivos, média, mínimo, máximo e quantidade de resultados recuperados historicamente.
+  Retorno zero entra na média e no denominador, mas não conta como positivo.
+- Leituras indisponíveis ficam fora das faixas numéricas e são contadas no resumo.
+  Avaliações pendentes não entram nas médias nem são tratadas como retorno zero.
+- As estatísticas consideram **todo** o filtro. O histórico detalhado exibe até 500
+  leituras mais recentes; selecionar uma linha mostra os componentes do tooltip.
+- A coleta e o fechamento da janela aparecem separadamente, no horário local.
+
+Leituras sobrepostas não são observações independentes. Os resultados exibidos são
+retornos brutos de mercado; não constituem taxa de acerto de trades. Sem dados,
+a tela explica que o scanner precisa acumular leituras. A atualização é manual.
 
 ## Verificação e próxima etapa
 
@@ -89,6 +112,9 @@ Essas verificações não demonstram rentabilidade.
 `dotnet run --project tests/BuyingPressure.HistoryChecks` verifica a migração de banco
 antigo, concorrência, deduplicação, vínculos sem informação futura, qualidade dos dados,
 recuperação após reinício e retornos em horários exatos, usando bancos temporários.
+
+`dotnet run --project tests/BuyingPressure.AnalysisChecks` verifica filtros, faixas,
+pendências, denominadores, proveniência dos resultados e agregação além das 500 linhas.
 
 Antes de transformar a nota em gatilho: acumular snapshots e resultados futuros,
 separar treino e teste cronologicamente, avaliar cada perfil e regime, incluir taxas

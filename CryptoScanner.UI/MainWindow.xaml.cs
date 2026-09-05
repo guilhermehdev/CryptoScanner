@@ -323,6 +323,11 @@ public partial class MainWindow : Window
         window.ShowDialog();
     }
 
+    private void BtnPressureAnalysis_Click(object sender, RoutedEventArgs e)
+    {
+        new PressureAnalysisWindow(GetDatabasePath()) { Owner = this }.Show();
+    }
+
     private async Task DispatchAlertsAsync(IReadOnlyList<NewSignalAlert> newSignals)
     {
         if (newSignals.Count == 0)

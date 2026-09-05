@@ -1,0 +1,64 @@
+<Window x:Class="CryptoScanner.UI.PressureAnalysisWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Análise da Pressão Compradora" Width="1250" Height="800" MinWidth="1000" MinHeight="650"
+        WindowStartupLocation="CenterOwner" Background="#F5F6F8">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/><RowDefinition Height="220"/><RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <StackPanel>
+            <TextBlock Text="Pressão Compradora · análise histórica" FontSize="23" FontWeight="SemiBold"/>
+            <TextBlock Margin="0,6,0,12" TextWrapping="Wrap" Foreground="#555555"
+                       Text="Retornos brutos do preço de referência. Não representam lucro de trades nem probabilidade de acerto. Leituras próximas se sobrepõem e não são amostras independentes."/>
+        </StackPanel>
+        <WrapPanel x:Name="filters" Grid.Row="1" Margin="0,0,0,10" VerticalAlignment="Center">
+            <TextBlock Text="Coleta de:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <DatePicker x:Name="fromDate" Width="130"/>
+            <TextBlock Text="até:" VerticalAlignment="Center" Margin="10,0,6,0"/>
+            <DatePicker x:Name="toDate" Width="130"/>
+            <TextBlock Text="Ativo:" VerticalAlignment="Center" Margin="14,0,6,0"/>
+            <TextBox x:Name="symbol" Width="100" ToolTip="Deixe vazio para todos. Exemplo: BTC ou BTCUSDT."/>
+            <TextBlock Text="Resultado após:" VerticalAlignment="Center" Margin="14,0,6,0"/>
+            <ComboBox x:Name="horizon" Width="85" SelectedIndex="0">
+                <ComboBoxItem Content="30 min" Tag="30"/><ComboBoxItem Content="1 hora" Tag="60"/>
+                <ComboBoxItem Content="4 horas" Tag="240"/><ComboBoxItem Content="24 horas" Tag="1440"/>
+            </ComboBox>
+            <Button Content="Atualizar" Padding="14,4" Margin="16,0,0,0" Click="Refresh_Click"/>
+        </WrapPanel>
+        <TextBlock x:Name="summary" Grid.Row="2" FontWeight="SemiBold" Margin="0,0,0,10" TextWrapping="Wrap"/>
+        <TextBlock Grid.Row="3" Text="Resultados por faixa de nota · todas as leituras do filtro" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,6"/>
+        <DataGrid x:Name="bands" Grid.Row="4" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Nota" Binding="{Binding Range}"/>
+                <DataGridTextColumn Header="Leituras" Binding="{Binding Readings}"/>
+                <DataGridTextColumn Header="Avaliadas (N)" Binding="{Binding Evaluated}"/>
+                <DataGridTextColumn Header="Aguardando prazo" Binding="{Binding Pending}"/>
+                <DataGridTextColumn Header="Aguardando recuperação" Binding="{Binding Overdue}"/>
+                <DataGridTextColumn Header="Retornos positivos %" Binding="{Binding PositivePercent, StringFormat=F1, TargetNullValue=—}"/>
+                <DataGridTextColumn Header="Média %" Binding="{Binding AverageReturn, StringFormat=F2, TargetNullValue=—}"/>
+                <DataGridTextColumn Header="Mínimo %" Binding="{Binding MinReturn, StringFormat=F2, TargetNullValue=—}"/>
+                <DataGridTextColumn Header="Máximo %" Binding="{Binding MaxReturn, StringFormat=F2, TargetNullValue=—}"/>
+                <DataGridTextColumn Header="Recuperadas" Binding="{Binding Reconstructed}"/>
+            </DataGrid.Columns>
+        </DataGrid>
+        <TextBlock x:Name="historyLabel" Grid.Row="5" FontSize="15" FontWeight="SemiBold" Margin="0,14,0,6"/>
+        <DataGrid x:Name="history" Grid.Row="6" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Ativo" Binding="{Binding Symbol}" Width="100"/>
+                <DataGridTextColumn Header="Janela até (local)" Binding="{Binding WindowLocal, StringFormat=dd/MM/yyyy HH:mm}" Width="160"/>
+                <DataGridTextColumn Header="Coletada em (local)" Binding="{Binding CollectedLocal, StringFormat=dd/MM/yyyy HH:mm:ss}" Width="175"/>
+                <DataGridTextColumn Header="Nota" Binding="{Binding Score, StringFormat=F2, TargetNullValue=—}" Width="65"/>
+                <DataGridTextColumn Header="Preço referência" Binding="{Binding ReferencePrice, StringFormat=0.########, TargetNullValue=—}" Width="125"/>
+                <DataGridTextColumn Header="Retorno %" Binding="{Binding ReturnPercent, StringFormat=F2, TargetNullValue=—}" Width="90"/>
+                <DataGridTextColumn Header="Situação" Binding="{Binding Status}" Width="170"/>
+                <DataGridTextColumn Header="Origem do resultado" Binding="{Binding Source}" Width="*" MinWidth="155"/>
+            </DataGrid.Columns>
+        </DataGrid>
+        <ScrollViewer Grid.Row="7" MaxHeight="100" Margin="0,10,0,0" VerticalScrollBarVisibility="Auto">
+            <TextBlock Text="{Binding SelectedItem.Details, ElementName=history}" TextWrapping="Wrap" Foreground="#555555"/>
+        </ScrollViewer>
+    </Grid>
+</Window>
