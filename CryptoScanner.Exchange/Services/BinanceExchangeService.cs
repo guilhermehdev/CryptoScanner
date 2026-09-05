@@ -1,10 +1,8 @@
 ﻿using CryptoScanner.Core.Contracts;
 using CryptoScanner.Core.Models;
 using CryptoScanner.Core.Utilities;
-using System.Collections.Generic;
 using System.Globalization;
 using System.Text.Json;
-using static System.Net.WebRequestMethods;
 
 namespace CryptoScanner.Exchange.Services;
 
@@ -158,53 +156,87 @@ public class BinanceExchangeService : IMarketDataService
 
     public async Task<MarketFlowData> GetMarketFlowDataAsync(string symbol, CancellationToken cancellationToken = default)
     {
-        string takerUrl = $"https://fapi.binance.com/futures/data/takerBuySellVol?pair={symbol}&contractType=PERPETUAL&period=5m&limit=1";
-        string oiUrl = $"https://fapi.binance.com/futures/data/openInterestHist?pair={symbol}&contractType=PERPETUAL&period=5m&limit=2";
-        string fundingUrl = $"https://fapi.binance.com/fapi/v1/premiumIndex?symbol={symbol}";
+        var takerTask = GetTakerBuyRatioAsync(symbol, cancellationToken);
+        var oiTask = GetOpenInterestChangeAsync(symbol, cancellationToken);
+        var fundingTask = GetFundingRateAsync(symbol, cancellationToken);
 
-        var takerTask = _http.GetStringAsync(takerUrl, cancellationToken);
-        var oiTask = _http.GetStringAsync(oiUrl, cancellationToken);
-        var fundingTask = _http.GetStringAsync(fundingUrl, cancellationToken);
         await Task.WhenAll(takerTask, oiTask, fundingTask);
-
-        decimal takerBuyRatio = 0.5m;
-        using (JsonDocument takerDoc = JsonDocument.Parse(await takerTask))
-        {
-            JsonElement items = takerDoc.RootElement;
-            if (items.ValueKind == JsonValueKind.Array && items.GetArrayLength() > 0)
-            {
-                JsonElement item = items[0];
-                decimal buyVol = ParseDecimal(item, "takerBuyVol");
-                decimal sellVol = ParseDecimal(item, "takerSellVol");
-                decimal total = buyVol + sellVol;
-                takerBuyRatio = total > 0 ? buyVol / total : 0.5m;
-            }
-        }
-
-        decimal openInterestChange = 0m;
-        using (JsonDocument oiDoc = JsonDocument.Parse(await oiTask))
-        {
-            JsonElement items = oiDoc.RootElement;
-            if (items.ValueKind == JsonValueKind.Array && items.GetArrayLength() >= 2)
-            {
-                decimal previous = ParseDecimal(items[0], "sumOpenInterest");
-                decimal current = ParseDecimal(items[1], "sumOpenInterest");
-                openInterestChange = previous > 0 ? (current - previous) / previous * 100m : 0m;
-            }
-        }
-
-        decimal fundingRate = 0m;
-        using (JsonDocument fundingDoc = JsonDocument.Parse(await fundingTask))
-        {
-            fundingRate = ParseDecimal(fundingDoc.RootElement, "lastFundingRate");
-        }
 
         return new MarketFlowData
         {
-            TakerBuyRatio = takerBuyRatio,
-            OpenInterestChange = openInterestChange,
-            FundingRate = fundingRate
+            TakerBuyRatio = await takerTask,
+            OpenInterestChange = await oiTask,
+            FundingRate = await fundingTask
         };
+    }
+
+    private async Task<decimal> GetTakerBuyRatioAsync(string symbol, CancellationToken cancellationToken)
+    {
+        try
+        {
+            string url = $"https://fapi.binance.com/futures/data/takerlongshortRatio?symbol={symbol}&period=5m&limit=1";
+            string json = await _http.GetStringAsync(url, cancellationToken);
+            using JsonDocument doc = JsonDocument.Parse(json);
+            JsonElement items = doc.RootElement;
+            if (items.ValueKind != JsonValueKind.Array || items.GetArrayLength() == 0) return 0.5m;
+
+            JsonElement item = items[0];
+            decimal buyVol = ParseDecimal(item, "buyVol");
+            decimal sellVol = ParseDecimal(item, "sellVol");
+            decimal total = buyVol + sellVol;
+            return total > 0m ? buyVol / total : 0.5m;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            return 0.5m;
+        }
+    }
+
+    private async Task<decimal> GetOpenInterestChangeAsync(string symbol, CancellationToken cancellationToken)
+    {
+        try
+        {
+            string url = $"https://fapi.binance.com/futures/data/openInterestHist?symbol={symbol}&period=5m&limit=2";
+            string json = await _http.GetStringAsync(url, cancellationToken);
+            using JsonDocument doc = JsonDocument.Parse(json);
+            JsonElement items = doc.RootElement;
+            if (items.ValueKind != JsonValueKind.Array || items.GetArrayLength() < 2) return 0m;
+
+            decimal previous = ParseDecimal(items[0], "sumOpenInterest");
+            decimal current = ParseDecimal(items[1], "sumOpenInterest");
+            return previous > 0m ? (current - previous) / previous * 100m : 0m;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            return 0m;
+        }
+    }
+
+    private async Task<decimal> GetFundingRateAsync(string symbol, CancellationToken cancellationToken)
+    {
+        try
+        {
+            string url = $"https://fapi.binance.com/fapi/v1/premiumIndex?symbol={symbol}";
+            string json = await _http.GetStringAsync(url, cancellationToken);
+            using JsonDocument doc = JsonDocument.Parse(json);
+            return ParseDecimal(doc.RootElement, "lastFundingRate");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            return 0m;
+        }
     }
 
     private static decimal ParseDecimal(JsonElement element, string property)
