@@ -223,11 +223,13 @@ public sealed class ScannerService
             {
                 var flow = await _marketData.GetMarketFlowDataAsync(symbol, cancellationToken);
                 analysis.RetailFlowScore = RetailFlowScoreCalculator.Calculate(flow);
+                analysis.BuyingPressure = BuyingPressureCalculator.Calculate(flow, DateTimeOffset.UtcNow);
                 analysis.OpportunityScore = OpportunityScoreCalculator.Calculate(analysis);
             }
             catch (Exception) when (!cancellationToken.IsCancellationRequested)
             {
                 analysis.RetailFlowScore = 50m;
+                analysis.BuyingPressure = BuyingPressureResult.Unavailable("falha ao consultar o fluxo de mercado.");
             }
 
             return analysis;
@@ -332,11 +334,13 @@ public sealed class ScannerService
         {
             var flow = await _marketData.GetMarketFlowDataAsync(symbol, cancellationToken);
             analysis.RetailFlowScore = RetailFlowScoreCalculator.Calculate(flow);
+            analysis.BuyingPressure = BuyingPressureCalculator.Calculate(flow, DateTimeOffset.UtcNow);
             analysis.OpportunityScore = OpportunityScoreCalculator.Calculate(analysis);
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
             analysis.RetailFlowScore = 50m;
+            analysis.BuyingPressure = BuyingPressureResult.Unavailable("falha ao consultar o fluxo de mercado.");
         }
 
         return AssetScoreFactory.Create(analysis, marketRegime, favoriteSet, GetValidatedThresholds(profile));

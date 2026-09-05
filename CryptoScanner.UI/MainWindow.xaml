@@ -75,7 +75,13 @@
                 <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}"/>
                 <DataGridTextColumn Header="Preço" Binding="{Binding CloseFormatted}"/>
                 <DataGridTextColumn Header="Score" Binding="{Binding Score, StringFormat=F2}"/>
-                <DataGridTextColumn Header="Varejo" Binding="{Binding RetailFlowScore, StringFormat=F0}"/>
+                <DataGridTextColumn Header="Pressão Compradora" Binding="{Binding BuyingPressureScore, StringFormat=F0, TargetNullValue=—}">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="ToolTip" Value="{Binding BuyingPressureDetails}"/>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
                 <DataGridTextColumn Header="Var" Binding="{Binding VariationText}"/>
                 <DataGridTextColumn Header="Resistência" Binding="{Binding Resistance, StringFormat=0.########}"/>
                 <DataGridTextColumn Header="Res %" Binding="{Binding ResistanceDistance, StringFormat=F1}"/>

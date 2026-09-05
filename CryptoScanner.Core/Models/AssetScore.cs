@@ -52,6 +52,8 @@ public sealed class AssetScore : ObservableModel
     public int VolatilityScore { get; init; }
     public int TrendStrengthScore { get; init; }
     public decimal RetailFlowScore { get; init; }
+    public decimal? BuyingPressureScore { get; init; }
+    public string BuyingPressureDetails { get; init; } = "Sem dados.";
     public string SmartMoneyLabel { get; init; } = "";
     public bool IsBullTrap { get; init; }
     public bool IsBearTrap { get; init; }

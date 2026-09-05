@@ -8,7 +8,11 @@ namespace CryptoScanner.Exchange.Services;
 
 public class BinanceExchangeService : IMarketDataService
 {
-    private readonly HttpClient _http = new();
+    private readonly HttpClient _http;
+
+    public BinanceExchangeService() : this(new HttpClient()) { }
+
+    public BinanceExchangeService(HttpClient http) => _http = http;
 
     private static readonly HashSet<string> StablecoinBaseAssets = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -157,16 +161,21 @@ public class BinanceExchangeService : IMarketDataService
     public async Task<MarketFlowData> GetMarketFlowDataAsync(string symbol, CancellationToken cancellationToken = default)
     {
         var takerTask = GetTakerBuyRatioAsync(symbol, cancellationToken);
-        var oiTask = GetOpenInterestChangeAsync(symbol, cancellationToken);
+        var oiTask = GetOpenInterestHistoryAsync(symbol, cancellationToken);
         var fundingTask = GetFundingRateAsync(symbol, cancellationToken);
+        var candlesTask = GetPressureCandlesAsync(symbol, cancellationToken);
 
-        await Task.WhenAll(takerTask, oiTask, fundingTask);
+        await Task.WhenAll(takerTask, oiTask, fundingTask, candlesTask);
+        var oi = await oiTask;
 
         return new MarketFlowData
         {
             TakerBuyRatio = await takerTask,
-            OpenInterestChange = await oiTask,
-            FundingRate = await fundingTask
+            OpenInterestChange = oi.Count >= 2 && oi[^2].Value > 0m
+                ? (oi[^1].Value - oi[^2].Value) / oi[^2].Value * 100m : 0m,
+            FundingRate = await fundingTask,
+            PressureCandles = await candlesTask,
+            OpenInterestHistory = oi
         };
     }
 
@@ -196,19 +205,18 @@ public class BinanceExchangeService : IMarketDataService
         }
     }
 
-    private async Task<decimal> GetOpenInterestChangeAsync(string symbol, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<OpenInterestSample>> GetOpenInterestHistoryAsync(string symbol, CancellationToken cancellationToken)
     {
         try
         {
-            string url = $"https://fapi.binance.com/futures/data/openInterestHist?symbol={symbol}&period=5m&limit=2";
+            string url = $"https://fapi.binance.com/futures/data/openInterestHist?symbol={symbol}&period=5m&limit=9";
             string json = await _http.GetStringAsync(url, cancellationToken);
             using JsonDocument doc = JsonDocument.Parse(json);
             JsonElement items = doc.RootElement;
-            if (items.ValueKind != JsonValueKind.Array || items.GetArrayLength() < 2) return 0m;
-
-            decimal previous = ParseDecimal(items[0], "sumOpenInterest");
-            decimal current = ParseDecimal(items[1], "sumOpenInterest");
-            return previous > 0m ? (current - previous) / previous * 100m : 0m;
+            return items.EnumerateArray().Select(item => new OpenInterestSample(
+                item.GetProperty("timestamp").GetInt64(),
+                ReadFlowDecimal(item.GetProperty("sumOpenInterest"))))
+                .OrderBy(p => p.Timestamp).ToArray();
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -216,9 +224,35 @@ public class BinanceExchangeService : IMarketDataService
         }
         catch
         {
-            return 0m;
+            return [];
         }
     }
+
+    private async Task<IReadOnlyList<FlowCandle>> GetPressureCandlesAsync(string symbol, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Extra candles allow alignment when OI publication lags the latest close.
+            string url = $"https://fapi.binance.com/fapi/v1/klines?symbol={symbol}&interval=5m&limit=30";
+            string json = await _http.GetStringAsync(url, cancellationToken);
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.EnumerateArray().Select(item => new FlowCandle(
+                item[0].GetInt64(), ReadFlowDecimal(item[1]), ReadFlowDecimal(item[2]),
+                ReadFlowDecimal(item[3]), ReadFlowDecimal(item[4]), ReadFlowDecimal(item[5]),
+                ReadFlowDecimal(item[9]))).ToArray();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    private static decimal ReadFlowDecimal(JsonElement value) => value.ValueKind == JsonValueKind.Number
+        ? value.GetDecimal() : decimal.Parse(value.GetString()!, CultureInfo.InvariantCulture);
 
     private async Task<decimal> GetFundingRateAsync(string symbol, CancellationToken cancellationToken)
     {

@@ -13,6 +13,7 @@ public sealed class AssetAnalysis
     public decimal PreviousScore { get; set; }
     public decimal ScoreVariation { get; set; }
     public decimal RetailFlowScore { get; set; } = 50m;
+    public BuyingPressureResult BuyingPressure { get; set; } = BuyingPressureResult.Unavailable("aguardando atualização.");
 
     public string Signal => OpportunityScore >= 70 ? "COMPRA+" :
                             OpportunityScore >= 55 ? "COMPRA" :

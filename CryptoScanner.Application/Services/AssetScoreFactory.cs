@@ -46,6 +46,8 @@ public static class AssetScoreFactory
         VolatilityScore = analysis.Trend.VolatilityScore,
         TrendStrengthScore = analysis.Trend.TrendStrengthScore,
         RetailFlowScore = analysis.RetailFlowScore,
+        BuyingPressureScore = analysis.BuyingPressure.Score,
+        BuyingPressureDetails = analysis.BuyingPressure.Details,
         Support = analysis.Risk.Support,
         Rsi = analysis.Trend.Rsi,
         Adx = analysis.Trend.Adx,
