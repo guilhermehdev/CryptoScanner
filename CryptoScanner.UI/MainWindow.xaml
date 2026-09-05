@@ -75,7 +75,7 @@
                 <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}"/>
                 <DataGridTextColumn Header="Preço" Binding="{Binding CloseFormatted}"/>
                 <DataGridTextColumn Header="Score" Binding="{Binding Score, StringFormat=F2}"/>
-                <DataGridTextColumn Header="Retail Flow" Binding="{Binding RetailFlowScore, StringFormat=F0}"/>
+                <DataGridTextColumn Header="Varejo" Binding="{Binding RetailFlowScore, StringFormat=F0}"/>
                 <DataGridTextColumn Header="Var" Binding="{Binding VariationText}"/>
                 <DataGridTextColumn Header="Resistência" Binding="{Binding Resistance, StringFormat=0.########}"/>
                 <DataGridTextColumn Header="Res %" Binding="{Binding ResistanceDistance, StringFormat=F1}"/>
