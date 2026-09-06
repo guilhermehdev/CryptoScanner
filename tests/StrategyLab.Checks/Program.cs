@@ -72,7 +72,28 @@ try
         Check(Convert.ToInt64(await cmd.ExecuteScalarAsync())==0,"Manual trade storage untouched");
         cmd.CommandText="SELECT COUNT(*) FROM LabExits";Check(Convert.ToInt64(await cmd.ExecuteScalarAsync())==15,"Every partial exit retained");
     }
+    await restarted.SetEnabledAsync(false);
+    for (int i=0;i<205;i++) await restarted.ObserveAsync(Opportunity("EXPORT"+i,6000000+i*300000));
+    using var archiveStream=new MemoryStream();
+    await restarted.ExportAsync(archiveStream);
+    archiveStream.Position=0;
+    using(var archive=new System.IO.Compression.ZipArchive(archiveStream,System.IO.Compression.ZipArchiveMode.Read,true))
+    {
+        Check(archive.Entries.Count==9,"Export includes seven complete tables, manifest and guide");
+        using var manifestReader=new StreamReader(archive.GetEntry("manifesto.json")!.Open());
+        using var manifest=JsonDocument.Parse(await manifestReader.ReadToEndAsync());
+        var counts=manifest.RootElement.GetProperty("Counts");
+        Check(counts.GetProperty("oportunidades").GetInt64()==(await restarted.ReportAsync()).Opportunities,"Export includes opportunities beyond UI limit");
+        Check(counts.GetProperty("decisoes").GetInt64()>1000,"All rejected decisions exported");
+        Check(counts.GetProperty("saidas").GetInt64()==15,"All partial exits exported");
+        using var tradesReader=new StreamReader(archive.GetEntry("trades.csv")!.Open());
+        string csv=await tradesReader.ReadToEndAsync();
+        Check(csv.Contains("OpportunityId")&&csv.Contains("StateJson")&&csv.Contains("FeeRate"),"Export retains links and trade cost details");
+        using var summaryReader=new StreamReader(archive.GetEntry("resumo.csv")!.Open());
+        Check((await summaryReader.ReadToEndAsync()).Contains("EstimatedEquity"),"Export includes portfolio summary");
+    }
     using var cts=new CancellationTokenSource();cts.Cancel();
+    try{await restarted.ExportAsync(new MemoryStream(),cts.Token);throw new Exception("Export cancellation swallowed");}catch(OperationCanceledException){checks++;}
     try{await restarted.ReportAsync(cts.Token);throw new Exception("Cancellation swallowed");}catch(OperationCanceledException){checks++;}
 
     // Service captures only supplied grid members and freezes their indicators before awaiting prices.

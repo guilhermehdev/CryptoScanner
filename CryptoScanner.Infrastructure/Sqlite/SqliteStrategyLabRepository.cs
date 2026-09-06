@@ -5,7 +5,7 @@ using Microsoft.Data.Sqlite;
 
 namespace CryptoScanner.Infrastructure.Sqlite;
 
-public sealed class SqliteStrategyLabRepository(string databasePath) : IStrategyLabRepository
+public sealed partial class SqliteStrategyLabRepository(string databasePath) : IStrategyLabRepository, IStrategyLabExporter
 {
     private readonly SemaphoreSlim _gate=new(1,1);
     private readonly string _connectionString=new SqliteConnectionStringBuilder{DataSource=databasePath,DefaultTimeout=30}.ToString();

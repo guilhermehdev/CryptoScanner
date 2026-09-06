@@ -11,6 +11,7 @@
         </StackPanel>
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
             <Button x:Name="refresh" Content="Atualizar" Padding="14,5" Click="Refresh_Click"/>
+            <Button x:Name="export" Content="Exportar para análise" Padding="14,5" Margin="10,0,0,0" Click="Export_Click"/>
             <Button x:Name="pause" Content="Pausar novas entradas" Padding="14,5" Margin="10,0,0,0" Click="Pause_Click"/>
         </StackPanel>
         <TextBlock x:Name="summary" Grid.Row="2" TextWrapping="Wrap" Margin="0,0,0,10" FontWeight="SemiBold"/>

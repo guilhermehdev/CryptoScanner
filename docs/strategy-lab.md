@@ -13,3 +13,7 @@ O mesmo SQLite do aplicativo guarda parâmetros, capital, oportunidades, indicad
 Esta fase coleta experiências e compara variantes. Ainda não cria gerações automaticamente, não promove vencedores e não muda sinais do ranking. A próxima fase requer avaliação em períodos posteriores aos usados para escolher parâmetros, amostra suficiente e tratamento de custos e lacunas antes de habilitar seleção e novas mutações.
 
 Validação: dotnet run --project tests/StrategyLab.Checks/StrategyLab.Checks.csproj
+
+## Exportação para análise
+
+Clique em **Exportar para análise**, escolha o destino e envie o ZIP gerado. O arquivo contém resumo.csv, variantes.csv, oportunidades.csv, decisoes.csv, trades.csv, saidas.csv, configuracao.csv, manifesto.json e LEIA-ME.txt. Exporta todo o histórico em uma fotografia consistente do banco, incluindo perdas, rejeições, custos, indicadores em JSON e posições abertas. Horários são Unix em milissegundos UTC; números usam ponto decimal. O manifesto informa contagens e horário de exportação. A gravação usa arquivo temporário e só substitui o destino após terminar com sucesso. Não inclui o diário manual nem credenciais. A exportação não altera os resultados do laboratório.
