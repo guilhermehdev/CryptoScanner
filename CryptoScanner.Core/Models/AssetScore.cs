@@ -82,6 +82,11 @@ public sealed class AssetScore : ObservableModel
     public string RelativeStrengthText =>
         RelativeStrength >= 0 ? $"+{RelativeStrength:F2}% vs BTC" : $"{RelativeStrength:F2}% vs BTC";
 
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string CompactContext => BreakoutSource switch { "Curto Prazo" => "Curto", "Força Rel." => "F. rel.", _ => BreakoutSource };
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string CompactRelativeStrength => RelativeStrength >= 0 ? $"+{RelativeStrength:F2}%" : $"{RelativeStrength:F2}%";
+
     public bool IsConsolidationRelevant => MarketRegime == "BULL";
 
     public string PartialExitTargetsText
