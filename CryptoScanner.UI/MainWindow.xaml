@@ -68,8 +68,37 @@
         <Button Grid.Row="1" Content="Alertas" Click="BtnAlertSettings_Click" HorizontalAlignment="Left" Height="19" Margin="1040,7,0,0" VerticalAlignment="Top" Width="70"/>
         <Button Grid.Row="1" Content="Análise da pressão" Click="BtnPressureAnalysis_Click" HorizontalAlignment="Left" Height="19" Margin="1118,7,0,0" VerticalAlignment="Top" Width="130"/>
 
-        <DataGrid x:Name="dgRanking" Grid.Row="2" FontSize="12" HeadersVisibility="Column" AutoGenerateColumns="False" IsReadOnly="True" MouseLeftButtonUp="DgRanking_MouseLeftButtonUp" MouseRightButtonUp="DgRanking_MouseRightButtonUp">
-            <DataGrid.Resources><Style x:Key="CompactRankingText" TargetType="TextBlock"><Setter Property="TextTrimming" Value="CharacterEllipsis"/><Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}"/></Style></DataGrid.Resources><DataGrid.RowStyle><Style TargetType="DataGridRow"><Style.Triggers><DataTrigger Binding="{Binding DisplaySignal}" Value="COMPRA+"><Setter Property="Background" Value="DarkGreen"/><Setter Property="Foreground" Value="White"/></DataTrigger><DataTrigger Binding="{Binding DisplaySignal}" Value="COMPRA"><Setter Property="Background" Value="ForestGreen"/><Setter Property="Foreground" Value="White"/></DataTrigger><DataTrigger Binding="{Binding DisplaySignal}" Value="MONITORAR"><Setter Property="Background" Value="SteelBlue"/><Setter Property="Foreground" Value="White"/></DataTrigger><DataTrigger Binding="{Binding IsBullTrap}" Value="True"><Setter Property="Background" Value="DarkOrange"/><Setter Property="Foreground" Value="White"/></DataTrigger></Style.Triggers></Style></DataGrid.RowStyle>
+        <DockPanel Grid.Row="2">
+            <TextBlock DockPanel.Dock="Top" Margin="5,2" FontSize="11" ToolTip="Verde: todos os filtros atendidos. Nos demais, score ≥70 azul; 55–69,99 amarelo; 40–54,99 cinza; abaixo de 40 preto. Armadilha de alta tem prioridade em laranja. As cores não representam probabilidade de lucro.">
+                <Run Foreground="#75D39B" Text="● Verde: elegível  "/><Run Foreground="#79B6EB" Text="● Azul: candidato  "/><Run Foreground="#E6C96A" Text="● Amarelo: observar  "/><Run Foreground="#BBBBBB" Text="● Cinza: baixa prioridade  "/><Run Foreground="#BBBBBB" Text="■ Preto: ignorar  "/><Run Foreground="#F5A34E" Text="● Laranja: armadilha"/>
+            </TextBlock>
+        <DataGrid x:Name="dgRanking" FontSize="12" HeadersVisibility="Column" AutoGenerateColumns="False" IsReadOnly="True" MouseLeftButtonUp="DgRanking_MouseLeftButtonUp" MouseRightButtonUp="DgRanking_MouseRightButtonUp">
+            <DataGrid.Resources><Style x:Key="CompactRankingText" TargetType="TextBlock"><Setter Property="TextTrimming" Value="CharacterEllipsis"/><Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}"/></Style></DataGrid.Resources><DataGrid.RowStyle>
+                <Style TargetType="DataGridRow">
+                    <Setter Property="Background" Value="#111111"/>
+                    <Setter Property="Foreground" Value="#F5F5F5"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Signal}" Value="MONITORAR"><Setter Property="Background" Value="#383838"/></DataTrigger>
+                        <DataTrigger Binding="{Binding Signal}" Value="COMPRA"><Setter Property="Background" Value="#E6C96A"/><Setter Property="Foreground" Value="#171717"/></DataTrigger>
+                        <DataTrigger Binding="{Binding Signal}" Value="COMPRA+"><Setter Property="Background" Value="#244C70"/><Setter Property="Foreground" Value="#FFFFFF"/></DataTrigger>
+                        <DataTrigger Binding="{Binding IsEligible}" Value="True"><Setter Property="Background" Value="#24613D"/><Setter Property="Foreground" Value="#FFFFFF"/></DataTrigger>
+                        <DataTrigger Binding="{Binding IsBullTrap}" Value="True"><Setter Property="Background" Value="#D98125"/><Setter Property="Foreground" Value="#171717"/></DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.RowStyle>
+            <DataGrid.CellStyle>
+                <Style TargetType="DataGridCell">
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=DataGridRow}}"/>
+                    <Style.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="BorderBrush" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=DataGridRow}}"/>
+                            <Setter Property="BorderThickness" Value="0,1,0,1"/>
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.CellStyle>
             <DataGrid.Columns>
                 <DataGridTemplateColumn Header="★" Width="24"><DataGridTemplateColumn.HeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="ToolTip" Value="Favorito"/><Setter Property="FontSize" Value="12"/><Setter Property="Padding" Value="2,0"/></Style></DataGridTemplateColumn.HeaderStyle><DataGridTemplateColumn.CellTemplate><DataTemplate><CheckBox IsChecked="{Binding IsFavorite, Mode=OneWay}" Click="ChkFavorite_Click" HorizontalAlignment="Center" VerticalAlignment="Center"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                 <DataGridCheckBoxColumn Binding="{Binding IsEligible}" Header="Eleg." Width="38"><DataGridCheckBoxColumn.HeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="ToolTip" Value="Elegível para entrada"/><Setter Property="FontSize" Value="12"/><Setter Property="Padding" Value="2,0"/></Style></DataGridCheckBoxColumn.HeaderStyle></DataGridCheckBoxColumn>
@@ -101,6 +130,7 @@
                 <DataGridTextColumn Binding="{Binding SmartMoneyLabel}" ElementStyle="{StaticResource CompactRankingText}" Header="SM" Width="65"><DataGridTextColumn.HeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="ToolTip" Value="Smart Money"/><Setter Property="FontSize" Value="12"/><Setter Property="Padding" Value="2,0"/></Style></DataGridTextColumn.HeaderStyle></DataGridTextColumn>
             </DataGrid.Columns>
         </DataGrid>
+        </DockPanel>
 
         <TabControl Grid.Row="3">
             <TabItem Header="Diário de Trades Simulados" IsSelected="True">
