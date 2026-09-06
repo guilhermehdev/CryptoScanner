@@ -17,3 +17,9 @@ Validação: dotnet run --project tests/StrategyLab.Checks/StrategyLab.Checks.cs
 ## Exportação para análise
 
 Clique em **Exportar para análise**, escolha o destino e envie o ZIP gerado. O arquivo contém resumo.csv, variantes.csv, oportunidades.csv, decisoes.csv, trades.csv, saidas.csv, configuracao.csv, manifesto.json e LEIA-ME.txt. Exporta todo o histórico em uma fotografia consistente do banco, incluindo perdas, rejeições, custos, indicadores em JSON e posições abertas. Horários são Unix em milissegundos UTC; números usam ponto decimal. O manifesto informa contagens e horário de exportação. A gravação usa arquivo temporário e só substitui o destino após terminar com sucesso. Não inclui o diário manual nem credenciais. A exportação não altera os resultados do laboratório.
+
+## Testes sem vaga
+
+A aba **Testes sem vaga** mostra simulações independentes de novas oportunidades rejeitadas por limite de posições ou capital, desde que passem também na validação dos preços e níveis. Não há alteração nos saldos ou resultados das cinco carteiras. Cada teste usa o mesmo ticket fictício e motor de custos, parciais, stop e prazo. Um único teste paralelo por moeda/variante pode ficar aberto, mesmo entre perfis, para limitar repetição de sinais sobrepostos. A pausa bloqueia novas entradas dos dois grupos; posições existentes continuam monitoradas e persistidas. As moedas com testes abertos são acompanhadas mesmo fora do grid. Não há simulação retroativa dos registros antigos.
+
+O ZIP versão 2 inclui testes_sem_vaga.csv, saidas_sem_vaga.csv e resumo_sem_vaga.csv. Vincule OpportunityId a oportunidades.Id para analisar pressão, RSI, volume, regime e níveis congelados. O lucro agregado desse grupo não é retorno de uma carteira financiável e não deve ser somado ao patrimônio. Considere sinais correlacionados e lacunas; esse grupo representa apenas rejeições por capacidade. Ele ainda não gera mutações automaticamente.

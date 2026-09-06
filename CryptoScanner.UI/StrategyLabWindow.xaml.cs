@@ -65,8 +65,8 @@ public partial class StrategyLabWindow : Window
             },_closed.Token);
             if(_closed.IsCancellationRequested)return;
             _enabled=report.Enabled;pause.Content=_enabled?"Pausar novas entradas":"Retomar novas entradas";
-            variants.ItemsSource=report.Variants;trades.ItemsSource=report.Trades;decisions.ItemsSource=report.Decisions;
-            summary.Text=$"{report.Opportunities:N0} oportunidades registradas · {(_enabled?"Entradas ativas":"Entradas pausadas; posições continuam acompanhadas")}\nPatrimônio inclui posições abertas na última cotação. Amostras iniciais não definem uma estratégia vencedora. Passe o mouse sobre uma variante para ver sua alteração.";
+            shadowTrades.ItemsSource=report.ShadowTrades;variants.ItemsSource=report.Variants;trades.ItemsSource=report.Trades;decisions.ItemsSource=report.Decisions;
+            summary.Text=$"{report.Opportunities:N0} oportunidades registradas · {report.ShadowCount:N0} testes sem vaga (fora das carteiras) · {(_enabled?"Entradas ativas":"Entradas pausadas; posições continuam acompanhadas")}\nPatrimônio inclui posições abertas na última cotação. Amostras iniciais não definem uma estratégia vencedora. Passe o mouse sobre uma variante para ver sua alteração.";
         }
         catch(OperationCanceledException) when(_closed.IsCancellationRequested){}
         catch(Exception ex){summary.Text=$"Falha ao carregar o laboratório: {ex.Message}";}

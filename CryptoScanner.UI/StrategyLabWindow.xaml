@@ -48,6 +48,23 @@
                     </DataGrid.Columns>
                 </DataGrid>
             </TabItem>
+            <TabItem Header="Testes sem vaga · últimos 200">
+                <DataGrid x:Name="shadowTrades" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="V" Binding="{Binding VariantId}" Width="40"/>
+                        <DataGridTextColumn Header="Ativo" Binding="{Binding Symbol}" Width="100"/>
+                        <DataGridTextColumn Header="Perfil" Binding="{Binding Profile}" Width="75"/>
+                        <DataGridTextColumn Header="Entrada (local)" Binding="{Binding EntryLocal, StringFormat=dd/MM HH:mm:ss}" Width="130"/>
+                        <DataGridTextColumn Header="Preço entrada" Binding="{Binding EntryFill, StringFormat=0.########}" Width="110"/>
+                        <DataGridTextColumn Header="Stop atual" Binding="{Binding Stop, StringFormat=0.########}" Width="110"/>
+                        <DataGridTextColumn Header="Restante" Binding="{Binding Remaining, StringFormat=P0}" Width="80"/>
+                        <DataGridTextColumn Header="Situação" Binding="{Binding Status}" Width="85"/>
+                        <DataGridTextColumn Header="Retorno fechado %" Binding="{Binding ClosedReturnPercent, StringFormat=F2, TargetNullValue=—}" Width="130"/>
+                        <DataGridTextColumn Header="Última cotação (local)" Binding="{Binding QuoteLocal, StringFormat=dd/MM HH:mm:ss}" Width="150"/>
+                        <DataGridCheckBoxColumn Header="Lacuna" Binding="{Binding HasObservationGap}" Width="65"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
             <TabItem Header="Decisões · últimas 200">
                 <Grid><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <DataGrid x:Name="decisions" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">

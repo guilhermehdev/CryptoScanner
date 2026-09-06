@@ -118,4 +118,5 @@ public sealed record LabDecisionRow(string Symbol,string Profile,int VariantId,l
     public DateTime AtLocal => DateTimeOffset.FromUnixTimeMilliseconds(AtMs).LocalDateTime;
     public string Decision => Accepted?"Aceita":"Rejeitada";
 }
-public sealed record LabReport(bool Enabled,IReadOnlyList<LabVariantReport> Variants,IReadOnlyList<LabTrade> Trades,long Opportunities,IReadOnlyList<LabDecisionRow> Decisions);
+public sealed record LabReport(bool Enabled,IReadOnlyList<LabVariantReport> Variants,IReadOnlyList<LabTrade> Trades,long Opportunities,IReadOnlyList<LabDecisionRow> Decisions)
+{ public IReadOnlyList<LabTrade> ShadowTrades { get; init; } = []; public long ShadowCount { get; init; } }

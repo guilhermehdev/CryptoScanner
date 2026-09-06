@@ -50,6 +50,26 @@ try
     for(int i=0;i<6;i++)await repo.ObserveAsync(Opportunity("COIN"+i+"USDT",2400000+i*300000));
     report=await repo.ReportAsync();Check(report.Variants.All(v=>v.Open==5&&v.Cash==5000),"Portfolio limits enforced persistently");
     Check(report.Decisions.Any(d=>d.Reason=="Limite de posições"),"Rejection reasons recorded");
+    Check(report.ShadowCount==10 && report.ShadowTrades.All(t=>t.Symbol is "COIN4USDT" or "COIN5USDT"),"Capacity rejections create separate valid experiments");
+    decimal originalCash=report.Variants[0].Cash;
+    await repo.ObserveAsync(Opportunity("COIN4USDT",4500000));
+    Check((await repo.ReportAsync()).ShadowCount==10,"Overlapping shadow signal is not duplicated");
+    var invalid=Opportunity("INVALID",4800000) with { Quote=89 };
+    await repo.ObserveAsync(invalid);
+    Check((await repo.ReportAsync()).ShadowCount==10,"Capacity bypass still validates stop");
+    Check((await repo.OpenSymbolsAsync()).Contains("COIN4USDT"),"Shadow-only symbols are monitored");
+    await repo.SetEnabledAsync(false);
+    await repo.TickAsync(new Dictionary<string,decimal>{{"COIN4USDT",110}},4900000);
+    var shadowReport=await repo.ReportAsync();
+    Check(shadowReport.ShadowTrades.Where(t=>t.Symbol=="COIN4USDT").All(t=>t.Remaining==.6m&&t.Stop<100),"Shadow TP1 preserves stop while paused");
+    await repo.TickAsync(new Dictionary<string,decimal>{{"COIN4USDT",130}},4930000);
+    await repo.TickAsync(new Dictionary<string,decimal>{{"COIN4USDT",130}},4930000);
+    shadowReport=await new SqliteStrategyLabRepository(path).ReportAsync();
+    Check(shadowReport.ShadowTrades.Count(t=>t.Closed)==5,"Shadow closure persists across restart");
+    Check(shadowReport.Variants[0].Cash==originalCash,"Shadow exits never credit portfolio cash");
+    await repo.ObserveAsync(Opportunity("PAUSED_SHADOW",4950000));
+    Check((await repo.ReportAsync()).ShadowCount==10,"Pause blocks new shadow experiments");
+    await repo.SetEnabledAsync(true);
     await repo.TickAsync(new Dictionary<string,decimal>{{"BTCUSDT",110}},5000000);
     report=await repo.ReportAsync();Check(report.Variants.All(v=>v.Cash>5000)&&report.Trades.Where(x=>x.Symbol=="BTCUSDT").All(x=>x.Remaining==.6m),"Partial proceeds saved once");
     decimal cash=report.Variants[0].Cash;
@@ -59,7 +79,7 @@ try
     await repo.TickAsync(new Dictionary<string,decimal>{{"BTCUSDT",130}},5030000);
     report=await repo.ReportAsync();Check(report.Trades.Where(x=>x.Symbol=="BTCUSDT").All(x=>x.Closed)&&report.Variants.All(v=>v.Closed==1),"Paused entries still evaluate open trades");
     await repo.ObserveAsync(Opportunity("PAUSED",5400000));
-    report=await repo.ReportAsync();Check(report.Decisions.Count(d=>d.Reason=="Novas entradas pausadas")==5,"Pause recorded as decision");
+    report=await repo.ReportAsync();Check(report.Decisions.Count(d=>d.Symbol=="PAUSED"&&d.Reason=="Novas entradas pausadas")==5,"Pause recorded as decision");
     var restarted=new SqliteStrategyLabRepository(path);var restartReport=await restarted.ReportAsync();
     Check(!restartReport.Enabled&&restartReport.Variants[0].Cash==report.Variants[0].Cash&&restartReport.Trades.Count==report.Trades.Count,"Restart preserves portfolios, pause and trades");
     Check(restartReport.Variants.All(v=>v.Drawdown>0&&v.Gaps>0),"Observed drawdown and gaps visible");
@@ -79,13 +99,14 @@ try
     archiveStream.Position=0;
     using(var archive=new System.IO.Compression.ZipArchive(archiveStream,System.IO.Compression.ZipArchiveMode.Read,true))
     {
-        Check(archive.Entries.Count==9,"Export includes seven complete tables, manifest and guide");
+        Check(archive.Entries.Count==12,"Export includes portfolio and shadow tables, manifest and guide");
         using var manifestReader=new StreamReader(archive.GetEntry("manifesto.json")!.Open());
         using var manifest=JsonDocument.Parse(await manifestReader.ReadToEndAsync());
         var counts=manifest.RootElement.GetProperty("Counts");
         Check(counts.GetProperty("oportunidades").GetInt64()==(await restarted.ReportAsync()).Opportunities,"Export includes opportunities beyond UI limit");
         Check(counts.GetProperty("decisoes").GetInt64()>1000,"All rejected decisions exported");
         Check(counts.GetProperty("saidas").GetInt64()==15,"All partial exits exported");
+        Check(counts.GetProperty("testes_sem_vaga").GetInt64()==10 && counts.GetProperty("saidas_sem_vaga").GetInt64()==15,"Shadow exports remain separate and repeated ticks do not duplicate exits");
         using var tradesReader=new StreamReader(archive.GetEntry("trades.csv")!.Open());
         string csv=await tradesReader.ReadToEndAsync();
         Check(csv.Contains("OpportunityId")&&csv.Contains("StateJson")&&csv.Contains("FeeRate"),"Export retains links and trade cost details");

@@ -15,6 +15,18 @@ public sealed partial class SqliteStrategyLabRepository
         var counts = new Dictionary<string, long>();
         var queries = new (string File, string Query)[]
         {
+            ("testes_sem_vaga", "SELECT * FROM LabShadowTrades ORDER BY Id"),
+            ("saidas_sem_vaga", "SELECT * FROM LabShadowExits ORDER BY Id"),
+            ("resumo_sem_vaga", """
+                SELECT v.Id AS VariantId, COUNT(t.Id) AS Experiments,
+                    SUM(CASE WHEN t.Closed=0 THEN 1 ELSE 0 END) AS OpenTrades,
+                    SUM(CASE WHEN t.Closed=1 THEN 1 ELSE 0 END) AS ClosedTrades,
+                    SUM(CASE WHEN t.Closed=1 AND t.NetProfit>0 THEN 1 ELSE 0 END) AS Wins,
+                    SUM(CASE WHEN t.Closed=1 THEN t.NetProfit ELSE 0 END) AS RealizedNetProfit,
+                    AVG(CASE WHEN t.Closed=1 THEN t.NetProfit / json_extract(t.StateJson,'$.Cost') * 100 END) AS AverageClosedReturnPercent,
+                    SUM(CASE WHEN json_extract(t.StateJson,'$.HasObservationGap')=1 THEN 1 ELSE 0 END) AS TradesWithGaps
+                FROM LabVariants v LEFT JOIN LabShadowTrades t ON t.VariantId=v.Id GROUP BY v.Id ORDER BY v.Id
+                """),
             ("configuracao", "SELECT * FROM LabSettings ORDER BY Id"),
             ("variantes", "SELECT * FROM LabVariants ORDER BY Id"),
             ("oportunidades", "SELECT * FROM LabOpportunities ORDER BY Id"),
@@ -54,10 +66,21 @@ public sealed partial class SqliteStrategyLabRepository
             counts[file] = rows;
         }
         await using (var writer = new StreamWriter(zip.CreateEntry("manifesto.json").Open(), Encoding.UTF8))
-            await writer.WriteAsync(JsonSerializer.Serialize(new { FormatVersion = 1, ExportedAtUtc = DateTimeOffset.UtcNow, Counts = counts }, new JsonSerializerOptions { WriteIndented = true }).AsMemory(), token);
+            await writer.WriteAsync(JsonSerializer.Serialize(new { FormatVersion = 2, ExportedAtUtc = DateTimeOffset.UtcNow, Counts = counts }, new JsonSerializerOptions { WriteIndented = true }).AsMemory(), token);
         await using (var writer = new StreamWriter(zip.CreateEntry("LEIA-ME.txt").Open(), Encoding.UTF8))
             await writer.WriteAsync("""
                 RELATÓRIO COMPLETO DO LABORATÓRIO
+                TESTES SEM VAGA: testes_sem_vaga.csv e saidas_sem_vaga.csv são experimentos
+                separados, sem saldo de carteira. resumo_sem_vaga.csv resume esse grupo.
+                testes_sem_vaga.OpportunityId liga aos indicadores em oportunidades.Id;
+                saidas_sem_vaga.TradeId liga EXCLUSIVAMENTE a testes_sem_vaga.Id.
+                Somente novas rejeições por limite de posições ou capital, com sinal e níveis
+                válidos, geram testes. Pausa também bloqueia novas entradas desse grupo.
+                No máximo um teste paralelo aberto por moeda/variante, entre todos os perfis.
+                Não há reconstrução retroativa de oportunidades anteriores à atualização.
+                Não some resultados desse grupo ao patrimônio das carteiras; sinais são
+                correlacionados e este grupo contém apenas oportunidades bloqueadas por capacidade.
+                Analise indicadores pelo OpportunityId e separe períodos futuros para validação.
                 Todos os registros persistidos, sem o limite de 200 linhas da tela.
                 Os arquivos representam uma única fotografia consistente do banco.
                 CSV UTF-8, separador vírgula, decimal ponto, aspas duplicadas para escape.

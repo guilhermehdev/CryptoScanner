@@ -26,6 +26,13 @@ public sealed partial class SqliteStrategyLabRepository(string databasePath) : I
             {
                 using var tx=db.BeginTransaction();
                 await Sql(db,tx,"""
+                    CREATE TABLE IF NOT EXISTS LabShadowTrades(Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        VariantId INTEGER NOT NULL,OpportunityId INTEGER NOT NULL,Symbol TEXT NOT NULL,
+                        StateJson TEXT NOT NULL,Closed INTEGER NOT NULL,NetProfit REAL,TriggerReason TEXT NOT NULL,
+                        UNIQUE(VariantId,OpportunityId));
+                    CREATE INDEX IF NOT EXISTS IX_LabShadowOpen ON LabShadowTrades(Closed,Symbol);
+                    CREATE TABLE IF NOT EXISTS LabShadowExits(Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        TradeId INTEGER NOT NULL,AtMs INTEGER NOT NULL,EventJson TEXT NOT NULL);
                     CREATE TABLE IF NOT EXISTS LabSettings(Id INTEGER PRIMARY KEY,Enabled INTEGER NOT NULL);
                     INSERT OR IGNORE INTO LabSettings VALUES(1,1);
                     CREATE TABLE IF NOT EXISTS LabVariants(Id INTEGER PRIMARY KEY,ParametersJson TEXT NOT NULL,
@@ -107,7 +114,7 @@ public sealed partial class SqliteStrategyLabRepository(string databasePath) : I
                 open.Any(t=>t.VariantId==v.Parameters.Id&&t.Symbol==o.Symbol)):(null,"Novas entradas pausadas");
             await Sql(db,tx,"INSERT INTO LabDecisions VALUES($o,$v,$at,$accepted,$reason)",token,
                 ("$o",id),("$v",v.Parameters.Id),("$at",o.DecisionTimeMs),("$accepted",trade is null?0:1),("$reason",reason));
-            if(trade is null)continue;
+            if(trade is null){ if(enabled)await ObserveShadow(db,tx,o,v.Parameters,id,reason,token); continue; }
             trade.Id=Convert.ToInt64(await Sql(db,tx,"INSERT INTO LabTrades(VariantId,OpportunityId,Symbol,StateJson,Closed) VALUES($v,$o,$s,'{}',0);SELECT last_insert_rowid();",token,
                 ("$v",v.Parameters.Id),("$o",id),("$s",o.Symbol)));
             await Sql(db,tx,"UPDATE LabTrades SET StateJson=$json WHERE Id=$id;UPDATE LabVariants SET Cash=Cash-$cost WHERE Id=$v;",token,
@@ -116,7 +123,7 @@ public sealed partial class SqliteStrategyLabRepository(string databasePath) : I
         await UpdateEquity(db,tx,token);tx.Commit();return 0;
     },token);
     public Task<IReadOnlyList<string>> OpenSymbolsAsync(CancellationToken token=default)=>Use<IReadOnlyList<string>>(async db=>
-        (await Trades(db,null,false,token)).Select(t=>t.Symbol).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),token);
+        (await Trades(db,null,false,token)).Concat(await ShadowTrades(db,null,false,token)).Select(t=>t.Symbol).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),token);
     public Task TickAsync(IReadOnlyDictionary<string,decimal> prices,long at,CancellationToken token=default)=>Use(async db=>
     {
         using var tx=db.BeginTransaction();
@@ -132,6 +139,7 @@ public sealed partial class SqliteStrategyLabRepository(string databasePath) : I
             await Sql(db,tx,"UPDATE LabVariants SET Cash=Cash+$proceeds WHERE Id=$id",token,
                 ("$proceeds",(double)exits.Sum(e=>e.Proceeds)),("$id",t.VariantId));
         }
+        await TickShadows(db,tx,prices,at,token);
         await UpdateEquity(db,tx,token);tx.Commit();return 0;
     },token);
     public Task SetEnabledAsync(bool enabled,CancellationToken token=default)=>Use(async db=>
@@ -164,6 +172,8 @@ public sealed partial class SqliteStrategyLabRepository(string databasePath) : I
                     $"Preço no grid {a.Close:0.########} | suporte {a.Support:0.########} | resistência {a.Resistance:0.########} | {a.BuyingPressureDetails}"));
             }
         }
-        tx.Commit();return new LabReport(enabled,reports,history,count,decisions);
+        var shadows=await ShadowTrades(db,tx,true,token);
+        long shadowCount=Convert.ToInt64(await Sql(db,tx,"SELECT COUNT(*) FROM LabShadowTrades",token));
+        tx.Commit();return new LabReport(enabled,reports,history,count,decisions){ShadowTrades=shadows,ShadowCount=shadowCount};
     },token);
 }
