@@ -56,6 +56,7 @@ public partial class MainWindow : Window
         [ScanProfile.Swing.Name] = Array.Empty<AssetScore>(),
         [ScanProfile.Intraday.Name] = Array.Empty<AssetScore>()
     };
+    private readonly Dictionary<string, DateTime> _scanCompletedAt = new();
     private readonly Dictionary<string, FilterDiagnostics?> _diagnosticsByProfile = new();
     private readonly Dictionary<string, bool> _isScanningByProfile = new();
     private ScanProfile _viewedProfile = ScanProfile.Swing;
@@ -166,6 +167,7 @@ public partial class MainWindow : Window
             _lastHistory = result.History; // já é global (Signals não filtra por Profile)
             _rankingsByProfile[profile.Name] = result.Ranking;
             _diagnosticsByProfile[profile.Name] = result.Diagnostics;
+            _scanCompletedAt[profile.Name] = DateTime.Now;
             _lastMarketRegime = result.MarketRegime;
 
             // Só redesenha o grid de ranking se o perfil que terminou é o exibido agora —
@@ -186,8 +188,8 @@ public partial class MainWindow : Window
             _ = UpdateBtcDominanceAsync(); // não bloqueia o scan — atualiza o Dashboard quando terminar
 
             dgHistory.ItemsSource = result.History;
-            txtWinRate.Text = $"Win Rate: {result.WinRate:F1}%";
-            txtAvgReturn.Text = $"Retorno Médio: {result.AverageReturn:F2}%";
+            txtWinRate.Text = result.History.Any(signal => signal.Evaluated) ? $"Acertos: {result.WinRate:F1}%" : "Sem resultados avaliados";
+            txtAvgReturn.Text = result.History.Any(signal => signal.Evaluated) ? $"Retorno médio: {result.AverageReturn:F2}%" : "";
             txtPending.Text = $"Pendentes: {result.History.Count(signal => !signal.Evaluated)}";
             txtEvaluated.Text = $"Avaliados: {result.History.Count(signal => signal.Evaluated)}";
 
@@ -869,6 +871,7 @@ public partial class MainWindow : Window
         dgRanking.ItemsSource = chkFavoritesOnly.IsChecked == true
             ? ranking.Where(a => a.IsFavorite).ToList()
             : ranking;
+        RefreshDiagnosticsDisplay();
     }
 
     private void ApplySimulatedTradesFilter()
@@ -1048,23 +1051,55 @@ public partial class MainWindow : Window
 
     // --- Novos métodos auxiliares do Scan Duplo -------------------------------
 
-    // Mostra o diagnóstico dos 2 perfis lado a lado. Se txtDiagnostics não tiver
-    // TextWrapping="Wrap" / altura suficiente no XAML, troque "\n" por " || " abaixo
-    // pra não cortar a segunda linha visualmente.
+    private static (string Label, int Count)[] Blockers(FilterDiagnostics d) => new[]
+    {
+        ("Risco/retorno ou níveis inválidos",d.FailedRiskReward),("Volume insuficiente",d.FailedVolumeSpike),
+        ("Sem caminho de entrada confirmado",d.FailedBreakout),("Sem consolidação prévia",d.FailedConsolidation),
+        ("Alvo próximo demais",d.FailedResistanceDistance),("Tendência incompatível",d.FailedDirection),
+        ("Score insuficiente",d.FailedScore),("Stop distante demais",d.FailedStopDistanceTooHigh),
+        ("Stop próximo demais",d.FailedStopDistance),("R/R acima do teto",d.FailedRiskRewardTooHigh),
+        ("Armadilha de alta",d.FailedBullTrap),("Confirmação EMA",d.FailedTrendConfirmation),
+        ("Momentum",d.FailedMomentumFilter),("Regime de reversão à média",d.FailedMeanReversionRegimeFilter),
+        ("ATR de reversão à média",d.FailedMeanReversionAtrFilter)
+    }.OrderByDescending(x=>x.Item2).ToArray();
+
     private void RefreshDiagnosticsDisplay()
     {
-        string Describe(string profileName) =>
-            _diagnosticsByProfile.TryGetValue(profileName, out var diag) && diag != null
-                ? diag.Summary
-                : "(ainda sem scan nesta sessão)";
-
-        txtDiagnostics.Text =
-            $"SWING — {Describe(ScanProfile.Swing.Name)}\n" +
-            $"INTRADAY — {Describe(ScanProfile.Intraday.Name)}\n" +
-            (_pressureHistoryErrors == 0 ? "Histórico da pressão: gravação automática ativa."
-                : $"Histórico da pressão: {_pressureHistoryErrors} falha(s) nesta sessão — {_lastPressureHistoryError}")+ $" | {_labStatus}";
+        if(txtScanSummary is null || txtDiagnostics is null)return;
+        string profile=_viewedProfile.Name;
+        var ranking=_rankingsByProfile.GetValueOrDefault(profile,Array.Empty<AssetScore>());
+        var diag=_diagnosticsByProfile.GetValueOrDefault(profile);
+        string updated=_scanCompletedAt.TryGetValue(profile,out var at)?at.ToString("dd/MM HH:mm:ss"):"aguardando";
+        txtScanSummary.Text=$"{profile} · Analisados: {diag?.TotalAnalyzed ?? 0} · Elegíveis: {ranking.Count(a=>a.IsEligible)} · Em observação: {ranking.Count(a=>a.DisplaySignal=="MONITORAR")} · Atualizado: {updated}";
+        txtScanSummary.ToolTip="Resumo do perfil completo, antes do filtro de favoritos. A busca manual não muda o horário da última varredura.";
+        var top=diag is null?default:Blockers(diag).First();
+        txtDiagnostics.Text=diag is null?"Aguardando análise deste perfil.":top.Count>0
+            ?$"Bloqueio mais frequente: {top.Label} — {top.Count} de {diag.TotalAnalyzed} ativos."
+            :"Nenhum bloqueio registrado nos filtros desta varredura.";
+        if(_pressureHistoryErrors>0)txtDiagnostics.Text+=" Atenção: falha na gravação do histórico; veja os motivos.";
+        if(_labStatus.StartsWith("Falha"))txtDiagnostics.Text+=" Atenção: falha no laboratório; veja os motivos.";
     }
 
+    private void BtnScanReasons_Click(object sender,RoutedEventArgs e)
+    {
+        var lines=new List<string>{"Um ativo pode falhar em vários filtros; não some os contadores.","Consolidação é obrigatória em BULL; em BEAR/LATERAL é informativa.",""};
+        foreach(string profile in new[]{_viewedProfile.Name, _viewedProfile.Name==ScanProfile.Swing.Name?ScanProfile.Intraday.Name:ScanProfile.Swing.Name})
+        {
+            lines.Add(profile);
+            if(_diagnosticsByProfile.GetValueOrDefault(profile) is { } d)
+            {
+                lines.Add($"Analisados: {d.TotalAnalyzed} | Passaram nos filtros: {d.PassedAll} | Sinais repetidos: {d.SkippedDuplicateToday}");
+                lines.AddRange(Blockers(d).Select(x=>$"{x.Label}: {x.Count}"));
+            }
+            else lines.Add("Ainda sem análise nesta sessão.");
+            lines.Add("");
+        }
+        lines.Add(_pressureHistoryErrors==0?"Histórico da pressão: gravação ativa.":$"Histórico da pressão: {_pressureHistoryErrors} falha(s) — {_lastPressureHistoryError}");
+        lines.Add(_labStatus);
+        new Window{Owner=this,Title="Motivos e estado do scanner",Width=650,Height=600,WindowStartupLocation=WindowStartupLocation.CenterOwner,
+            Content=new System.Windows.Controls.TextBox{Text=string.Join("\n",lines),IsReadOnly=true,TextWrapping=TextWrapping.Wrap,
+                VerticalScrollBarVisibility=System.Windows.Controls.ScrollBarVisibility.Auto,Margin=new Thickness(12),Padding=new Thickness(8)}}.ShowDialog();
+    }
     private void ReportPressureHistoryError(string message)
     {
         Dispatcher.BeginInvoke(new Action(() =>

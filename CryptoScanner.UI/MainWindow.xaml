@@ -39,35 +39,40 @@
             </StackPanel>
         </Border>
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="10">
-            <TextBlock x:Name="txtWinRate" FontWeight="Bold"/>
-            <TextBlock x:Name="txtAvgReturn" Margin="20,0,0,0" FontWeight="Bold"/>
-            <TextBlock x:Name="txtPending" Margin="20,0,0,0" FontWeight="Bold"/>
-            <TextBlock x:Name="txtEvaluated" Margin="20,0,0,0" FontWeight="Bold"/>
+        <StackPanel Grid.Row="1" Margin="10,6">
+            <TextBlock x:Name="txtScanSummary" Text="Aguardando a primeira atualização…" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap"/>
+            <DockPanel Margin="0,5,0,5">
+                <Button DockPanel.Dock="Right" Content="Ver motivos" Padding="10,3" Margin="10,0,0,0" Click="BtnScanReasons_Click"/>
+                <TextBlock x:Name="txtDiagnostics" Text="Os motivos de bloqueio aparecerão após a análise." Foreground="#D0D0D0" TextWrapping="Wrap" VerticalAlignment="Center"/>
+            </DockPanel>
+            <WrapPanel Margin="0,0,0,5">
+                <TextBlock Text="Histórico de sinais · " Foreground="#B8B8B8"/>
+                <TextBlock x:Name="txtWinRate" Text="Sem resultados avaliados"/>
+                <TextBlock x:Name="txtAvgReturn" Margin="12,0,0,0"/>
+                <TextBlock x:Name="txtPending" Margin="12,0,0,0"/>
+                <TextBlock x:Name="txtEvaluated" Margin="12,0,0,0"/>
+            </WrapPanel>
+            <WrapPanel VerticalAlignment="Center">
+                <TextBlock Text="Perfil:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <RadioButton x:Name="rbIntraday" Content="Intraday (1h / 24h)" GroupName="Profile" Margin="0,3,12,3" VerticalAlignment="Center" Checked="ProfileChanged"/>
+                <RadioButton x:Name="rbSwing" Content="Swing (4h / 10 dias)" GroupName="Profile" IsChecked="True" Margin="0,3,16,3" VerticalAlignment="Center" Checked="ProfileChanged"/>
+                <CheckBox x:Name="chkFavoritesOnly" Content="★ Só favoritos" Margin="0,3,16,3" VerticalAlignment="Center" Checked="ChkFavoritesOnly_Changed" Unchecked="ChkFavoritesOnly_Changed"/>
+                <TextBlock Text="Ativo:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <TextBox x:Name="txtSearchSymbol" Width="100" Margin="0,3,6,3" VerticalAlignment="Center" KeyDown="TxtSearchSymbol_KeyDown"/>
+                <Button x:Name="btnSearch" Content="Buscar" Padding="8,2" Margin="0,3,12,3" Click="BtnSearch_Click"/>
+                <Button x:Name="btAtualizar" Content="Atualizar" Padding="8,2" Margin="0,3,8,3" Click="btAtualizar_Click" Background="DarkSeaGreen"/>
+                <TextBlock Text="Auto (min):" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <TextBox x:Name="txtAutoScanInterval" Width="32" Margin="0,3,12,3" VerticalAlignment="Center" TextAlignment="Center" LostFocus="TxtAutoScanInterval_LostFocus" ToolTip="Intervalo em minutos. Saia do campo para salvar."/>
+            </WrapPanel>
+            <WrapPanel>
+                <Button Content="Análise" Click="BtnAnalytics_Click" Padding="8,2" Margin="0,3,6,0"/>
+                <Button Content="Backtest" Click="BtnFullBacktest_Click" Padding="8,2" Margin="0,3,6,0"/>
+                <Button Content="Histórico" Click="BtnBacktestHistory_Click" Padding="8,2" Margin="0,3,6,0"/>
+                <Button Content="Alertas" Click="BtnAlertSettings_Click" Padding="8,2" Margin="0,3,6,0"/>
+                <Button Content="Análise da pressão" Click="BtnPressureAnalysis_Click" Padding="8,2" Margin="0,3,6,0"/>
+                <Button Content="Laboratório" Click="BtnStrategyLab_Click" Padding="8,2" Margin="0,3,6,0"/>
+            </WrapPanel>
         </StackPanel>
-        <TextBlock x:Name="txtDiagnostics" Grid.Row="1" Margin="10,32,10,0" FontSize="13" Foreground="Gray" TextWrapping="Wrap"/>
-        <TextBlock Grid.Row="1" Margin="10,90,10,0" FontSize="13" FontStyle="Italic" Foreground="Gray" Text="*Consol.: exigido apenas quando o regime de mercado é BULL. Em BEAR/LATERAL (modo defensivo), esse critério é apenas informativo."/>
-
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="10,108,0,0" VerticalAlignment="Top">
-            <TextBlock Text="Perfil:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,8,0"/>
-            <RadioButton x:Name="rbIntraday" Content="Intraday (1h / 24h)" GroupName="Profile" Margin="0,0,12,0" VerticalAlignment="Center" Checked="ProfileChanged"/>
-            <RadioButton x:Name="rbSwing" Content="Swing (4h / 10 dias)" GroupName="Profile" IsChecked="True" VerticalAlignment="Center" Checked="ProfileChanged"/>
-            <CheckBox x:Name="chkFavoritesOnly" Content="★ Mostrar só favoritos" Margin="24,0,0,0" VerticalAlignment="Center" Checked="ChkFavoritesOnly_Changed" Unchecked="ChkFavoritesOnly_Changed"/>
-            <TextBlock Text="Buscar moeda:" VerticalAlignment="Center" Margin="24,0,6,0"/>
-            <TextBox x:Name="txtSearchSymbol" Width="120" VerticalAlignment="Center" Margin="0,0,6,0" KeyDown="TxtSearchSymbol_KeyDown"/>
-            <Button x:Name="btnSearch" Content="Buscar" Height="22" Padding="8,0" VerticalAlignment="Center" Click="BtnSearch_Click"/>
-            <Button Content="Laboratório" Height="22" Padding="10,0" Margin="16,0,0,0" VerticalAlignment="Center" Click="BtnStrategyLab_Click"/>
-        </StackPanel>
-
-        <Button x:Name="btAtualizar" Grid.Row="1" Content="Atualizar" HorizontalAlignment="Left" Height="19" Margin="614,7,0,0" VerticalAlignment="Top" Width="77" Click="btAtualizar_Click" Background="DarkSeaGreen"/>
-        <TextBlock Grid.Row="1" Text="Auto (min):" HorizontalAlignment="Left" Height="19" Margin="690,9,0,0" VerticalAlignment="Top" FontSize="11" Foreground="White" ToolTip="Intervalo de atualização automática, em minutos. Digite o número e clique fora do campo (ou aperte Tab) pra salvar."/>
-        <TextBox x:Name="txtAutoScanInterval" Grid.Row="1" HorizontalAlignment="Left" Height="19" Margin="754,7,0,0" VerticalAlignment="Top" Width="24" FontSize="11" TextAlignment="Center" LostFocus="TxtAutoScanInterval_LostFocus" ToolTip="Intervalo de atualização automática, em minutos. Digite o número e clique fora do campo (ou aperte Tab) pra salvar."/>
-        <Button Grid.Row="1" Content="Análise" Click="BtnAnalytics_Click" HorizontalAlignment="Left" Height="19" Margin="782,7,0,0" VerticalAlignment="Top" Width="78"/>
-        <Button Grid.Row="1" Content="Backtest" Click="BtnFullBacktest_Click" HorizontalAlignment="Left" Height="19" Margin="868,7,0,0" VerticalAlignment="Top" Width="80"/>
-        <Button Grid.Row="1" Content="Histórico" Click="BtnBacktestHistory_Click" HorizontalAlignment="Left" Height="19" Margin="954,7,0,0" VerticalAlignment="Top" Width="80"/>
-        <Button Grid.Row="1" Content="Alertas" Click="BtnAlertSettings_Click" HorizontalAlignment="Left" Height="19" Margin="1040,7,0,0" VerticalAlignment="Top" Width="70"/>
-        <Button Grid.Row="1" Content="Análise da pressão" Click="BtnPressureAnalysis_Click" HorizontalAlignment="Left" Height="19" Margin="1118,7,0,0" VerticalAlignment="Top" Width="130"/>
-
         <DockPanel Grid.Row="2">
             <TextBlock DockPanel.Dock="Top" Margin="5,2" FontSize="11" ToolTip="Verde: todos os filtros atendidos. Nos demais, score ≥70 azul; 55–69,99 amarelo; 40–54,99 cinza; abaixo de 40 preto. Armadilha de alta tem prioridade em laranja. As cores não representam probabilidade de lucro.">
                 <Run Foreground="#75D39B" Text="● Verde: elegível  "/><Run Foreground="#79B6EB" Text="● Azul: candidato  "/><Run Foreground="#E6C96A" Text="● Amarelo: observar  "/><Run Foreground="#BBBBBB" Text="● Cinza: baixa prioridade  "/><Run Foreground="#BBBBBB" Text="■ Preto: ignorar  "/><Run Foreground="#F5A34E" Text="● Laranja: armadilha"/>
