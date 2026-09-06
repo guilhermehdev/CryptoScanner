@@ -27,6 +27,11 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _timer = new();
     private readonly ScannerService _scanner;
     private readonly BuyingPressureHistoryService _pressureHistory;
+    private readonly SqliteStrategyLabRepository _labRepository;
+    private readonly StrategyLabService _lab;
+    private readonly DispatcherTimer _labTimer=new() { Interval=TimeSpan.FromSeconds(30) };
+    private readonly CancellationTokenSource _labClosed=new();
+    private string _labStatus="Laboratório ativo";
     private int _pressureHistoryErrors;
     private string _lastPressureHistoryError = "";
     private readonly IWatchlistRepository _watchlistRepository;
@@ -67,6 +72,9 @@ public partial class MainWindow : Window
         _alertSettingsRepository = new SqliteAlertSettingsRepository(databasePath);
         _appSettingsRepository = new SqliteAppSettingsRepository(databasePath);
         _pressureHistory = new BuyingPressureHistoryService(new SqliteBuyingPressureRepository(databasePath), _priceCheckService);
+        _labRepository=new SqliteStrategyLabRepository(databasePath);
+        _lab=new StrategyLabService(_labRepository,_priceCheckService);
+        _labTimer.Tick+=async (_,_)=>await EvaluateLabAsync();
         _scanner = new ScannerService(
             new BinanceExchangeService(),
             new SqliteSignalRepository(databasePath),
@@ -129,6 +137,7 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _labTimer.Stop();_labClosed.Cancel();
         _trayIcon?.Dispose();
         _ = _webSocketService.DisposeAsync().AsTask(); // fire-and-forget — app já está fechando
         base.OnClosed(e);
@@ -162,7 +171,10 @@ public partial class MainWindow : Window
             // Só redesenha o grid de ranking se o perfil que terminou é o exibido agora —
             // senão o usuário veria o grid trocar sozinho enquanto olha o outro perfil.
             if (profile.Name == _viewedProfile.Name)
+            {
                 ApplyRankingFilter();
+                _=RecordLabGridAsync(profile);
+            }
 
             await DispatchAlertsAsync(result.NewSignals);
             await EvaluateSimulatedTradesAsync();
@@ -202,6 +214,8 @@ public partial class MainWindow : Window
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         _isWindowLoaded = true;
+        _labTimer.Start();
+        _=EvaluateLabAsync();
         await LoadAutoScanIntervalAsync();
 
         try
@@ -328,6 +342,23 @@ public partial class MainWindow : Window
         new PressureAnalysisWindow(GetDatabasePath()) { Owner = this }.Show();
     }
 
+    private void BtnStrategyLab_Click(object sender,RoutedEventArgs e) => new StrategyLabWindow(_labRepository) { Owner=this }.Show();
+
+    private async Task RecordLabGridAsync(ScanProfile profile)
+    {
+        if(dgRanking.ItemsSource is not IEnumerable<AssetScore> rows)return;
+        try { await _lab.ObserveGridAsync(rows.ToArray(),profile,_labClosed.Token); }
+        catch(OperationCanceledException) when(_labClosed.IsCancellationRequested) { }
+        catch(Exception ex){_labStatus=$"Falha no laboratório: {ex.Message}";RefreshDiagnosticsDisplay();}
+    }
+
+    private async Task EvaluateLabAsync()
+    {
+        try { await _lab.EvaluateAsync(_labClosed.Token); }
+        catch(OperationCanceledException) when(_labClosed.IsCancellationRequested) { }
+        catch(Exception ex){_labStatus=$"Falha no laboratório: {ex.Message}";RefreshDiagnosticsDisplay();}
+    }
+
     private async Task DispatchAlertsAsync(IReadOnlyList<NewSignalAlert> newSignals)
     {
         if (newSignals.Count == 0)
@@ -419,6 +450,7 @@ public partial class MainWindow : Window
             ApplyRankingFilter();
             dgRanking.SelectedItem = result;
             dgRanking.ScrollIntoView(result);
+            _=RecordLabGridAsync(_viewedProfile);
         }
         catch (Exception ex)
         {
@@ -1030,7 +1062,7 @@ public partial class MainWindow : Window
             $"SWING — {Describe(ScanProfile.Swing.Name)}\n" +
             $"INTRADAY — {Describe(ScanProfile.Intraday.Name)}\n" +
             (_pressureHistoryErrors == 0 ? "Histórico da pressão: gravação automática ativa."
-                : $"Histórico da pressão: {_pressureHistoryErrors} falha(s) nesta sessão — {_lastPressureHistoryError}");
+                : $"Histórico da pressão: {_pressureHistoryErrors} falha(s) nesta sessão — {_lastPressureHistoryError}")+ $" | {_labStatus}";
     }
 
     private void ReportPressureHistoryError(string message)

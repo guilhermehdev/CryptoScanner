@@ -56,6 +56,7 @@
             <TextBlock Text="Buscar moeda:" VerticalAlignment="Center" Margin="24,0,6,0"/>
             <TextBox x:Name="txtSearchSymbol" Width="120" VerticalAlignment="Center" Margin="0,0,6,0" KeyDown="TxtSearchSymbol_KeyDown"/>
             <Button x:Name="btnSearch" Content="Buscar" Height="22" Padding="8,0" VerticalAlignment="Center" Click="BtnSearch_Click"/>
+            <Button Content="Laboratório" Height="22" Padding="10,0" Margin="16,0,0,0" VerticalAlignment="Center" Click="BtnStrategyLab_Click"/>
         </StackPanel>
 
         <Button x:Name="btAtualizar" Grid.Row="1" Content="Atualizar" HorizontalAlignment="Left" Height="19" Margin="614,7,0,0" VerticalAlignment="Top" Width="77" Click="btAtualizar_Click" Background="DarkSeaGreen"/>
