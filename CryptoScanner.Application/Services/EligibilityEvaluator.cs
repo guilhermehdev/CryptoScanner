@@ -1,4 +1,4 @@
-﻿using CryptoScanner.Core.Configuration;
+using CryptoScanner.Core.Configuration;
 using CryptoScanner.Core.Models.Analysis;
 
 namespace CryptoScanner.Application.Services;
@@ -38,6 +38,35 @@ public static class EligibilityEvaluator
             !FailedMeanReversionAtrFilter;
     }
 
+    public static string Describe(AssetAnalysis asset, string regime, EligibilityThresholds? thresholds = null)
+    {
+        var t = thresholds ?? EligibilityThresholds.Default;
+        var result = Evaluate(asset, regime, t);
+        var reasons = new List<string>();
+        if(result.FailedScore) reasons.Add($"Score abaixo do mínimo {t.BuyOpportunityScore}, após ajuste de regime.");
+        if(result.FailedBreakout) reasons.Add("Nenhum dos caminhos de entrada habilitados foi confirmado.");
+        if(result.FailedConsolidation) reasons.Add("Sem consolidação anterior ao candle de sinal (exigida em BULL).");
+        if(result.FailedVolumeSpike) reasons.Add($"Volume {asset.Volume.Spike:F2}× abaixo de {(regime=="BULL"?t.MinVolumeSpike:t.DefensiveMinVolumeSpike):F2}×.");
+        decimal minimumDistance = asset.Risk.Mode switch
+        {
+            RiskCalculationMode.SwingWithPartialExits => t.MinResistanceDistancePartialExits,
+            RiskCalculationMode.AtrBased => t.MinResistanceDistanceAtrMode,
+            RiskCalculationMode.MeanReversionScalp or RiskCalculationMode.BollingerReversal => 0,
+            _ => t.MinResistanceDistance
+        };
+        if(result.FailedResistanceDistance) reasons.Add($"Distância ao alvo {asset.Risk.ResistanceDistancePercent:F2}% abaixo de {minimumDistance:F2}%.");
+        if(result.FailedDirection) reasons.Add("Tendência não está em ALTA.");
+        if(result.FailedRiskReward) reasons.Add($"R/R {asset.Risk.RiskReward:F2} abaixo de {t.MinRiskReward:F2}, ou níveis de entrada/stop/alvos inválidos.");
+        if(result.FailedStopDistance) reasons.Add($"Stop abaixo da distância mínima de {t.MinStopDistancePercent:F2}%.");
+        if(result.FailedStopDistanceTooHigh) reasons.Add($"Stop acima da distância máxima de {t.MaxStopDistancePercent:F2}%.");
+        if(result.FailedRiskRewardTooHigh) reasons.Add($"R/R acima do teto de {t.MaxRiskReward:F2}.");
+        if(result.FailedBullTrap) reasons.Add("Armadilha de alta detectada.");
+        if(result.FailedTrendConfirmation) reasons.Add("Confirmação de tendência ausente.");
+        if(result.FailedMomentumFilter) reasons.Add("Momentum não confirmado.");
+        if(result.FailedMeanReversionRegimeFilter) reasons.Add("Regime bloqueia reversão à média.");
+        if(result.FailedMeanReversionAtrFilter) reasons.Add("ATR bloqueia reversão à média.");
+        return reasons.Count==0 ? "Critérios de entrada atendidos no candle fechado analisado." : string.Join("\n",reasons);
+    }
     public static EligibilityResult Evaluate(AssetAnalysis asset, string marketRegime, EligibilityThresholds? thresholds = null, TradeDirection direction = TradeDirection.Long)
     {
         thresholds ??= EligibilityThresholds.Default;
@@ -102,7 +131,13 @@ public static class EligibilityEvaluator
             ? asset.Trend.Direction != "ALTA"
             : asset.Trend.Direction != "BAIXA";
 
-        bool failedRiskReward = asset.Risk.RiskReward < thresholds.MinRiskReward;
+        // A positive ratio cannot make invalid or inverted levels tradable.
+        bool invalidLevels = asset.Risk.Support <= 0 || asset.Risk.Support >= asset.Trend.Close ||
+            asset.Risk.Resistance <= asset.Trend.Close ||
+            (direction == TradeDirection.Long && asset.Risk.TakeProfit1.HasValue &&
+                (asset.Risk.TakeProfit1 <= asset.Trend.Close || asset.Risk.TakeProfit1 >= asset.Risk.Resistance ||
+                 !asset.Risk.TakeProfit3.HasValue || asset.Risk.TakeProfit3 <= asset.Risk.Resistance));
+        bool failedRiskReward = invalidLevels || asset.Risk.RiskReward < thresholds.MinRiskReward;
         bool failedStopDistance = asset.Risk.SupportDistancePercent < thresholds.MinStopDistancePercent;
         bool failedStopDistanceTooHigh = asset.Risk.SupportDistancePercent > thresholds.MaxStopDistancePercent;
         bool failedRiskRewardTooHigh = asset.Risk.RiskReward > thresholds.MaxRiskReward;

@@ -241,16 +241,19 @@ public sealed class AssetAnalyzer
         var result = direction == TradeDirection.Long
             ? SetupQualityAnalyzer.Calculate(trend.Close, trend.Ema21, trend.Atr, swingLow)
             : SetupQualityAnalyzer.CalculateBearish(trend.Close, trend.Ema21, trend.Atr, swingHigh);
-        decimal shortTermResistance = SupportResistanceIndicator.GetResistance(candles, profile.DefensiveBreakoutLookback);
-        decimal shortTermSupport = SupportResistanceIndicator.GetSupport(candles, profile.DefensiveBreakoutLookback);
+        var previousCandles = candles.Take(candles.Count - 1).ToList();
+        decimal breakoutResistance = SupportResistanceIndicator.GetResistance(previousCandles);
+        decimal breakoutSupport = SupportResistanceIndicator.GetSupport(previousCandles);
+        decimal shortTermResistance = SupportResistanceIndicator.GetResistance(previousCandles, profile.DefensiveBreakoutLookback);
+        decimal shortTermSupport = SupportResistanceIndicator.GetSupport(previousCandles, profile.DefensiveBreakoutLookback);
 
         // Fase A do lado de venda: preço fechando abaixo do suporte, sozinho, não é mais
         // suficiente — precisa também de confirmação estrutural real (sequência Lower High/
         // Lower Low culminando em rompimento, não só qualquer fechamento abaixo de uma linha).
         // Long continua exatamente como antes (não mexido), validado extensivamente nessa sessão.
         bool isBreakout = direction == TradeDirection.Long
-            ? BreakoutIndicator.IsBullishBreakout(candles, risk.Resistance)
-            : BreakoutIndicator.IsBearishBreakout(candles, risk.Support)
+            ? BreakoutIndicator.IsBullishBreakout(candles, breakoutResistance)
+            : BreakoutIndicator.IsBearishBreakout(candles, breakoutSupport)
                 && (structure.HasBearishBreakOfStructure || structure.HasBearishChangeOfCharacter);
         bool isShortTermBreakout = direction == TradeDirection.Long
             ? BreakoutIndicator.IsBullishBreakout(candles, shortTermResistance)
@@ -330,7 +333,7 @@ public sealed class AssetAnalyzer
             IsBreakout = isBreakout,
             IsShortTermBreakout = isShortTermBreakout,
             RelativeStrength = RelativeStrengthIndicator.Calculate(candles, btcCandles, ScannerSettings.RelativeStrengthPeriodHours),
-            IsConsolidating = ConsolidationIndicator.IsConsolidating(candles),
+            IsConsolidating = ConsolidationIndicator.IsConsolidating(previousCandles),
             IsOverextended = result.IsOverextended,
             EmaDistanceAtr = result.EmaDistanceAtr,
             SwingUsageAtr = result.SwingUsageAtr,

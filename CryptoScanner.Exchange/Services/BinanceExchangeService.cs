@@ -1,4 +1,4 @@
-﻿using CryptoScanner.Core.Contracts;
+using CryptoScanner.Core.Contracts;
 using CryptoScanner.Core.Models;
 using CryptoScanner.Core.Utilities;
 using System.Globalization;
@@ -41,6 +41,7 @@ public class BinanceExchangeService : IMarketDataService, IBuyingPressurePriceSo
 
     public async Task<List<Candle>> GetCandlesAsync(string symbol, string interval, int limit = 1000, CancellationToken cancellationToken = default)
     {
+        long cutoffMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         string url = $"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}";
         string json = await _http.GetStringAsync(url, cancellationToken);
         JsonElement root = JsonSerializer.Deserialize<JsonElement>(json);
@@ -48,9 +49,11 @@ public class BinanceExchangeService : IMarketDataService, IBuyingPressurePriceSo
 
         foreach (JsonElement item in root.EnumerateArray())
         {
+            // A partial candle cannot be compared with full historical candle volumes.
+            if (item[6].GetInt64() >= cutoffMs) continue;
             candles.Add(new Candle
             {
-                OpenTime = DateTimeOffset.FromUnixTimeMilliseconds(item[0].GetInt64()).DateTime,
+                OpenTime = DateTimeOffset.FromUnixTimeMilliseconds(item[0].GetInt64()).UtcDateTime,
                 Open = decimal.Parse(item[1].GetString()!, CultureInfo.InvariantCulture),
                 High = decimal.Parse(item[2].GetString()!, CultureInfo.InvariantCulture),
                 Low = decimal.Parse(item[3].GetString()!, CultureInfo.InvariantCulture),

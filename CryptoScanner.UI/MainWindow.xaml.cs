@@ -691,7 +691,7 @@ public partial class MainWindow : Window
             {
                 var matchedAsset = ranking.FirstOrDefault(a => string.Equals(a.Symbol, symbol, StringComparison.OrdinalIgnoreCase));
                 if (matchedAsset != null)
-                    matchedAsset.Close = price;
+                    matchedAsset.LivePrice = price;
             }
 
             foreach (var trade in _lastSimulatedTrades.Where(t =>

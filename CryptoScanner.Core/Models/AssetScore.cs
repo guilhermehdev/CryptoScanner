@@ -15,6 +15,15 @@ public sealed class AssetScore : ObservableModel
         }
     }
 
+    private decimal? _livePrice;
+    public decimal? LivePrice
+    {
+        get => _livePrice;
+        set { if (SetField(ref _livePrice, value)) OnPropertyChanged(nameof(LivePriceFormatted)); }
+    }
+    public string LivePriceFormatted => LivePrice is decimal price ? (price >= 1 ? price.ToString("N2") : price.ToString("N8")) : "—";
+    public string AnalysisVersion { get; init; } = "";
+    public string EligibilityDetails { get; init; } = "";
     public decimal Score { get; init; }
     public decimal OpportunityScore { get; init; }
     public decimal PreviousScore { get; init; }
@@ -102,7 +111,7 @@ public sealed class AssetScore : ObservableModel
                        "si só, mesmo que o resto dos números pareça bom.";
 
             if (!IsEligible)
-                return BuildIneligibilityReasons();
+                return string.IsNullOrEmpty(EligibilityDetails) ? BuildIneligibilityReasons() : EligibilityDetails;
 
             var observations = new List<string>();
 

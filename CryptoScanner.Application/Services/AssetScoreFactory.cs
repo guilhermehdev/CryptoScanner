@@ -10,6 +10,7 @@ public static class AssetScoreFactory
     public static AssetScore Create(AssetAnalysis analysis, string marketRegime, IReadOnlySet<string> favoriteSymbols, EligibilityThresholds? thresholds = null) => new()
     {
         Symbol = analysis.Symbol,
+        AnalysisVersion = "closed-candles-v2",
         Close = analysis.Trend.Close,
         Score = analysis.OpportunityScore,
         OpportunityScore = analysis.OpportunityScore,
@@ -35,6 +36,7 @@ public static class AssetScoreFactory
         SmartMoneyLabel = analysis.Structure.SmartMoneyLabel,
         IsBullTrap = analysis.Structure.IsBullTrap,
         IsBearTrap = analysis.Structure.IsBearTrap,
+        EligibilityDetails = EligibilityEvaluator.Describe(analysis, marketRegime, thresholds),
         IsEligible = EligibilityEvaluator.Evaluate(analysis, marketRegime, thresholds).IsEligible,
         IsFavorite = favoriteSymbols.Contains(analysis.Symbol),
         TrendScore = analysis.Trend.Score,

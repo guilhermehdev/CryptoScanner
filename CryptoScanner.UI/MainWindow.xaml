@@ -1,4 +1,4 @@
-﻿<Window x:Class="CryptoScanner.UI.MainWindow"
+<Window x:Class="CryptoScanner.UI.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -75,8 +75,9 @@
                 <DataGridCheckBoxColumn Header="Elegível" Binding="{Binding IsEligible}"/>
                 <DataGridTemplateColumn Header="" Width="80"><DataGridTemplateColumn.CellTemplate><DataTemplate><Button Content="Simular" FontSize="11" Padding="4,1" Foreground="#00FFFF" Click="BtnSimulateTrade_Click"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                 <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}"/>
-                <DataGridTextColumn Header="Preço" Binding="{Binding CloseFormatted}"/>
-                <DataGridTextColumn Header="Score" Binding="{Binding Score, StringFormat=F2}"/>
+                <DataGridTextColumn Header="Preço análise" Binding="{Binding CloseFormatted}"/>
+                <DataGridTextColumn Header="Atual" Binding="{Binding LivePriceFormatted}"/>
+                <DataGridTextColumn Header="Score ranking" Binding="{Binding Score, StringFormat=F2}"/>
                 <DataGridTextColumn Header="Pressão Compradora" Binding="{Binding BuyingPressureScore, StringFormat=F0, TargetNullValue=—}">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
@@ -86,11 +87,11 @@
                 </DataGridTextColumn>
                 <DataGridTextColumn Header="Var" Binding="{Binding VariationText}"/>
                 <DataGridTextColumn Header="Resistência" Binding="{Binding Resistance, StringFormat=0.########}"/>
-                <DataGridTextColumn Header="Res %" Binding="{Binding ResistanceDistance, StringFormat=F1}"/>
-                <DataGridTextColumn Header="Sup %" Binding="{Binding SupportDistance, StringFormat=F1}"/>
+                <DataGridTextColumn Header="Alvo %" Binding="{Binding ResistanceDistance, StringFormat=F1}"/>
+                <DataGridTextColumn Header="Stop %" Binding="{Binding SupportDistance, StringFormat=F1}"/>
                 <DataGridTextColumn Header="RR" Binding="{Binding RiskReward, StringFormat=F2}"/>
-                <DataGridTextColumn Header="Vol" Binding="{Binding VolumeSpike, StringFormat=F2}"/>
-                <DataGridTextColumn Header="Romp" Binding="{Binding BreakoutSource}"/>
+                <DataGridTextColumn Header="Vol ×" Binding="{Binding VolumeSpike, StringFormat=F2}"/>
+                <DataGridTextColumn Header="Contexto" Binding="{Binding BreakoutSource}"/>
                 <DataGridTextColumn Header="Trend" Binding="{Binding TrendDirection}"/>
                 <DataGridTextColumn Header="Sinal" Binding="{Binding DisplaySignal}"/>
                 <DataGridCheckBoxColumn Header="Consol.*" Binding="{Binding IsConsolidating}"/>
