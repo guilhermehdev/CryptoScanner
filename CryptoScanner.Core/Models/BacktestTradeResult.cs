@@ -4,6 +4,7 @@ namespace CryptoScanner.Core.Models;
 
 public sealed class BacktestTradeResult
 {
+    public PreExitExcursion? Excursion { get; init; }
     public required string Symbol { get; init; }
     public required DateTime EntryTime { get; init; }
     public required decimal EntryPrice { get; init; }

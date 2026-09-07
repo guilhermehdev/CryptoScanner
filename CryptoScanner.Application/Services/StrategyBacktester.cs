@@ -1,4 +1,4 @@
-using CryptoScanner.Application.Services;
+﻿using CryptoScanner.Application.Services;
 using CryptoScanner.Core.Configuration;
 using CryptoScanner.Core.Contracts;
 using CryptoScanner.Core.Models;
@@ -18,7 +18,7 @@ public sealed class StrategyBacktester
     /// configuração de tela idêntica gera a mesma assinatura de sempre, e o sistema recusa
     /// salvar o resultado novo mesmo que o motor por trás tenha mudado completamente.
     /// </summary>
-    public const int EngineVersion = 8; // Closed daily candles, next-open entry, costs and TP2 breakeven.
+    public const int EngineVersion = 9; // Closed daily candles, next-open entry, costs and TP2 breakeven.
 
     private const int LookbackCandles = 300;
     private readonly IMarketDataService _marketData;
@@ -59,7 +59,7 @@ public sealed class StrategyBacktester
         var btcDailyCandles = await _marketData.GetHistoricalCandlesAsync("BTCUSDT", "1d", dailyFetchStart, endUtc, cancellationToken);
 
         var allTrades = new List<BacktestTradeResult>();
-        var diagnostics = new FilterDiagnostics();
+        var diagnostics = new FilterDiagnostics { BacktestStartUtc=startUtc, BacktestEndUtc=endUtc, Profile=profile.Name, Thresholds=thresholds ?? EligibilityThresholds.Default };
         var skippedSymbols = new List<string>();
         var tradesLock = new object();
         var diagnosticsLock = new object();
@@ -258,6 +258,8 @@ public sealed class StrategyBacktester
                 }
             }
 
+            // Exclude the exit candle: OHLC cannot establish which extremes preceded the exit.
+            if(openPosition != null && !justClosed && i<candles.Count-1) openPosition.Excursion.Observe(currentCandle,openPosition.EntryPrice,openPosition.Direction);
             if (openPosition != null || justClosed)
                 continue;
 
@@ -388,6 +390,7 @@ public sealed class StrategyBacktester
 
             var eligibility = EligibilityEvaluator.Evaluate(analysis, marketRegime, thresholds, direction);
             diagnostics.TotalAnalyzed++;
+            StrategyDiagnosticRecorder.Record(diagnostics,analysis,eligibility,decisionTime);
 
             if (eligibility.FailedScore) diagnostics.FailedScore++;
             if (eligibility.FailedBreakout) diagnostics.FailedBreakout++;
@@ -535,6 +538,13 @@ public sealed class StrategyBacktester
         target.FailedRiskReward += source.FailedRiskReward;
         target.FailedInvalidLevels += source.FailedInvalidLevels;
         target.EntryRejected += source.EntryRejected;
+        target.BreakoutTriggers += source.BreakoutTriggers;
+        target.PullbackTriggers += source.PullbackTriggers;
+        foreach(var pair in source.Strategies)
+        {
+            if(!target.Strategies.TryGetValue(pair.Key,out var bucket)) target.Strategies[pair.Key]=bucket=new();
+            bucket.Merge(pair.Value);
+        }
         target.SkippedDuplicateToday += source.SkippedDuplicateToday;
         target.FailedStopDistance += source.FailedStopDistance;
         target.FailedRiskRewardTooHigh += source.FailedRiskRewardTooHigh;
@@ -593,7 +603,8 @@ public sealed class StrategyBacktester
             BreakoutSource = position.BreakoutSource,
             MarketRegime = position.MarketRegime,
             IsBullTrap = position.IsBullTrap,
-            IsBearTrap = position.IsBearTrap
+            IsBearTrap = position.IsBearTrap,
+            Excursion = position.Excursion
         };
     }
 
@@ -649,7 +660,8 @@ public sealed class StrategyBacktester
             BreakoutSource = position.BreakoutSource,
             MarketRegime = position.MarketRegime,
             IsBullTrap = position.IsBullTrap,
-            IsBearTrap = position.IsBearTrap
+            IsBearTrap = position.IsBearTrap,
+            Excursion = position.Excursion
         };
     }
 
@@ -777,6 +789,7 @@ public sealed class StrategyBacktester
 
     private sealed class BacktestOpenPosition
     {
+        public PreExitExcursion Excursion { get; } = new();
         public required string Symbol { get; init; }
         public required DateTime EntryTime { get; init; }
         public required decimal EntryPrice { get; init; }

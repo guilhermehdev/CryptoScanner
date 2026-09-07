@@ -98,6 +98,17 @@ Check(EligibilityEvaluator.MinimumTargetDistance(Asset("DEFAULT"),ScannerProfile
 var archived=new FilterDiagnostics{Thresholds=ScannerProfiles.For(ScanProfile.Swing),MarketRegime="BULL",Analyses=new(){lowRr}};
 var replay=JsonSerializer.Deserialize<FilterDiagnostics>(JsonSerializer.Serialize(archived))!;
 Check(EligibilityEvaluator.Evaluate(replay.Analyses[0],replay.MarketRegime,replay.Thresholds).FailedRiskReward,"Exported full analysis supports exact eligibility replay");
+var buckets=new FilterDiagnostics();
+StrategyDiagnosticRecorder.Record(buckets,lowRr,lowResult,day);
+Check(buckets.Strategies["Breakout"].Triggered==1 && buckets.Strategies["Breakout"].Rejections["FailedRiskReward"]==1,"Triggered strategy records RR blocker");
+StrategyDiagnosticRecorder.Record(buckets,fixture,new EligibilityEvaluator.EligibilityResult{FailedBreakout=true,FailedScore=true},day);
+Check(buckets.Strategies["Breakout"].Evaluated==2 && buckets.Strategies["Breakout"].Triggered==1 && !buckets.Strategies["Breakout"].Rejections.ContainsKey("FailedScore"),"Non-trigger candles do not inflate candidate blockers");
+var merged=new FilterDiagnostics();StrategyBacktester.MergeDiagnostics(merged,buckets);
+Check(merged.Strategies["Breakout"].Samples.Count==1 && merged.Strategies["Breakout"].Samples[0].Stop==lowRr.Risk.Support,"Merging preserves rejection levels");
+var excursion=new PreExitExcursion();excursion.Observe(new Candle{High=108,Low=97},100,TradeDirection.Long);
+Check(excursion.FavorablePercent==8 && excursion.AdversePercent==3 && excursion.Candles==1,"Long excursion records favorable and adverse movement");
+var shortExcursion=new PreExitExcursion();shortExcursion.Observe(new Candle{High=108,Low=97},100,TradeDirection.Short);
+Check(shortExcursion.FavorablePercent==3 && shortExcursion.AdversePercent==8,"Short excursion reverses movement direction");
 Console.WriteLine($"PASS: {count} professional checks");
 sealed class Watchlist:IWatchlistRepository
 {

@@ -153,8 +153,8 @@
                     <DataGridTextColumn Header="Cenário" Binding="{Binding Label}" Width="140"/>
                     <DataGridTextColumn Header="Operações" Binding="{Binding TotalTrades}" Width="90"/>
                     <DataGridTextColumn Header="Win Rate %" Binding="{Binding WinRate, StringFormat=F1}" Width="90"/>
-                    <DataGridTextColumn Header="Retorno %" Binding="{Binding TotalReturnPercent, StringFormat=F2}" Width="90"/>
-                    <DataGridTextColumn Header="Drawdown %" Binding="{Binding MaxDrawdownPercent, StringFormat=F2}" Width="100"/>
+                    <DataGridTextColumn Header="Soma (p.p.)" Binding="{Binding TotalReturnPercent, StringFormat=F2}" Width="95"/>
+                    <DataGridTextColumn Header="Queda soma (p.p.)" Binding="{Binding MaxDrawdownPercent, StringFormat=F2}" Width="125"/>
                     <DataGridTextColumn Header="Profit Factor" Binding="{Binding ProfitFactor, StringFormat=F2}" Width="100"/>
                     <DataGridTextColumn Header="RR Médio" Binding="{Binding AvgRiskRewardAtEntry, StringFormat=F2}" Width="90"/>
                     <DataGridTextColumn Header="Win Rate Equilíbrio %" Binding="{Binding BreakEvenWinRate, StringFormat=F1}" Width="140"/>
@@ -170,7 +170,7 @@
             </DataGrid>
             <Border Grid.Row="2" BorderBrush="LightGray" BorderThickness="1" Background="White" Margin="0,0,0,10">
                 <StackPanel>
-                    <TextBlock Text="Curva de Retorno Acumulado (por ordem cronológica de saída)"
+                    <TextBlock Text="Soma dos retornos por trade (pontos percentuais; não representa o saldo da carteira)"
                            FontWeight="Bold" FontSize="11" Margin="6,4,0,0"/>
                     <Canvas x:Name="cnvEquityCurve" Height="170" Margin="4" SizeChanged="CnvEquityCurve_SizeChanged"/>
                 </StackPanel>

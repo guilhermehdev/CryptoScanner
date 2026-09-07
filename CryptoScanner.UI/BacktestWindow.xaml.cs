@@ -31,6 +31,7 @@ public partial class BacktestWindow : Window
     private readonly IBacktestRunResultRepository _runResultRepository;
     private CancellationTokenSource? _cts;
     private List<BacktestTradeResult> _lastDisplayedTrades = new();
+    private FilterDiagnostics? _exportDiagnostics;
 
     public BacktestWindow(IMarketDataService marketData, AssetAnalyzer assetAnalyzer, string databasePath)
     {
@@ -427,6 +428,7 @@ public partial class BacktestWindow : Window
         dgTrades.ItemsSource = null;
         cnvEquityCurve.Children.Clear();
         _lastDisplayedTrades = new List<BacktestTradeResult>();
+        _exportDiagnostics=null;
         txtSummaryResult.Text = "";
         _cts = new CancellationTokenSource();
 
@@ -490,14 +492,15 @@ public partial class BacktestWindow : Window
                 ? $"{thresholds.MaxStopDistancePercent:F0}%"
                 : "sem teto";
 
+            _exportDiagnostics=summary.Diagnostics;
             txtSummaryResult.Text =
                 $"Direção: {(direction == TradeDirection.Short ? "VENDA (Fase 1)" : "Compra")} | " +
                 $"Score≥{thresholds.BuyOpportunityScore:F0} | RR mín.={thresholds.MinRiskReward:F1} | Stop mín.={thresholds.MinStopDistancePercent:F0}% | Stop máx.={maxStopText}" +
                 (disableTimeout ? " | Timeout=DESATIVADO (só TP/SL)" : "") + "\n\n" +
                 $"Operações: {summary.TotalTrades}   |   " +
                 $"Win Rate: {summary.WinRate:F1}%   |   " +
-                $"Retorno Acumulado: {summary.TotalReturnPercent:F2}%   |   " +
-                $"Drawdown Máx.: {summary.MaxDrawdownPercent:F2}%   |   " +
+                $"Soma dos retornos por trade: {summary.TotalReturnPercent:F2} p.p.   |   " +
+                $"Queda da soma por trade: {summary.MaxDrawdownPercent:F2} p.p.   |   " +
                 $"Profit Factor: {summary.ProfitFactor:F2}\n" +
                 $"Carteira limitada: {summary.Portfolio.InitialCapital:F2} → {summary.Portfolio.FinalCapital:F2} USDT; retorno {summary.Portfolio.ReturnPercent:F2}%; aceitos {summary.Portfolio.Accepted}, sem vaga/capital {summary.Portfolio.Rejected}.\n" +
                 $"Queda do saldo realizado: {summary.Portfolio.MaxRealizedDrawdownPercent:F2}%. Não inclui oscilação das posições abertas; capital e parciais ficam reservados até o fechamento.\n" +
@@ -505,7 +508,7 @@ public partial class BacktestWindow : Window
                 $"RR Médio de Entrada: {summary.AvgRiskRewardAtEntry:F2}   |   " +
                 $"Win Rate de Equilíbrio: {summary.BreakEvenWinRate:F1}%   |   " +
                 $"Edge: {summary.Edge:F1} pontos % ({(summary.Edge >= 0 ? "vantagem" : "desvantagem")} estatística)\n\n" +
-                $"Filtros (motivos de rejeição, agregado): {summary.Diagnostics.Summary}" +
+                $"Filtros (motivos de rejeição, agregado): {summary.Diagnostics.Summary}\n\nPor estratégia (bloqueios entre gatilhos):\n{summary.Diagnostics.StrategySummary}" +
                 skippedInfo;
 
             dgTrades.ItemsSource = summary.Trades;
@@ -662,7 +665,7 @@ public partial class BacktestWindow : Window
 
     private void BtnExportTradesCsv_Click(object sender, RoutedEventArgs e)
     {
-        if (_lastDisplayedTrades.Count == 0)
+        if (_lastDisplayedTrades.Count == 0 && _exportDiagnostics is null)
         {
             MessageBox.Show("Nenhuma operação pra exportar ainda — rode um teste primeiro.", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
@@ -692,7 +695,7 @@ public partial class BacktestWindow : Window
                 "TrendScore", "StructureScore", "VolumeScore", "CandleScore", "SetupScore",
                 "MomentumScore", "VolatilityScore", "TrendStrengthScore",
                 "PatternName", "SmartMoneyLabel", "BreakoutSource", "MarketRegime",
-                "IsBullTrap", "IsBearTrap"));
+                "IsBullTrap", "IsBearTrap", "FavorableBeforeExitCandlePercent", "AdverseBeforeExitCandlePercent", "ObservedPreExitCandles"));
 
             foreach (var t in _lastDisplayedTrades)
             {
@@ -734,14 +737,16 @@ public partial class BacktestWindow : Window
                     t.BreakoutSource,
                     t.MarketRegime,
                     t.IsBullTrap,
-                    t.IsBearTrap));
+                    t.IsBearTrap, t.Excursion?.FavorablePercent.ToString("F4",culture), t.Excursion?.AdversePercent.ToString("F4",culture), t.Excursion?.Candles));
             }
 
             // BOM UTF-8 — sem isso, o Excel às vezes abre acentos/caracteres especiais
             // corrompidos mesmo o arquivo estando salvo certo.
             File.WriteAllText(dialog.FileName, sb.ToString(), new UTF8Encoding(true));
+            if(_exportDiagnostics is not null)
+                File.WriteAllText(System.IO.Path.ChangeExtension(dialog.FileName,"diagnosticos.json"),System.Text.Json.JsonSerializer.Serialize(new { EngineVersion=StrategyBacktester.EngineVersion, Diagnostics=_exportDiagnostics },new System.Text.Json.JsonSerializerOptions{WriteIndented=true}),new UTF8Encoding(true));
 
-            MessageBox.Show($"Exportado com sucesso:\n{dialog.FileName}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show($"Exportado com sucesso:\n{dialog.FileName}\nDiagnósticos por estratégia: arquivo .diagnosticos.json ao lado do CSV (quando disponíveis).", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
@@ -805,6 +810,7 @@ public partial class BacktestWindow : Window
         dgTrades.ItemsSource = null;
         cnvEquityCurve.Children.Clear();
         _lastDisplayedTrades = new List<BacktestTradeResult>();
+        _exportDiagnostics=null;
         txtSummaryResult.Text = "";
         var results = new List<ScenarioResult>();
         var allTrades = new List<BacktestTradeResult>();
@@ -862,6 +868,7 @@ public partial class BacktestWindow : Window
             // Junta todos os trades de todos os períodos numa amostra só — mais poder estatístico
             // do que qualquer período isolado.
             var pooledSummary = StrategyBacktester.BuildSummary(allTrades, aggregatedDiagnostics, new List<string>());
+            _exportDiagnostics=aggregatedDiagnostics;
             var spanStart = DateTime.SpecifyKind(anchorEnd.AddYears(-periodCount * periodYears), DateTimeKind.Utc);
             await SaveRunResultAsync("TOTAL (todos os períodos juntos)", symbols, spanStart, anchorEnd, profile, liveThresholds, RiskCalculationMode.SwingWithPartialExits, null, pooledSummary);
 
@@ -885,6 +892,7 @@ public partial class BacktestWindow : Window
             dgTrades.ItemsSource = orderedAllTrades;
             DrawEquityCurve(orderedAllTrades);
 
+            _exportDiagnostics=aggregatedDiagnostics;
             txtSummaryResult.Text =
                 $"Padrão Scanner: configuração VALIDADA REAL do perfil {profile.Name} (a mesma que roda ao vivo hoje — " +
                 $"ScannerService.cs) — RR≥{liveThresholds.MinRiskReward:F1}, Dist. Resist. Pontuada≥{liveThresholds.MinResistanceDistancePartialExits:F0}%, " +
@@ -971,12 +979,12 @@ public partial class BacktestWindow : Window
             polyline.Points.Add(new System.Windows.Point(i * xStep, YFor(points[i])));
         cnvEquityCurve.Children.Add(polyline);
 
-        AddCurveLabel($"Pico: {maxValue:F1}%", 4, 2, Brushes.DarkGreen);
-        AddCurveLabel($"Vale: {minValue:F1}%", 4, canvasHeight - 16, Brushes.DarkRed);
+        AddCurveLabel($"Pico: {maxValue:F1} p.p.", 4, 2, Brushes.DarkGreen);
+        AddCurveLabel($"Vale: {minValue:F1} p.p.", 4, canvasHeight - 16, Brushes.DarkRed);
 
         var finalLabel = new TextBlock
         {
-            Text = $"Final: {points[^1]:F1}% ({ordered.Count} trades)",
+            Text = $"Final: {points[^1]:F1} p.p. ({ordered.Count} trades)",
             FontSize = 10,
             FontWeight = FontWeights.Bold,
             Foreground = points[^1] >= 0 ? Brushes.DarkGreen : Brushes.DarkRed

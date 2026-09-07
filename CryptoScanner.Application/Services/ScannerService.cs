@@ -1,4 +1,4 @@
-using CryptoScanner.Application.Models;
+﻿using CryptoScanner.Application.Models;
 using CryptoScanner.Core.Configuration;
 using CryptoScanner.Core.Contracts;
 using CryptoScanner.Core.Models;
@@ -90,6 +90,7 @@ public sealed class ScannerService
         foreach (var asset in ranking)
         {
             var eligibility = EligibilityEvaluator.Evaluate(asset, marketRegime, thresholds);
+            StrategyDiagnosticRecorder.Record(diagnostics,asset,eligibility,DateTime.UtcNow);
 
             if (eligibility.FailedScore) diagnostics.FailedScore++;
             if (eligibility.FailedBreakout) diagnostics.FailedBreakout++;

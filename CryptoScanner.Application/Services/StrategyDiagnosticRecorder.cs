@@ -1,0 +1,25 @@
+using CryptoScanner.Core.Models;
+using CryptoScanner.Core.Models.Analysis;
+using CryptoScanner.Core.Configuration;
+namespace CryptoScanner.Application.Services;
+
+public static class StrategyDiagnosticRecorder
+{
+    public static void Record(FilterDiagnostics diagnostics, AssetAnalysis asset, EligibilityEvaluator.EligibilityResult result, DateTime at)
+    {
+        string key=asset.EntryStrategy.ToString();
+        if(!diagnostics.Strategies.TryGetValue(key,out var bucket)) diagnostics.Strategies[key]=bucket=new();
+        bucket.Evaluated++;
+        if(asset.Setup.IsBreakout) diagnostics.BreakoutTriggers++;
+        if(asset.Setup.IsPullbackBounce) diagnostics.PullbackTriggers++;
+        // Count filter combinations only among actual triggers, not all candles.
+        if(result.FailedBreakout) return;
+        bucket.Triggered++;
+        var failures=typeof(EligibilityEvaluator.EligibilityResult).GetProperties()
+            .Where(p=>p.Name.StartsWith("Failed") && (bool)p.GetValue(result)!).Select(p=>p.Name).ToArray();
+        if(failures.Length==0){bucket.Eligible++;return;}
+        foreach(var name in failures) bucket.Rejections[name]=bucket.Rejections.GetValueOrDefault(name)+1;
+        if(failures.Length==1) bucket.SoleBlocker[failures[0]]=bucket.SoleBlocker.GetValueOrDefault(failures[0])+1;
+        if(bucket.Samples.Count<30) bucket.Samples.Add(new(asset.Symbol,at,asset.Trend.Close,asset.Risk.Support,asset.Risk.Resistance,asset.Risk.RiskReward,failures));
+    }
+}
