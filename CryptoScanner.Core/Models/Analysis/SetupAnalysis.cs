@@ -1,6 +1,6 @@
-namespace CryptoScanner.Core.Models.Analysis;
+﻿namespace CryptoScanner.Core.Models.Analysis;
 
-public sealed class SetupAnalysis
+public sealed record SetupAnalysis
 {
     public int Score { get; init; }
     public bool IsBreakout { get; init; }

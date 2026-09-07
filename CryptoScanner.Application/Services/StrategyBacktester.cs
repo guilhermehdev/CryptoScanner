@@ -18,7 +18,7 @@ public sealed class StrategyBacktester
     /// configuração de tela idêntica gera a mesma assinatura de sempre, e o sistema recusa
     /// salvar o resultado novo mesmo que o motor por trás tenha mudado completamente.
     /// </summary>
-    public const int EngineVersion = 9; // Closed daily candles, next-open entry, costs and TP2 breakeven.
+    public const int EngineVersion = 10; // Closed daily candles, next-open entry, costs and TP2 breakeven.
 
     private const int LookbackCandles = 300;
     private readonly IMarketDataService _marketData;
@@ -299,7 +299,7 @@ public sealed class StrategyBacktester
             decimal btcEma200 = EmaIndicator.Calculate(btcDailySoFar, 200)[^1] ?? 0;
             string marketRegime = MarketRegimeIndicator.Calculate(btcDailySoFar[^1].Close, btcEma200);
 
-            var analysis = _assetAnalyzer.Analyze(symbol, candlesSoFar, btcCandlesSoFar, profile, riskMode, symbolDailySoFar, direction, useInvertedRsiMomentum, thresholds?.EntryStrategy ?? EntryStrategy.Legacy);
+            var analysis = _assetAnalyzer.Analyze(symbol, candlesSoFar, btcCandlesSoFar, profile, riskMode, symbolDailySoFar, direction, useInvertedRsiMomentum, thresholds?.EntryStrategy ?? EntryStrategy.Legacy, thresholds?.StructuralEntryExperiment ?? false);
 
             if (thresholds?.EntryStrategy==EntryStrategy.Legacy && thresholds.EnableBollingerScoring == true)
             {

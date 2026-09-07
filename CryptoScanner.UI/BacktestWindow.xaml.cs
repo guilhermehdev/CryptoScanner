@@ -125,6 +125,7 @@ public partial class BacktestWindow : Window
         var sb = new StringBuilder();
         sb.Append(profile.Name).Append('|');
         sb.Append(thresholds.EntryStrategy).Append("|");
+        sb.Append(thresholds.StructuralEntryExperiment).Append("|");
         sb.Append(riskMode).Append('|');
         sb.Append(direction).Append('|');
         sb.Append(start.ToString("O")).Append('|');
@@ -182,7 +183,7 @@ public partial class BacktestWindow : Window
             {
                 SignatureHash = signature,
                 SavedAt = DateTime.UtcNow,
-                Label = label + $" | {thresholds.EntryStrategy} | Alvo mín.: " + (thresholds.MinimumTargetAtr is decimal atrFloor ? $"{atrFloor:G} ATR" : $"{thresholds.MinResistanceDistancePartialExits:G}% (parciais)"),
+                Label = label + (thresholds.StructuralEntryExperiment ? " | Estrutura experimental v1" : " | Estrutura referência") + $" | {thresholds.EntryStrategy} | Alvo mín.: " + (thresholds.MinimumTargetAtr is decimal atrFloor ? $"{atrFloor:G} ATR" : $"{thresholds.MinResistanceDistancePartialExits:G}% (parciais)"),
                 Profile = profile.Name,
                 RiskMode = riskMode.ToString(),
                 StartDate = start,
@@ -321,6 +322,7 @@ public partial class BacktestWindow : Window
         txtMaxStopDistance.Text = t.MaxStopDistancePercent.ToString();
         txtMaxRiskReward.Text = t.MaxRiskReward.ToString();
         chkTargetAtr.IsChecked = false;
+        chkStructuralEntryExperiment.IsChecked = false;
         chkEnablePullbackBounce.IsChecked = t.EnablePullbackBounce;
         chkEnableMultiTimeframe.IsChecked = t.EnableMultiTimeframe;
         chkEnableVolatilityScoringPhaseB.IsChecked = t.EnableVolatilityScoringPhaseB;
@@ -355,6 +357,7 @@ public partial class BacktestWindow : Window
         thresholds = new EligibilityThresholds
         {
             EntryStrategy=cmbEntryStrategy.SelectedIndex >= 3 ? EntryStrategy.Auto : (EntryStrategy)cmbEntryStrategy.SelectedIndex,
+            StructuralEntryExperiment=chkStructuralEntryExperiment.IsChecked == true,
             MinimumTargetAtr=chkTargetAtr.IsChecked == true ? targetAtr : null,
             BuyOpportunityScore = minScore,
             BearRegimePenalty = ScannerSettings.BearRegimePenalty,
@@ -401,10 +404,11 @@ public partial class BacktestWindow : Window
 
         var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
         var direction = GetSelectedDirection();
+        if(chkStructuralEntryExperiment.IsChecked == true && cmbEntryStrategy.SelectedIndex==0){MessageBox.Show("Selecione Rompimento, Repique ou Automática (experimental) para testar a estrutura.");return;}
         if(cmbEntryStrategy.SelectedIndex>0 && direction!=TradeDirection.Long){MessageBox.Show("As novas estratégias são de compra. Use Legado para os experimentos de venda.");return;}
         if(cmbEntryStrategy.SelectedIndex==3)
         {
-            if(chkTargetAtr.IsChecked == true){MessageBox.Show("Selecione Automática (experimental) para testar distância em ATR. Automática (scanner) reproduz os parâmetros ao vivo.");return;}
+            if(chkTargetAtr.IsChecked == true || chkStructuralEntryExperiment.IsChecked == true){MessageBox.Show("Selecione Automática (experimental) para testar distância em ATR. Automática (scanner) reproduz os parâmetros ao vivo.");return;}
             thresholds=ScannerProfiles.For(profile);
         }
 

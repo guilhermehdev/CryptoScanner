@@ -1,8 +1,9 @@
-namespace CryptoScanner.Core.Configuration;
+﻿namespace CryptoScanner.Core.Configuration;
 
 public sealed class EligibilityThresholds
 {
     // Backtest experiment only; null preserves the live percentage rule.
+    public bool StructuralEntryExperiment { get; init; }
     public decimal? MinimumTargetAtr { get; init; }
     public EntryStrategy EntryStrategy { get; init; } = EntryStrategy.Legacy;
     public required decimal BuyOpportunityScore { get; init; }

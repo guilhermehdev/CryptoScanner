@@ -109,6 +109,27 @@ var excursion=new PreExitExcursion();excursion.Observe(new Candle{High=108,Low=9
 Check(excursion.FavorablePercent==8 && excursion.AdversePercent==3 && excursion.Candles==1,"Long excursion records favorable and adverse movement");
 var shortExcursion=new PreExitExcursion();shortExcursion.Observe(new Candle{High=108,Low=97},100,TradeDirection.Short);
 Check(shortExcursion.FavorablePercent==3 && shortExcursion.AdversePercent==8,"Short excursion reverses movement direction");
+var structuralCandles=Enumerable.Range(0,30).Select(i=>new Candle{OpenTime=day.AddHours(i*4),Open=101,Close=101,High=102,Low=100}).ToList();
+structuralCandles[0]=new Candle{OpenTime=day,Open=80,Close=80,High=81,Low=70};
+structuralCandles[^1]=new Candle{OpenTime=day.AddHours(116),Open=101,Close=103,High=104,Low=101};
+var structural=StructuralEntryExperiment.Evaluate(structuralCandles,2,true);
+Check(structural.Breakout && structural.Consolidating && structural.BreakoutStop==99,"Breakout stop follows consolidation instead of distant old low");
+var referenceAnalysis=new AssetAnalyzer().Analyze("BASE",structuralCandles,structuralCandles,ScanProfile.Swing,RiskCalculationMode.SwingWithPartialExits,entryStrategy:EntryStrategy.Auto);
+var experimentAnalysis=new AssetAnalyzer().Analyze("EXP",structuralCandles,structuralCandles,ScanProfile.Swing,RiskCalculationMode.SwingWithPartialExits,entryStrategy:EntryStrategy.Auto,structuralEntryExperiment:true);
+Check(experimentAnalysis.EntryStrategy==EntryStrategy.Breakout && experimentAnalysis.Risk.Support>referenceAnalysis.Risk.Support,"Analyzer routes experimental breakout to local invalidation");
+Check(experimentAnalysis.Risk.Resistance==referenceAnalysis.Risk.Resistance,"Experiment preserves structural target");
+structuralCandles[^5]=new Candle{Open=101,Close=100,High=101,Low=99.5m};
+structuralCandles[^4]=new Candle{Open=100,Close=100,High=101,Low=99.7m};
+structuralCandles[^3]=new Candle{Open=100,Close=100.5m,High=101,Low=100};
+structuralCandles[^2]=new Candle{Open=100.5m,Close=100.5m,High=101,Low=100};
+structuralCandles[^1]=new Candle{Open=100.5m,Close=101.5m,High=102,Low=100.4m};
+var recovered=StructuralEntryExperiment.Evaluate(structuralCandles,2,true);
+Check(recovered.Pullback && recovered.PullbackStop==98.5m,"Support touch and current recovery confirm pullback");
+Check(!StructuralEntryExperiment.Evaluate(structuralCandles,2,false).Pullback,"Recovery alone does not replace uptrend");
+structuralCandles[^1]=new Candle{Open=101,Close=100.6m,High=101,Low=100};
+Check(!StructuralEntryExperiment.Evaluate(structuralCandles,2,true).Pullback,"Past recovery cannot authorize bearish current candle");
+Check(!StructuralEntryExperiment.Evaluate(structuralCandles,0,true).Pullback,"Missing ATR cannot authorize experiment");
+Check(!ScannerProfiles.For(ScanProfile.Swing).StructuralEntryExperiment,"Live scanner keeps reference strategy");
 Console.WriteLine($"PASS: {count} professional checks");
 sealed class Watchlist:IWatchlistRepository
 {
