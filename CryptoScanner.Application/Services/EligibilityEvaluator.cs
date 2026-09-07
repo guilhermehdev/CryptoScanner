@@ -14,6 +14,7 @@ public static class EligibilityEvaluator
         public bool FailedResistanceDistance { get; init; }
         public bool FailedDirection { get; init; }
         public bool FailedRiskReward { get; init; }
+        public bool FailedInvalidLevels { get; init; }
         public bool FailedStopDistance { get; init; }
         public bool FailedStopDistanceTooHigh { get; init; }
         public bool FailedRiskRewardTooHigh { get; init; }
@@ -32,7 +33,7 @@ public static class EligibilityEvaluator
         public bool IsEligible =>
             !FailedScore && !FailedBreakout && !FailedConsolidation &&
             !FailedVolumeSpike && !FailedResistanceDistance &&
-            !FailedDirection && !FailedRiskReward && !FailedStopDistance &&
+            !FailedDirection && !FailedInvalidLevels && !FailedRiskReward && !FailedStopDistance &&
             !FailedStopDistanceTooHigh && !FailedRiskRewardTooHigh && !FailedBullTrap &&
             !FailedTrendConfirmation && !FailedMomentumFilter && !FailedMeanReversionRegimeFilter &&
             !FailedMeanReversionAtrFilter;
@@ -45,18 +46,15 @@ public static class EligibilityEvaluator
         var reasons = new List<string>();
         if(result.FailedScore) reasons.Add($"Score abaixo do mínimo {t.BuyOpportunityScore}, após ajuste de regime.");
         if(result.FailedBreakout) reasons.Add("Nenhum dos caminhos de entrada habilitados foi confirmado.");
-        if(result.FailedConsolidation) reasons.Add("Sem consolidação anterior ao candle de sinal (exigida em BULL).");
+        if(result.FailedConsolidation) reasons.Add("Sem consolidação anterior exigida para este caminho de entrada.");
         if(result.FailedVolumeSpike) reasons.Add($"Volume {asset.Volume.Spike:F2}× abaixo de {(regime=="BULL"?t.MinVolumeSpike:t.DefensiveMinVolumeSpike):F2}×.");
-        decimal minimumDistance = asset.Risk.Mode switch
-        {
-            RiskCalculationMode.SwingWithPartialExits => t.MinResistanceDistancePartialExits,
-            RiskCalculationMode.AtrBased => t.MinResistanceDistanceAtrMode,
-            RiskCalculationMode.MeanReversionScalp or RiskCalculationMode.BollingerReversal => 0,
-            _ => t.MinResistanceDistance
-        };
-        if(result.FailedResistanceDistance) reasons.Add($"Distância ao alvo {asset.Risk.ResistanceDistancePercent:F2}% abaixo de {minimumDistance:F2}%.");
+        decimal minimumDistance = MinimumTargetDistance(asset, t);
+        if(result.FailedResistanceDistance) reasons.Add(minimumDistance == decimal.MaxValue
+            ? "ATR indisponível para avaliar a distância mínima experimental."
+            : $"Distância ao alvo {asset.Risk.ResistanceDistancePercent:F2}% abaixo de {minimumDistance:F2}%.");
         if(result.FailedDirection) reasons.Add("Tendência não está em ALTA.");
-        if(result.FailedRiskReward) reasons.Add($"R/R {asset.Risk.RiskReward:F2} abaixo de {t.MinRiskReward:F2}, ou níveis de entrada/stop/alvos inválidos.");
+        if(result.FailedInvalidLevels) reasons.Add($"Níveis inválidos: entrada {asset.Trend.Close:G}, stop {asset.Risk.Support:G}, TP1 {asset.Risk.TakeProfit1:G}, TP2 {asset.Risk.Resistance:G}, TP3 {asset.Risk.TakeProfit3:G}.");
+        if(result.FailedRiskReward) reasons.Add($"R/R {asset.Risk.RiskReward:F2} abaixo de {t.MinRiskReward:F2}.");
         if(result.FailedStopDistance) reasons.Add($"Stop abaixo da distância mínima de {t.MinStopDistancePercent:F2}%.");
         if(result.FailedStopDistanceTooHigh) reasons.Add($"Stop acima da distância máxima de {t.MaxStopDistancePercent:F2}%.");
         if(result.FailedRiskRewardTooHigh) reasons.Add($"R/R acima do teto de {t.MaxRiskReward:F2}.");
@@ -67,6 +65,18 @@ public static class EligibilityEvaluator
         if(result.FailedMeanReversionAtrFilter) reasons.Add("ATR bloqueia reversão à média.");
         return reasons.Count==0 ? "Critérios de entrada atendidos no candle fechado analisado." : string.Join("\n",reasons);
     }
+    public static decimal MinimumTargetDistance(AssetAnalysis asset, EligibilityThresholds t)
+    {
+        if (asset.Risk.Mode is RiskCalculationMode.MeanReversionScalp or RiskCalculationMode.BollingerReversal) return 0;
+        if (t.MinimumTargetAtr is > 0) return asset.Trend.AtrPercent > 0 ? asset.Trend.AtrPercent * t.MinimumTargetAtr.Value : decimal.MaxValue;
+        return asset.Risk.Mode switch
+        {
+            RiskCalculationMode.SwingWithPartialExits => t.MinResistanceDistancePartialExits,
+            RiskCalculationMode.AtrBased => t.MinResistanceDistanceAtrMode,
+            _ => t.MinResistanceDistance
+        };
+    }
+
     public static EligibilityResult Evaluate(AssetAnalysis asset, string marketRegime, EligibilityThresholds? thresholds = null, TradeDirection direction = TradeDirection.Long)
     {
         thresholds ??= EligibilityThresholds.Default;
@@ -118,18 +128,7 @@ public static class EligibilityEvaluator
             : thresholds.MinVolumeSpike;
         bool failedVolumeSpike = asset.Volume.Spike < volumeSpikeThreshold;
 
-        decimal effectiveMinResistanceDistance = asset.Risk.Mode switch
-        {
-            RiskCalculationMode.AtrBased => thresholds.MinResistanceDistanceAtrMode,
-            RiskCalculationMode.SwingWithPartialExits => thresholds.MinResistanceDistancePartialExits,
-            // Reversão à média mira deliberadamente um alvo próximo (volta pra EMA21) —
-            // exigir uma distância mínima estrutural aqui contradiria a própria lógica do
-            // setup. Sem piso nesse modo.
-            RiskCalculationMode.MeanReversionScalp => 0m,
-            // Mesmo motivo — TP1 é a banda média, deliberadamente próxima do preço.
-            RiskCalculationMode.BollingerReversal => 0m,
-            _ => thresholds.MinResistanceDistance
-        };
+        decimal effectiveMinResistanceDistance = MinimumTargetDistance(asset, thresholds);
         bool failedResistanceDistance = asset.Risk.ResistanceDistancePercent < effectiveMinResistanceDistance;
 
         // Fase 1 do lado de venda: Long exige tendência de ALTA, Short exige tendência de BAIXA.
@@ -138,12 +137,12 @@ public static class EligibilityEvaluator
             : asset.Trend.Direction != "BAIXA";
 
         // A positive ratio cannot make invalid or inverted levels tradable.
-        bool invalidLevels = asset.Risk.Support <= 0 || asset.Risk.Support >= asset.Trend.Close ||
+        bool invalidLevels = asset.Trend.Close <= 0 || asset.Risk.Support <= 0 || asset.Risk.Support >= asset.Trend.Close ||
             asset.Risk.Resistance <= asset.Trend.Close ||
             (direction == TradeDirection.Long && asset.Risk.TakeProfit1.HasValue &&
                 (asset.Risk.TakeProfit1 <= asset.Trend.Close || asset.Risk.TakeProfit1 >= asset.Risk.Resistance ||
                  !asset.Risk.TakeProfit3.HasValue || asset.Risk.TakeProfit3 <= asset.Risk.Resistance));
-        bool failedRiskReward = invalidLevels || asset.Risk.RiskReward < thresholds.MinRiskReward;
+        bool failedRiskReward = !invalidLevels && asset.Risk.RiskReward < thresholds.MinRiskReward;
         bool failedStopDistance = asset.Risk.SupportDistancePercent < thresholds.MinStopDistancePercent;
         bool failedStopDistanceTooHigh = asset.Risk.SupportDistancePercent > thresholds.MaxStopDistancePercent;
         bool failedRiskRewardTooHigh = asset.Risk.RiskReward > thresholds.MaxRiskReward;
@@ -207,6 +206,7 @@ public static class EligibilityEvaluator
             FailedResistanceDistance = failedResistanceDistance,
             FailedDirection = failedDirection,
             FailedRiskReward = failedRiskReward,
+            FailedInvalidLevels = invalidLevels,
             FailedStopDistance = failedStopDistance,
             FailedStopDistanceTooHigh = failedStopDistanceTooHigh,
             FailedRiskRewardTooHigh = failedRiskRewardTooHigh,

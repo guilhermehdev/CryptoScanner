@@ -1053,7 +1053,7 @@ public partial class MainWindow : Window
 
     private static (string Label, int Count)[] Blockers(FilterDiagnostics d) => new[]
     {
-        ("Risco/retorno ou níveis inválidos",d.FailedRiskReward),("Volume insuficiente",d.FailedVolumeSpike),
+        ("Risco/retorno insuficiente",d.FailedRiskReward),("Níveis inválidos",d.FailedInvalidLevels),("Volume insuficiente",d.FailedVolumeSpike),
         ("Sem caminho de entrada confirmado",d.FailedBreakout),("Sem consolidação prévia",d.FailedConsolidation),
         ("Alvo próximo demais",d.FailedResistanceDistance),("Tendência incompatível",d.FailedDirection),
         ("Score insuficiente",d.FailedScore),("Stop distante demais",d.FailedStopDistanceTooHigh),

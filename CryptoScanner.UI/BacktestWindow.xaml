@@ -31,7 +31,7 @@
                 </WrapPanel>
                 <WrapPanel Margin="6,0,6,6">
                     <TextBlock Text="Estratégia:" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <ComboBox x:Name="cmbEntryStrategy" Width="170" SelectedIndex="0" Margin="0,0,12,0"><ComboBoxItem Content="Legado (comparação)"/><ComboBoxItem Content="Rompimento + consolidação"/><ComboBoxItem Content="Repique em tendência"/><ComboBoxItem Content="Automática (scanner)"/></ComboBox>
+                    <ComboBox x:Name="cmbEntryStrategy" Width="205" SelectedIndex="0" Margin="0,0,12,0"><ComboBoxItem Content="Legado (comparação)"/><ComboBoxItem Content="Rompimento + consolidação"/><ComboBoxItem Content="Repique em tendência"/><ComboBoxItem Content="Automática (scanner)"/><ComboBoxItem Content="Automática (experimental)"/></ComboBox>
                     <TextBlock Text="Perfil:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <RadioButton x:Name="rbBacktestIntraday" Content="Intraday (1h / 24h)" GroupName="BacktestProfile" Margin="0,0,12,0" VerticalAlignment="Center"/>
                     <RadioButton x:Name="rbBacktestSwing" Content="Swing (4h / 10 dias)" GroupName="BacktestProfile" IsChecked="True" VerticalAlignment="Center" Margin="0,0,12,0"/>
@@ -73,6 +73,7 @@
                     <TextBox x:Name="txtMinResistDistanceAtr" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
                     <TextBlock Text="Dist. Resist. mín. Pontuada %:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox x:Name="txtMinResistDistancePartialExits" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                    <CheckBox x:Name="chkTargetAtr" Content="Alvo mínimo em ATR" VerticalAlignment="Center" ToolTip="Experimento: substitui a distância percentual pelo múltiplo de ATR abaixo. Não altera o scanner ao vivo." Margin="0,0,6,0"/><TextBox x:Name="txtTargetAtr" Text="1" Width="40" Margin="0,0,10,0"/>
                     <TextBlock Text="Volume Spike mín.:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox x:Name="txtMinVolumeSpike" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
                     <TextBlock Text="Risk/Reward mín.:" VerticalAlignment="Center" Margin="0,0,4,0"/>
@@ -86,6 +87,7 @@
                     <TextBlock Text="Timeout (h, vazio=padrão):" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox x:Name="txtEvaluationHoursOverride" Width="55" VerticalAlignment="Center" Margin="0,0,14,0"/>
                     <CheckBox x:Name="chkDisableTimeout" Content="Sem timeout — só TP/SL" VerticalAlignment="Center"/>
+                    <Button Content="Copiar parâmetros do scanner" Click="CopyScannerThresholds_Click" Margin="10,0,0,0" Padding="5,1"/>
                 </WrapPanel>
                 <WrapPanel Orientation="Horizontal" Margin="6,0,6,6">
                     <TextBlock Text="Cálculo de Risco:" VerticalAlignment="Center" Margin="0,0,10,0"/>

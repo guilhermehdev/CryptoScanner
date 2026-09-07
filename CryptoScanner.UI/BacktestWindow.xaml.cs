@@ -1,4 +1,4 @@
-using CryptoScanner.Application.Services;
+﻿using CryptoScanner.Application.Services;
 using CryptoScanner.Core.Configuration;
 using CryptoScanner.Core.Contracts;
 using CryptoScanner.Core.Models;
@@ -133,6 +133,7 @@ public partial class BacktestWindow : Window
         sb.Append(thresholds.MinResistanceDistance).Append('|');
         sb.Append(thresholds.MinResistanceDistanceAtrMode).Append('|');
         sb.Append(thresholds.MinResistanceDistancePartialExits).Append('|');
+        sb.Append(thresholds.MinimumTargetAtr).Append('|');
         sb.Append(thresholds.MinVolumeSpike).Append('|');
         sb.Append(thresholds.MinRiskReward).Append('|');
         sb.Append(thresholds.MinStopDistancePercent).Append('|');
@@ -180,7 +181,7 @@ public partial class BacktestWindow : Window
             {
                 SignatureHash = signature,
                 SavedAt = DateTime.UtcNow,
-                Label = label,
+                Label = label + $" | {thresholds.EntryStrategy} | Alvo mín.: " + (thresholds.MinimumTargetAtr is decimal atrFloor ? $"{atrFloor:G} ATR" : $"{thresholds.MinResistanceDistancePartialExits:G}% (parciais)"),
                 Profile = profile.Name,
                 RiskMode = riskMode.ToString(),
                 StartDate = start,
@@ -304,6 +305,30 @@ public partial class BacktestWindow : Window
         return allSymbols.Take(topN).ToList();
     }
 
+    private void CopyScannerThresholds_Click(object sender, RoutedEventArgs e)
+    {
+        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
+        var t = ScannerProfiles.For(profile);
+        cmbEntryStrategy.SelectedIndex = 4;
+        txtMinScore.Text = t.BuyOpportunityScore.ToString();
+        txtMinResistDistance.Text = t.MinResistanceDistance.ToString();
+        txtMinResistDistanceAtr.Text = t.MinResistanceDistanceAtrMode.ToString();
+        txtMinResistDistancePartialExits.Text = t.MinResistanceDistancePartialExits.ToString();
+        txtMinVolumeSpike.Text = t.MinVolumeSpike.ToString();
+        txtMinRiskReward.Text = t.MinRiskReward.ToString();
+        txtMinStopDistance.Text = t.MinStopDistancePercent.ToString();
+        txtMaxStopDistance.Text = t.MaxStopDistancePercent.ToString();
+        txtMaxRiskReward.Text = t.MaxRiskReward.ToString();
+        chkTargetAtr.IsChecked = false;
+        chkEnablePullbackBounce.IsChecked = t.EnablePullbackBounce;
+        chkEnableMultiTimeframe.IsChecked = t.EnableMultiTimeframe;
+        chkEnableVolatilityScoringPhaseB.IsChecked = t.EnableVolatilityScoringPhaseB;
+        chkEnableMeanReversionScalp.IsChecked = t.EnableMeanReversionScalp;
+        chkBlockMeanReversionInBear.IsChecked = t.BlockMeanReversionInBear;
+        chkLimitAtrForMeanReversion.IsChecked = t.LimitAtrForMeanReversion;
+        chkEnableBollingerReversal.IsChecked = t.EnableBollingerReversal;
+    }
+
     private bool TryBuildThresholds(out EligibilityThresholds thresholds)
     {
         thresholds = EligibilityThresholds.Default;
@@ -322,9 +347,14 @@ public partial class BacktestWindow : Window
             return false;
         }
 
+        decimal targetAtr = 0;
+        if (chkTargetAtr.IsChecked == true && (!decimal.TryParse(txtTargetAtr.Text, out targetAtr) || targetAtr <= 0))
+        { MessageBox.Show("Informe um múltiplo de ATR positivo."); return false; }
+
         thresholds = new EligibilityThresholds
         {
-            EntryStrategy=(EntryStrategy)cmbEntryStrategy.SelectedIndex,
+            EntryStrategy=cmbEntryStrategy.SelectedIndex >= 3 ? EntryStrategy.Auto : (EntryStrategy)cmbEntryStrategy.SelectedIndex,
+            MinimumTargetAtr=chkTargetAtr.IsChecked == true ? targetAtr : null,
             BuyOpportunityScore = minScore,
             BearRegimePenalty = ScannerSettings.BearRegimePenalty,
             SidewaysRegimePenalty = ScannerSettings.SidewaysRegimePenalty,
@@ -371,7 +401,11 @@ public partial class BacktestWindow : Window
         var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
         var direction = GetSelectedDirection();
         if(cmbEntryStrategy.SelectedIndex>0 && direction!=TradeDirection.Long){MessageBox.Show("As novas estratégias são de compra. Use Legado para os experimentos de venda.");return;}
-        if(cmbEntryStrategy.SelectedIndex==3)thresholds=ScannerProfiles.For(profile);
+        if(cmbEntryStrategy.SelectedIndex==3)
+        {
+            if(chkTargetAtr.IsChecked == true){MessageBox.Show("Selecione Automática (experimental) para testar distância em ATR. Automática (scanner) reproduz os parâmetros ao vivo.");return;}
+            thresholds=ScannerProfiles.For(profile);
+        }
 
         List<string>? symbols;
         try
@@ -405,7 +439,7 @@ public partial class BacktestWindow : Window
                 : null;
 
             bool disableTimeout = chkDisableTimeout.IsChecked == true;
-            if(cmbEntryStrategy.SelectedIndex==3){evaluationHoursOverride=null;disableTimeout=false;}
+            if(cmbEntryStrategy.SelectedIndex>=3){evaluationHoursOverride=null;disableTimeout=false;}
 
             // Momentum RSI invertido — testado e descartado (efeito quase nulo na config
             // validada, 5% de peso é fraco demais pra mover a agulha). Checkbox removido

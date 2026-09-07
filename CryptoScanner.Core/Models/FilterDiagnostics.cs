@@ -3,11 +3,12 @@ namespace CryptoScanner.Core.Models;
 public sealed class FilterDiagnostics
 {
     public string RunId { get; set; } = Guid.NewGuid().ToString("N");
-    public string Version { get; set; } = "scan-funnel-v1";
+    public string Version { get; set; } = "scan-funnel-v2";
     public DateTime StartedUtc { get; set; }
     public DateTime CompletedUtc { get; set; }
     public int Requested { get; set; }
     public int SignalsSaved { get; set; }
+    public int EntryRejected { get; set; }
     public Dictionary<string,string> Errors { get; set; } = new();
     public Dictionary<string,int> CandidateTypes { get; set; } = new();
     public Dictionary<string,List<string>> OnlyBlockedBy { get; set; } = new();
@@ -21,6 +22,10 @@ public sealed class FilterDiagnostics
     public int FailedResistanceDistance { get; set; }
     public int FailedDirection { get; set; }
     public int FailedRiskReward { get; set; }
+    public int FailedInvalidLevels { get; set; }
+    public string MarketRegime { get; set; } = "";
+    public CryptoScanner.Core.Configuration.EligibilityThresholds? Thresholds { get; set; }
+    public List<CryptoScanner.Core.Models.Analysis.AssetAnalysis> Analyses { get; set; } = new();
     public int FailedStopDistance { get; set; }
     public int FailedStopDistanceTooHigh { get; set; }
     public int FailedRiskRewardTooHigh { get; set; }
@@ -41,9 +46,9 @@ public sealed class FilterDiagnostics
     public string Summary =>
         $"Score: {FailedScore} | Sem breakout: {FailedBreakout} | Sem consol.: {FailedConsolidation} | " +
         $"Vol. spike: {FailedVolumeSpike} | Dist. resist.: {FailedResistanceDistance} | " +
-        $"Direção: {FailedDirection} | Risk/Reward: {FailedRiskReward} | Stop mín.: {FailedStopDistance} | " +
+        $"Direção: {FailedDirection} | Níveis inválidos: {FailedInvalidLevels} | R/R baixo: {FailedRiskReward} | Stop mín.: {FailedStopDistance} | " +
         $"Stop máx.: {FailedStopDistanceTooHigh} | RR teto: {FailedRiskRewardTooHigh} | Bull Trap: {FailedBullTrap} | " +
         $"Tendência (EMA): {FailedTrendConfirmation} | Momentum: {FailedMomentumFilter} | Regime MeanRev: {FailedMeanReversionRegimeFilter} | ATR MeanRev: {FailedMeanReversionAtrFilter} | " +
-        $"Duplicado hoje: {SkippedDuplicateToday} | " +
+        $"Duplicado hoje: {SkippedDuplicateToday} | Entrada rejeitada: {EntryRejected} | " +
         $"Passaram: {PassedAll}/{TotalAnalyzed}";
 }

@@ -18,7 +18,7 @@ public sealed class StrategyBacktester
     /// configuração de tela idêntica gera a mesma assinatura de sempre, e o sistema recusa
     /// salvar o resultado novo mesmo que o motor por trás tenha mudado completamente.
     /// </summary>
-    public const int EngineVersion = 7; // Closed daily candles, next-open entry, costs and TP2 breakeven.
+    public const int EngineVersion = 8; // Closed daily candles, next-open entry, costs and TP2 breakeven.
 
     private const int LookbackCandles = 300;
     private readonly IMarketDataService _marketData;
@@ -396,6 +396,7 @@ public sealed class StrategyBacktester
             if (eligibility.FailedResistanceDistance) diagnostics.FailedResistanceDistance++;
             if (eligibility.FailedDirection) diagnostics.FailedDirection++;
             if (eligibility.FailedRiskReward) diagnostics.FailedRiskReward++;
+            if (eligibility.FailedInvalidLevels) diagnostics.FailedInvalidLevels++;
             if (eligibility.FailedStopDistance) diagnostics.FailedStopDistance++;
             if (eligibility.FailedRiskRewardTooHigh) diagnostics.FailedRiskRewardTooHigh++;
             if (eligibility.FailedStopDistanceTooHigh) diagnostics.FailedStopDistanceTooHigh++;
@@ -419,8 +420,17 @@ public sealed class StrategyBacktester
 
             if(i+1>=candles.Count)continue;
             decimal entryPrice=candles[i+1].Open;
-            if(entryPrice<=analysis.Risk.Support || entryPrice>=analysis.Risk.Resistance || entryPrice<=0)continue;
-            if(direction==TradeDirection.Long && analysis.Risk.TakeProfit1 is decimal firstTarget && entryPrice>=firstTarget)continue;
+            if(entryPrice<=analysis.Risk.Support || entryPrice>=analysis.Risk.Resistance || entryPrice<=0){diagnostics.EntryRejected++;continue;}
+            if(direction==TradeDirection.Long && analysis.Risk.TakeProfit1 is decimal firstTarget && entryPrice>=firstTarget){diagnostics.EntryRejected++;continue;}
+            var entryRisk = EntryRiskMetrics.Calculate(entryPrice * (1 + LabParameters.Slippage), analysis.Risk.Support, analysis.Risk.Resistance);
+            if(direction == TradeDirection.Long)
+            {
+                decimal fill = entryPrice * (1 + LabParameters.Slippage);
+                if(fill >= analysis.Risk.Resistance || (analysis.Risk.TakeProfit1 is decimal tp1 && fill >= tp1))
+                { diagnostics.EntryRejected++; continue; }
+                if(entryRisk.RiskReward < (thresholds ?? EligibilityThresholds.Default).MinRiskReward)
+                { diagnostics.EntryRejected++; continue; }
+            }
             lastSignalTimeByKey[key] = decisionTime;
             diagnostics.PassedAll++;
 
@@ -437,9 +447,9 @@ public sealed class StrategyBacktester
                 Direction = direction,
                 Signal = analysis.Signal,
                 Score = analysis.OpportunityScore,
-                ResistanceDistancePercent = analysis.Risk.ResistanceDistancePercent,
-                SupportDistancePercent = analysis.Risk.SupportDistancePercent,
-                RiskRewardAtEntry = analysis.Risk.RiskReward,
+                ResistanceDistancePercent = direction == TradeDirection.Long ? entryRisk.TargetDistancePercent : (analysis.Risk.Resistance-entryPrice)/entryPrice*100,
+                SupportDistancePercent = direction == TradeDirection.Long ? entryRisk.StopDistancePercent : (entryPrice-analysis.Risk.Support)/entryPrice*100,
+                RiskRewardAtEntry = direction == TradeDirection.Long ? entryRisk.RiskReward : (entryPrice-analysis.Risk.Support)/(analysis.Risk.Resistance-entryPrice),
                 TakeProfit1 = analysis.Risk.TakeProfit1,
                 TakeProfit3 = analysis.Risk.TakeProfit3,
                 Tp1Fraction = partialExitFractions?.Tp1 ?? 0.40m,
@@ -523,6 +533,8 @@ public sealed class StrategyBacktester
         target.FailedResistanceDistance += source.FailedResistanceDistance;
         target.FailedDirection += source.FailedDirection;
         target.FailedRiskReward += source.FailedRiskReward;
+        target.FailedInvalidLevels += source.FailedInvalidLevels;
+        target.EntryRejected += source.EntryRejected;
         target.SkippedDuplicateToday += source.SkippedDuplicateToday;
         target.FailedStopDistance += source.FailedStopDistance;
         target.FailedRiskRewardTooHigh += source.FailedRiskRewardTooHigh;

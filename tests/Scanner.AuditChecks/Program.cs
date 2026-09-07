@@ -37,7 +37,7 @@ Check(display.Close==100&&display.RiskReward==2&&display.LivePrice==112,"Live qu
 
 AssetAnalysis Fixture(decimal support,decimal rr)=>new(){Symbol="TEST",Trend=new(){Close=100,Direction="ALTA"},Volume=new(){Spike=2},Structure=new(),Candle=new(),Setup=new(){IsBreakout=true,IsConsolidating=true},Risk=new(){Mode=RiskCalculationMode.SwingBased,Support=support,Resistance=110,SupportDistancePercent=5,ResistanceDistancePercent=10,RiskReward=rr},OpportunityScore=90};
 var invalid=Fixture(-1,10);
-Check(EligibilityEvaluator.Evaluate(invalid,"BULL").FailedRiskReward,"Invalid support cannot pass with high ratio");
+Check(EligibilityEvaluator.Evaluate(invalid,"BULL").FailedInvalidLevels && !EligibilityEvaluator.Evaluate(invalid,"BULL").IsEligible,"Invalid support cannot pass with high ratio");
 var low=Fixture(95,.1m);
 Check(EligibilityEvaluator.Evaluate(low,"BULL").FailedRiskReward,"Low RR still blocked without lowering threshold");
 var dto=AssetScoreFactory.Create(low,"BULL",new HashSet<string>());

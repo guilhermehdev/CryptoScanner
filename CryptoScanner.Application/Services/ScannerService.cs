@@ -83,6 +83,9 @@ public sealed class ScannerService
         var diagnostics = new FilterDiagnostics { TotalAnalyzed = ranking.Count };
         var newSignals = new List<NewSignalAlert>();
         var thresholds = ScannerProfiles.For(profile);
+        diagnostics.MarketRegime = marketRegime;
+        diagnostics.Thresholds = thresholds;
+        diagnostics.Analyses = ranking.ToList();
 
         foreach (var asset in ranking)
         {
@@ -95,6 +98,7 @@ public sealed class ScannerService
             if (eligibility.FailedResistanceDistance) diagnostics.FailedResistanceDistance++;
             if (eligibility.FailedDirection) diagnostics.FailedDirection++;
             if (eligibility.FailedRiskReward) diagnostics.FailedRiskReward++;
+            if (eligibility.FailedInvalidLevels) diagnostics.FailedInvalidLevels++;
             if (eligibility.FailedStopDistance) diagnostics.FailedStopDistance++;
             if (eligibility.FailedRiskRewardTooHigh) diagnostics.FailedRiskRewardTooHigh++;
             if (eligibility.FailedStopDistanceTooHigh) diagnostics.FailedStopDistanceTooHigh++;
@@ -125,7 +129,7 @@ public sealed class ScannerService
                     new LabParameters(0,"Signal","execution-v1",0,1),LabParameters.Ticket,0,false);
                 if(opened.Trade is null){diagnostics.Errors[asset.Symbol]="Entrada: "+opened.Reason;continue;}
                 execution=opened.Trade;
-                if((execution.Tp2-execution.EntryFill)/(execution.EntryFill-execution.Stop)<thresholds.MinRiskReward)
+                if(EntryRiskMetrics.Calculate(execution.EntryFill, execution.Stop, execution.Tp2).RiskReward<thresholds.MinRiskReward)
                 {diagnostics.Errors[asset.Symbol]="R/R insuficiente na cotação de entrada";continue;}
             }
             catch(Exception ex) when(!cancellationToken.IsCancellationRequested){diagnostics.Errors[asset.Symbol]="Cotação de entrada: "+ex.Message;continue;}
@@ -149,7 +153,7 @@ public sealed class ScannerService
                 VolumeSpike = asset.Volume.Spike,
                 VolumeImbalance = asset.Volume.Imbalance,
                 RelativeStrength = asset.Setup.RelativeStrength,
-                RiskReward = asset.Risk.RiskReward,
+                RiskReward = EntryRiskMetrics.Calculate(execution.EntryFill, execution.Stop, execution.Tp2).RiskReward,
                 TrendScore = asset.Trend.Score,
                 StructureScore = asset.Structure.Score,
                 VolumeScore = asset.Volume.Score,

@@ -79,6 +79,25 @@ Check(CryptoScanner.Strategies.OpportunityScoreCalculator.Calculate(fixture)==sc
 var portfolioTrades=Enumerable.Range(0,6).Select(i=>new BacktestTradeResult{Symbol="P"+i,EntryTime=day,ExitTime=day.AddHours(1),EntryPrice=100,ExitPrice=110,OutcomePercent=10,ExitReason="TP",Signal="COMPRA",Score=80-i,ResistanceDistancePercent=10,SupportDistancePercent=5,RiskRewardAtEntry=2}).ToList();
 var portfolio=BacktestPortfolioSummary.Calculate(portfolioTrades);
 Check(portfolio.Accepted==5&&portfolio.Rejected==1&&portfolio.FinalCapital==10500,"Portfolio cap and capital differ from summing all six trades");
+var invalid=Asset("INVALID");
+var badLevels=new AssetAnalysis {Symbol="BAD",Trend=invalid.Trend,Volume=invalid.Volume,Structure=invalid.Structure,Candle=invalid.Candle,Setup=invalid.Setup,OpportunityScore=85,EntryStrategy=EntryStrategy.Breakout,
+ Risk=new(){Mode=RiskCalculationMode.SwingWithPartialExits,Support=101,Resistance=120,RiskReward=4,ResistanceDistancePercent=20}};
+var invalidResult=EligibilityEvaluator.Evaluate(badLevels,"BULL",ScannerProfiles.For(ScanProfile.Swing));
+Check(invalidResult.FailedInvalidLevels && !invalidResult.FailedRiskReward && !invalidResult.IsEligible,"Invalid geometry separated from low RR");
+var lowRr=new AssetAnalysis {Symbol="SOLV",Trend=new(){Close=.00401m,Direction="ALTA"},Volume=invalid.Volume,Structure=invalid.Structure,Candle=invalid.Candle,Setup=invalid.Setup,OpportunityScore=85,EntryStrategy=EntryStrategy.Breakout,
+ Risk=new(){Mode=RiskCalculationMode.SwingWithPartialExits,Support=.003467142857142857m,Resistance=.00428m,TakeProfit1=.004172m,TakeProfit3=.00471686m,RiskReward=.497368421m,ResistanceDistancePercent=6.733167m}};
+var lowResult=EligibilityEvaluator.Evaluate(lowRr,"BULL",ScannerProfiles.For(ScanProfile.Swing));
+Check(lowResult.FailedRiskReward && !lowResult.FailedInvalidLevels,"Exported SOLV has valid geometry and low RR");
+var metrics=EntryRiskMetrics.Calculate(110.055m,95,120);
+Check(metrics.RiskReward<1 && metrics.RiskReward != 4,"Next-open gap recalculates actual entry RR");
+var serialized=JsonSerializer.Serialize(ScannerProfiles.For(ScanProfile.Intraday));
+var node=System.Text.Json.Nodes.JsonNode.Parse(serialized)!;node["MinimumTargetAtr"]=2m;
+var atrThresholds=JsonSerializer.Deserialize<EligibilityThresholds>(node.ToJsonString())!;
+Check(EligibilityEvaluator.MinimumTargetDistance(Asset("NOATR"),atrThresholds)==decimal.MaxValue,"ATR experiment rejects missing volatility");
+Check(EligibilityEvaluator.MinimumTargetDistance(Asset("DEFAULT"),ScannerProfiles.For(ScanProfile.Intraday))==15,"Live distance preset remains unchanged");
+var archived=new FilterDiagnostics{Thresholds=ScannerProfiles.For(ScanProfile.Swing),MarketRegime="BULL",Analyses=new(){lowRr}};
+var replay=JsonSerializer.Deserialize<FilterDiagnostics>(JsonSerializer.Serialize(archived))!;
+Check(EligibilityEvaluator.Evaluate(replay.Analyses[0],replay.MarketRegime,replay.Thresholds).FailedRiskReward,"Exported full analysis supports exact eligibility replay");
 Console.WriteLine($"PASS: {count} professional checks");
 sealed class Watchlist:IWatchlistRepository
 {
