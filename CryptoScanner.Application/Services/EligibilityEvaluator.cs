@@ -106,6 +106,12 @@ public static class EligibilityEvaluator
         bool failedBreakout = !(passesClassicPaths || passesPullbackBounce || passesMeanReversionSetup || passesBollingerReversal || passesLowRsiPath);
 
         bool failedConsolidation = defensiveMode ? false : !asset.Setup.IsConsolidating;
+        if(thresholds.EntryStrategy != EntryStrategy.Legacy && direction==TradeDirection.Long)
+        {
+            var strategy=thresholds.EntryStrategy==EntryStrategy.Auto?asset.EntryStrategy:thresholds.EntryStrategy;
+            failedBreakout=strategy==EntryStrategy.Breakout?!asset.Setup.IsBreakout:!asset.Setup.IsPullbackBounce;
+            failedConsolidation=strategy==EntryStrategy.Breakout && !asset.Setup.IsConsolidating;
+        }
 
         decimal volumeSpikeThreshold = defensiveMode
             ? thresholds.DefensiveMinVolumeSpike

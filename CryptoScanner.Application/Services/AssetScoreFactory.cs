@@ -10,7 +10,7 @@ public static class AssetScoreFactory
     public static AssetScore Create(AssetAnalysis analysis, string marketRegime, IReadOnlySet<string> favoriteSymbols, EligibilityThresholds? thresholds = null) => new()
     {
         Symbol = analysis.Symbol,
-        AnalysisVersion = "closed-candles-v2",
+        AnalysisVersion = "separated-entries-v3",
         Close = analysis.Trend.Close,
         Score = analysis.OpportunityScore,
         OpportunityScore = analysis.OpportunityScore,
@@ -61,6 +61,7 @@ public static class AssetScoreFactory
 
     internal static string DetermineBreakoutSource(AssetAnalysis analysis)
     {
+        if(analysis.EntryStrategy==EntryStrategy.Pullback && analysis.Setup.IsPullbackBounce)return "Repique";
         if (analysis.Setup.IsBreakout) return "Clássico";
         if (analysis.Setup.IsShortTermBreakout) return "Curto Prazo";
         if (analysis.Setup.RelativeStrength >= ScannerSettings.MinRelativeStrengthPercent) return "Força Rel.";

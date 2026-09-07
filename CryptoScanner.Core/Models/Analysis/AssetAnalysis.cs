@@ -2,6 +2,7 @@ namespace CryptoScanner.Core.Models.Analysis;
 
 public sealed class AssetAnalysis
 {
+    public CryptoScanner.Core.Configuration.EntryStrategy EntryStrategy { get; init; }
     public required string Symbol { get; init; }
     public required TrendAnalysis Trend { get; init; }
     public required VolumeAnalysis Volume { get; init; }

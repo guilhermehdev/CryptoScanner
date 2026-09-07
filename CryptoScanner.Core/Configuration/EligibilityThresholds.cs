@@ -1,7 +1,8 @@
-﻿namespace CryptoScanner.Core.Configuration;
+namespace CryptoScanner.Core.Configuration;
 
 public sealed class EligibilityThresholds
 {
+    public EntryStrategy EntryStrategy { get; init; } = EntryStrategy.Legacy;
     public required decimal BuyOpportunityScore { get; init; }
     public required decimal BearRegimePenalty { get; init; }
     public required decimal SidewaysRegimePenalty { get; init; }

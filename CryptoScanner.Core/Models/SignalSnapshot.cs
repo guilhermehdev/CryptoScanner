@@ -1,7 +1,8 @@
-﻿namespace CryptoScanner.Core.Models;
+namespace CryptoScanner.Core.Models;
 
 public sealed class SignalSnapshot
 {
+    public string ExecutionJson { get; init; } = "";
     public required string Symbol { get; init; }
     public required decimal Price { get; init; }
     public required decimal Score { get; init; }

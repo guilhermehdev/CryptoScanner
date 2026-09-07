@@ -1,4 +1,4 @@
-﻿using CryptoScanner.Application.Services;
+using CryptoScanner.Application.Services;
 using CryptoScanner.Core.Configuration;
 using CryptoScanner.Core.Contracts;
 using CryptoScanner.Core.Models;
@@ -18,7 +18,7 @@ public sealed class StrategyBacktester
     /// configuração de tela idêntica gera a mesma assinatura de sempre, e o sistema recusa
     /// salvar o resultado novo mesmo que o motor por trás tenha mudado completamente.
     /// </summary>
-    public const int EngineVersion = 6; // v6: teto de distância de stop (MaxStopDistancePercent) disponível como filtro
+    public const int EngineVersion = 7; // Closed daily candles, next-open entry, costs and TP2 breakeven.
 
     private const int LookbackCandles = 300;
     private readonly IMarketDataService _marketData;
@@ -47,6 +47,8 @@ public sealed class StrategyBacktester
      Action<string, double>? onProgress = null,
      CancellationToken cancellationToken = default)
     {
+        if(partialExitFractions is { } fractions && (fractions.Tp1<=0 || fractions.Tp2<=0 || fractions.Tp1+fractions.Tp2>=1))throw new ArgumentException("As parciais devem ser positivas e somar menos de 100%.");
+        if(endUtc<=startUtc)throw new ArgumentException("O fim deve ser posterior ao início.");
         var intervalSpan = CandleIntervalHelper.ToTimeSpan(profile.CandleInterval);
         var fetchStart = startUtc - TimeSpan.FromTicks(intervalSpan.Ticks * LookbackCandles);
 
@@ -88,7 +90,7 @@ public sealed class StrategyBacktester
                         symbolDailyCandles = await _marketData.GetHistoricalCandlesAsync(symbol, "1d", dailyFetchStart, endUtc, cancellationToken);
                     }
                 }
-                catch (Exception ex)
+                catch (Exception ex) when(!cancellationToken.IsCancellationRequested)
                 {
                     lock (tradesLock) { skippedSymbols.Add($"{symbol} (erro ao buscar dados: {ex.Message})"); }
                     return;
@@ -100,6 +102,7 @@ public sealed class StrategyBacktester
                     await Task.Delay(200, cancellationToken);
                 }
 
+                candles=candles.Where(c=>c.OpenTime+intervalSpan<=endUtc && c.OpenTime+intervalSpan<=DateTime.UtcNow).OrderBy(c=>c.OpenTime).ToList();
                 if (candles.Count < LookbackCandles)
                 {
                     lock (tradesLock) { skippedSymbols.Add($"{symbol} (histórico insuficiente: {candles.Count} candles)"); }
@@ -153,7 +156,8 @@ public sealed class StrategyBacktester
         var lastSignalTimeByKey = new Dictionary<string, DateTime>();
 
         int startIndex = candles.FindIndex(c => c.OpenTime >= startUtc);
-        if (startIndex < 0 || startIndex < LookbackCandles)
+        if(startIndex<0)return(trades,diagnostics);
+        if (startIndex < LookbackCandles)
             startIndex = LookbackCandles;
 
         int totalToProcess = candles.Count - startIndex;
@@ -178,6 +182,7 @@ public sealed class StrategyBacktester
             }
 
             var currentCandle = candles[i];
+            var decisionTime=currentCandle.OpenTime+CandleIntervalHelper.ToTimeSpan(profile.CandleInterval);
             bool justClosed = false;
 
             if (openPosition != null)
@@ -186,8 +191,8 @@ public sealed class StrategyBacktester
                 {
                     // Modo SwingWithPartialExits (etapa 4.3) — saída fracionada TP1→TP2→TP3.
                     // Long apenas — TakeProfit1 nunca é preenchido pra Short (ver AssetAnalyzer).
-                    justClosed = ProcessPartialExits(openPosition, currentCandle, trades);
-                    if (!disableTimeout && !justClosed && currentCandle.OpenTime >= openPosition.EntryTime.AddHours(effectiveEvaluationHours))
+                    justClosed = ProcessPartialExits(openPosition, currentCandle, decisionTime, trades);
+                    if (!disableTimeout && !justClosed && decisionTime >= openPosition.EntryTime.AddHours(effectiveEvaluationHours))
                     {
                         // Timeout com posição parcialmente realizada — fecha só o que sobrou,
                         // ponderado junto com as pernas de TP1/TP2 já realizadas.
@@ -196,7 +201,7 @@ public sealed class StrategyBacktester
                         string reason = openPosition.Tp1Hit
                             ? (openPosition.Tp2Hit ? "TP1TP2TIMEOUT" : "TP1TIMEOUT")
                             : "TIMEOUT";
-                        trades.Add(CloseTradeWeighted(openPosition, currentCandle.OpenTime, reason));
+                        trades.Add(CloseTradeWeighted(openPosition, decisionTime, reason));
                         justClosed = true;
                     }
 
@@ -212,19 +217,19 @@ public sealed class StrategyBacktester
                     {
                         if (currentCandle.Low <= openPosition.StopLoss)
                         {
-                            trades.Add(CloseTrade(openPosition, currentCandle.OpenTime, openPosition.StopLoss, "SL"));
+                            trades.Add(CloseTrade(openPosition, decisionTime, Math.Min(currentCandle.Open,openPosition.StopLoss), "SL"));
                             openPosition = null;
                             justClosed = true;
                         }
                         else if (currentCandle.High >= openPosition.TakeProfit)
                         {
-                            trades.Add(CloseTrade(openPosition, currentCandle.OpenTime, openPosition.TakeProfit, "TP"));
+                            trades.Add(CloseTrade(openPosition, decisionTime, openPosition.TakeProfit, "TP"));
                             openPosition = null;
                             justClosed = true;
                         }
-                        else if (!disableTimeout && currentCandle.OpenTime >= openPosition.EntryTime.AddHours(effectiveEvaluationHours))
+                        else if (!disableTimeout && decisionTime >= openPosition.EntryTime.AddHours(effectiveEvaluationHours))
                         {
-                            trades.Add(CloseTrade(openPosition, currentCandle.OpenTime, currentCandle.Close, "TIMEOUT"));
+                            trades.Add(CloseTrade(openPosition, decisionTime, currentCandle.Close, "TIMEOUT"));
                             openPosition = null;
                             justClosed = true;
                         }
@@ -233,19 +238,19 @@ public sealed class StrategyBacktester
                     {
                         if (currentCandle.High >= openPosition.StopLoss)
                         {
-                            trades.Add(CloseTrade(openPosition, currentCandle.OpenTime, openPosition.StopLoss, "SL"));
+                            trades.Add(CloseTrade(openPosition, decisionTime, Math.Max(currentCandle.Open,openPosition.StopLoss), "SL"));
                             openPosition = null;
                             justClosed = true;
                         }
                         else if (currentCandle.Low <= openPosition.TakeProfit)
                         {
-                            trades.Add(CloseTrade(openPosition, currentCandle.OpenTime, openPosition.TakeProfit, "TP"));
+                            trades.Add(CloseTrade(openPosition, decisionTime, openPosition.TakeProfit, "TP"));
                             openPosition = null;
                             justClosed = true;
                         }
-                        else if (!disableTimeout && currentCandle.OpenTime >= openPosition.EntryTime.AddHours(effectiveEvaluationHours))
+                        else if (!disableTimeout && decisionTime >= openPosition.EntryTime.AddHours(effectiveEvaluationHours))
                         {
-                            trades.Add(CloseTrade(openPosition, currentCandle.OpenTime, currentCandle.Close, "TIMEOUT"));
+                            trades.Add(CloseTrade(openPosition, decisionTime, currentCandle.Close, "TIMEOUT"));
                             openPosition = null;
                             justClosed = true;
                         }
@@ -263,10 +268,8 @@ public sealed class StrategyBacktester
 
             // Avança os ponteiros do BTC até o instante atual, sem reescanear do início —
             // seguro porque candles[] e btcCandles[]/btcDailyCandles[] estão em ordem crescente de tempo.
-            while (btcIndex < btcCandles.Count && btcCandles[btcIndex].OpenTime <= currentCandle.OpenTime)
-                btcIndex++;
-            while (btcDailyIndex < btcDailyCandles.Count && btcDailyCandles[btcDailyIndex].OpenTime <= currentCandle.OpenTime)
-                btcDailyIndex++;
+            btcIndex=CandleTimeline.ClosedPrefixCount(btcCandles,btcIndex,CandleIntervalHelper.ToTimeSpan(profile.CandleInterval),decisionTime);
+            btcDailyIndex=CandleTimeline.ClosedPrefixCount(btcDailyCandles,btcDailyIndex,TimeSpan.FromDays(1),decisionTime);
 
             // Candles diários do próprio ativo (etapa 4.2) — só existe quando o modo pediu
             // (SwingWithPartialExits); nos outros modos, symbolDailyCandles é null e essa
@@ -274,8 +277,7 @@ public sealed class StrategyBacktester
             List<Candle>? symbolDailySoFar = null;
             if (symbolDailyCandles != null)
             {
-                while (symbolDailyIndex < symbolDailyCandles.Count && symbolDailyCandles[symbolDailyIndex].OpenTime <= currentCandle.OpenTime)
-                    symbolDailyIndex++;
+                symbolDailyIndex=CandleTimeline.ClosedPrefixCount(symbolDailyCandles,symbolDailyIndex,TimeSpan.FromDays(1),decisionTime);
                 int symbolDailyWindowStart = Math.Max(0, symbolDailyIndex - LookbackCandles);
                 symbolDailySoFar = symbolDailyCandles.GetRange(symbolDailyWindowStart, symbolDailyIndex - symbolDailyWindowStart);
             }
@@ -295,9 +297,9 @@ public sealed class StrategyBacktester
             decimal btcEma200 = EmaIndicator.Calculate(btcDailySoFar, 200)[^1] ?? 0;
             string marketRegime = MarketRegimeIndicator.Calculate(btcDailySoFar[^1].Close, btcEma200);
 
-            var analysis = _assetAnalyzer.Analyze(symbol, candlesSoFar, btcCandlesSoFar, profile, riskMode, symbolDailySoFar, direction, useInvertedRsiMomentum);
+            var analysis = _assetAnalyzer.Analyze(symbol, candlesSoFar, btcCandlesSoFar, profile, riskMode, symbolDailySoFar, direction, useInvertedRsiMomentum, thresholds?.EntryStrategy ?? EntryStrategy.Legacy);
 
-            if (thresholds?.EnableBollingerScoring == true)
+            if (thresholds?.EntryStrategy==EntryStrategy.Legacy && thresholds.EnableBollingerScoring == true)
             {
                 var (bbMiddle, bbUpper, bbLower, bbWidth) = BollingerBandsIndicator.Calculate(candlesSoFar);
                 var scoringContext = new ScoringContext
@@ -320,7 +322,7 @@ public sealed class StrategyBacktester
                 analysis.OpportunityScore += adjustment;
             }
 
-            if (thresholds?.EnableVolatilityScoringPhaseB == true)
+            if (thresholds?.EntryStrategy==EntryStrategy.Legacy && thresholds.EnableVolatilityScoringPhaseB == true)
             {
                 var (bbMiddle, bbUpper, bbLower, bbWidth) = BollingerBandsIndicator.Calculate(candlesSoFar);
                 var atrAbsoluteSeries = AtrSeriesCalculator.Calculate(candlesSoFar);
@@ -413,8 +415,13 @@ public sealed class StrategyBacktester
                 diagnostics.SkippedDuplicateToday++;
                 continue;
             }
-            lastSignalTimeByKey[key] = currentCandle.OpenTime;
 
+
+            if(i+1>=candles.Count)continue;
+            decimal entryPrice=candles[i+1].Open;
+            if(entryPrice<=analysis.Risk.Support || entryPrice>=analysis.Risk.Resistance || entryPrice<=0)continue;
+            if(direction==TradeDirection.Long && analysis.Risk.TakeProfit1 is decimal firstTarget && entryPrice>=firstTarget)continue;
+            lastSignalTimeByKey[key] = decisionTime;
             diagnostics.PassedAll++;
 
             // Fase 1 do lado de venda: Long usa Resistance como alvo e Support como stop
@@ -423,8 +430,8 @@ public sealed class StrategyBacktester
             openPosition = new BacktestOpenPosition
             {
                 Symbol = symbol,
-                EntryTime = currentCandle.OpenTime,
-                EntryPrice = analysis.Trend.Close,
+                EntryTime = candles[i+1].OpenTime,
+                EntryPrice = entryPrice,
                 TakeProfit = direction == TradeDirection.Long ? analysis.Risk.Resistance : analysis.Risk.Support,
                 StopLoss = direction == TradeDirection.Long ? analysis.Risk.Support : analysis.Risk.Resistance,
                 Direction = direction,
@@ -491,11 +498,11 @@ public sealed class StrategyBacktester
                 string reason = openPosition.Tp1Hit
                     ? (openPosition.Tp2Hit ? "TP1TP2EOT" : "TP1EOT")
                     : "EOT";
-                trades.Add(CloseTradeWeighted(openPosition, lastCandle.OpenTime, reason));
+                trades.Add(CloseTradeWeighted(openPosition, lastCandle.OpenTime+CandleIntervalHelper.ToTimeSpan(profile.CandleInterval), reason));
             }
             else
             {
-                trades.Add(CloseTrade(openPosition, lastCandle.OpenTime, lastCandle.Close, "EOT"));
+                trades.Add(CloseTrade(openPosition, lastCandle.OpenTime+CandleIntervalHelper.ToTimeSpan(profile.CandleInterval), lastCandle.Close, "EOT"));
             }
         }
 
@@ -542,7 +549,7 @@ public sealed class StrategyBacktester
             EntryPrice = position.EntryPrice,
             ExitTime = exitTime,
             ExitPrice = exitPrice,
-            OutcomePercent = outcomePercent,
+            OutcomePercent = ExecutionCosts.NetReturn(outcomePercent, position.Direction),
             ExitReason = reason,
             Signal = position.Signal,
             Score = position.Score,
@@ -598,7 +605,7 @@ public sealed class StrategyBacktester
             EntryPrice = position.EntryPrice,
             ExitTime = exitTime,
             ExitPrice = exitPrice,
-            OutcomePercent = outcomePercent,
+            OutcomePercent = ExecutionCosts.NetReturn(outcomePercent, position.Direction),
             ExitReason = reason,
             Signal = position.Signal,
             Score = position.Score,
@@ -635,7 +642,7 @@ public sealed class StrategyBacktester
     }
 
     /// <summary>
-    /// Processa saída parcial (TP1 → breakeven → TP2 → TP3) pra um candle. Só entra em
+    /// Processa saída parcial (TP1 → TP2 → breakeven → TP3) pra um candle. Só entra em
     /// ação quando a posição tem TakeProfit1 definido (modo SwingWithPartialExits) — nos
     /// outros modos, o chamador usa o fechamento único original, sem chamar isso aqui.
     /// Retorna true se a posição foi fechada por completo nesse candle.
@@ -643,21 +650,21 @@ public sealed class StrategyBacktester
     /// (mesma simplificação que o resto do motor já usa pra SL-vs-TP no mesmo candle —
     /// dado real intra-candle não é conhecível a partir de OHLC).
     /// </summary>
-    private static bool ProcessPartialExits(BacktestOpenPosition position, Candle currentCandle, List<BacktestTradeResult> trades)
+    private static bool ProcessPartialExits(BacktestOpenPosition position, Candle currentCandle, DateTime observedAt, List<BacktestTradeResult> trades)
     {
-        // 1. Stop Loss sempre tem prioridade — pode já estar no breakeven se TP1 bateu antes.
+        // 1. Stop Loss sempre tem prioridade — pode já estar no breakeven se TP2 bateu antes.
         if (currentCandle.Low <= position.StopLoss)
         {
-            decimal legReturn = (position.StopLoss - position.EntryPrice) / position.EntryPrice * 100m;
+            decimal legReturn = (Math.Min(currentCandle.Open,position.StopLoss) - position.EntryPrice) / position.EntryPrice * 100m;
             position.WeightedExitSum += position.RemainingFraction * legReturn;
             string reason = position.Tp1Hit
                 ? (position.Tp2Hit ? "TP1TP2SL" : "TP1SL")
                 : "SL";
-            trades.Add(CloseTradeWeighted(position, currentCandle.OpenTime, reason));
+            trades.Add(CloseTradeWeighted(position, observedAt, reason));
             return true;
         }
 
-        // 2. TP1 — realiza a fração configurada (padrão 40%), move o stop pro breakeven.
+        // 2. TP1 — realiza a fração configurada (padrão 40%), preserva o stop.
         if (!position.Tp1Hit && position.TakeProfit1.HasValue && currentCandle.High >= position.TakeProfit1.Value)
         {
             decimal tp1Fraction = position.Tp1Fraction;
@@ -666,7 +673,7 @@ public sealed class StrategyBacktester
             position.WeightedExitSum += tp1Fraction * legReturn;
             position.RemainingFraction -= tp1Fraction;
             position.Tp1Hit = true;
-            position.StopLoss = position.EntryPrice * 1.001m; // breakeven + 0,1% de folga
+
         }
 
         // 3. TP2 — a resistência estrutural (o TakeProfit "principal" de sempre). Realiza
@@ -680,14 +687,23 @@ public sealed class StrategyBacktester
             position.WeightedExitSum += tp2Fraction * legReturn;
             position.RemainingFraction -= tp2Fraction;
             position.Tp2Hit = true;
+            position.StopLoss = position.EntryPrice*(1+LabParameters.Slippage);
         }
 
+        // OHLC does not reveal the order of TP2 and a return to the new stop.
+        // Conservative policy: close the remaining fraction at that stop before TP3.
+        if(position.Tp2Hit && currentCandle.Low<=position.StopLoss)
+        {
+            position.WeightedExitSum+=position.RemainingFraction*(position.StopLoss-position.EntryPrice)/position.EntryPrice*100m;
+            trades.Add(CloseTradeWeighted(position,observedAt,"TP1TP2SL_AMBIGUOUS"));
+            return true;
+        }
         // 4. TP3 — fecha o restante da posição (o que sobrar depois de TP1+TP2).
         if (position.Tp2Hit && position.TakeProfit3.HasValue && currentCandle.High >= position.TakeProfit3.Value)
         {
             decimal legReturn = (position.TakeProfit3.Value - position.EntryPrice) / position.EntryPrice * 100m;
             position.WeightedExitSum += position.RemainingFraction * legReturn;
-            trades.Add(CloseTradeWeighted(position, currentCandle.OpenTime, "TP1TP2TP3"));
+            trades.Add(CloseTradeWeighted(position, observedAt, "TP1TP2TP3"));
             return true;
         }
 
@@ -726,7 +742,9 @@ public sealed class StrategyBacktester
         // Win Rate de equilíbrio: dado o RR médio real de entrada, qual seria o
         // percentual mínimo de acerto pra não ganhar nem perder dinheiro.
         decimal avgRiskReward = total > 0 ? ordered.Average(t => t.RiskRewardAtEntry) : 0;
-        double breakEvenWinRate = avgRiskReward > 0 ? 100.0 / (1 + (double)avgRiskReward) : 0;
+        int losses=ordered.Count(t=>t.OutcomePercent<0);
+        decimal avgWin=wins>0?grossProfit/wins:0, avgLoss=losses>0?grossLoss/losses:0;
+        double breakEvenWinRate = wins>0 && losses>0 ? (double)(100m*avgLoss/(avgWin+avgLoss)) : 0;
         double edge = winRate - breakEvenWinRate;
 
         return new BacktestSummary

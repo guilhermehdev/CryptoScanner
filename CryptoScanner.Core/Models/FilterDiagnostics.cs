@@ -1,7 +1,16 @@
-﻿namespace CryptoScanner.Core.Models;
+namespace CryptoScanner.Core.Models;
 
 public sealed class FilterDiagnostics
 {
+    public string RunId { get; set; } = Guid.NewGuid().ToString("N");
+    public string Version { get; set; } = "scan-funnel-v1";
+    public DateTime StartedUtc { get; set; }
+    public DateTime CompletedUtc { get; set; }
+    public int Requested { get; set; }
+    public int SignalsSaved { get; set; }
+    public Dictionary<string,string> Errors { get; set; } = new();
+    public Dictionary<string,int> CandidateTypes { get; set; } = new();
+    public Dictionary<string,List<string>> OnlyBlockedBy { get; set; } = new();
     public int TotalAnalyzed { get; set; }
     public int PassedAll { get; set; }
 

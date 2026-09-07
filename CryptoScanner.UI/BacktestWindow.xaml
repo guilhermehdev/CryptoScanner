@@ -18,16 +18,20 @@
         <!-- Bloco 1: Período & Perfil -->
         <GroupBox Grid.Row="0" Header="Período &amp; Perfil" Margin="0,0,0,6">
             <StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="6,6,6,4">
+                <WrapPanel Margin="6,6,6,4">
                     <TextBlock Text="Início:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                     <DatePicker x:Name="dpStart" Width="130" Margin="0,0,20,0"/>
                     <TextBlock Text="Fim:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                     <DatePicker x:Name="dpEnd" Width="130" Margin="0,0,20,0"/>
+                    <CheckBox x:Name="chkChronologicalSplit" Content="Separar períodos" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                    <DatePicker x:Name="dpValidationStart" Width="130" Margin="0,0,10,0" ToolTip="Início da validação. Deve estar entre início e fim. Mesmos parâmetros nos dois períodos."/>
                     <TextBlock Text="Anos de histórico:" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="Gray"/>
                     <TextBox x:Name="txtYearsBack" Width="40" Text="3" VerticalAlignment="Center" Margin="0,0,6,0"/>
                     <Button Content="Preencher" Height="22" Padding="8,0" Click="BtnFillYears_Click"/>
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="6,0,6,6">
+                </WrapPanel>
+                <WrapPanel Margin="6,0,6,6">
+                    <TextBlock Text="Estratégia:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <ComboBox x:Name="cmbEntryStrategy" Width="170" SelectedIndex="0" Margin="0,0,12,0"><ComboBoxItem Content="Legado (comparação)"/><ComboBoxItem Content="Rompimento + consolidação"/><ComboBoxItem Content="Repique em tendência"/><ComboBoxItem Content="Automática (scanner)"/></ComboBox>
                     <TextBlock Text="Perfil:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <RadioButton x:Name="rbBacktestIntraday" Content="Intraday (1h / 24h)" GroupName="BacktestProfile" Margin="0,0,12,0" VerticalAlignment="Center"/>
                     <RadioButton x:Name="rbBacktestSwing" Content="Swing (4h / 10 dias)" GroupName="BacktestProfile" IsChecked="True" VerticalAlignment="Center" Margin="0,0,12,0"/>
@@ -35,7 +39,7 @@
                     <TextBlock Text="Direção:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <RadioButton x:Name="rbDirectionLong" Content="Compra (Long)" GroupName="TradeDirection" IsChecked="True" VerticalAlignment="Center" Margin="0,0,12,0"/>
                     <RadioButton x:Name="rbDirectionShort" Content="Venda (Short, Fase 1 — só &quot;Rodar Backtest&quot;)" GroupName="TradeDirection" VerticalAlignment="Center"/>
-                </StackPanel>
+                </WrapPanel>
             </StackPanel>
         </GroupBox>
         <!-- Bloco 2: Moedas -->

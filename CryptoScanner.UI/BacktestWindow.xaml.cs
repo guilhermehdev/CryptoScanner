@@ -123,6 +123,7 @@ public partial class BacktestWindow : Window
     {
         var sb = new StringBuilder();
         sb.Append(profile.Name).Append('|');
+        sb.Append(thresholds.EntryStrategy).Append("|");
         sb.Append(riskMode).Append('|');
         sb.Append(direction).Append('|');
         sb.Append(start.ToString("O")).Append('|');
@@ -222,6 +223,7 @@ public partial class BacktestWindow : Window
 
     private RiskCalculationMode GetSelectedRiskMode()
     {
+        if(cmbEntryStrategy.SelectedIndex>0)return RiskCalculationMode.SwingWithPartialExits;
         if (rbRiskMeanReversion.IsChecked == true) return RiskCalculationMode.MeanReversionScalp;
         if (rbRiskBollingerReversal.IsChecked == true) return RiskCalculationMode.BollingerReversal;
         // Fallback pro modo validado real — "Swing (atual)" (SwingBased) saiu da tela
@@ -249,31 +251,7 @@ public partial class BacktestWindow : Window
     /// continua bloqueado (ver guard em BtnComparePeriods_Click) porque o próprio
     /// ScannerService.cs marca esse perfil como "NÃO VALIDADO — não expor no app ao vivo".
     /// </summary>
-    private static EligibilityThresholds BuildLiveValidatedThresholds(ScanProfile profile)
-    {
-        bool isIntraday = profile.Name == ScanProfile.Intraday.Name;
-
-        return new EligibilityThresholds
-        {
-            BuyOpportunityScore = ScannerSettings.BuyOpportunityScore,
-            BearRegimePenalty = ScannerSettings.BearRegimePenalty,
-            SidewaysRegimePenalty = ScannerSettings.SidewaysRegimePenalty,
-            MinVolumeSpike = ScannerSettings.MinVolumeSpike,
-            DefensiveMinVolumeSpike = ScannerSettings.DefensiveMinVolumeSpike,
-            MinResistanceDistance = ScannerSettings.MinResistanceDistance,
-            MinResistanceDistanceAtrMode = ScannerSettings.MinResistanceDistance, // não usado nesse modo
-            MinResistanceDistancePartialExits = isIntraday ? 15m : 4m,
-            MinRiskReward = isIntraday ? 2.5m : 2.0m,
-            MinRelativeStrengthPercent = ScannerSettings.MinRelativeStrengthPercent,
-            MinStopDistancePercent = 0m,
-            MaxStopDistancePercent = 25m,
-            MaxRiskReward = 999m,
-            EnablePullbackBounce = !isIntraday, // Caminho A: só no Swing
-            EnableBollingerScoring = true, // ligado nos 2 perfis
-            EnableVolatilityScoringPhaseB = false,
-            EnableMultiTimeframe = false
-        };
-    }
+    private static EligibilityThresholds BuildLiveValidatedThresholds(ScanProfile profile) => ScannerProfiles.For(profile);
 
     private bool TryGetDateRange(out DateTime start, out DateTime end)
     {
@@ -346,6 +324,7 @@ public partial class BacktestWindow : Window
 
         thresholds = new EligibilityThresholds
         {
+            EntryStrategy=(EntryStrategy)cmbEntryStrategy.SelectedIndex,
             BuyOpportunityScore = minScore,
             BearRegimePenalty = ScannerSettings.BearRegimePenalty,
             SidewaysRegimePenalty = ScannerSettings.SidewaysRegimePenalty,
@@ -391,6 +370,8 @@ public partial class BacktestWindow : Window
 
         var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
         var direction = GetSelectedDirection();
+        if(cmbEntryStrategy.SelectedIndex>0 && direction!=TradeDirection.Long){MessageBox.Show("As novas estratégias são de compra. Use Legado para os experimentos de venda.");return;}
+        if(cmbEntryStrategy.SelectedIndex==3)thresholds=ScannerProfiles.For(profile);
 
         List<string>? symbols;
         try
@@ -424,6 +405,7 @@ public partial class BacktestWindow : Window
                 : null;
 
             bool disableTimeout = chkDisableTimeout.IsChecked == true;
+            if(cmbEntryStrategy.SelectedIndex==3){evaluationHoursOverride=null;disableTimeout=false;}
 
             // Momentum RSI invertido — testado e descartado (efeito quase nulo na config
             // validada, 5% de peso é fraco demais pra mover a agulha). Checkbox removido
@@ -432,6 +414,17 @@ public partial class BacktestWindow : Window
             // retomada no futuro — bastaria reativar aqui.
             const bool useInvertedRsiMomentum = false;
 
+            if(chkChronologicalSplit.IsChecked==true)
+            {
+                if(dpValidationStart.SelectedDate is not DateTime boundary || boundary<=start || boundary>=end)
+                    throw new InvalidOperationException("Escolha o início da validação entre o início e o fim do teste.");
+                var calibration=await backtester.RunAsync(symbols,start,boundary,profile,thresholds,
+                    riskMode:GetSelectedRiskMode(),evaluationHoursOverride:evaluationHoursOverride,disableTimeout:disableTimeout,
+                    direction:direction,useInvertedRsiMomentum:useInvertedRsiMomentum,cancellationToken:_cts.Token);
+                await SaveRunResultAsync("Calibração (parâmetros fixos)",symbols,start,boundary,profile,thresholds,GetSelectedRiskMode(),evaluationHoursOverride,calibration,
+                    disableTimeout:disableTimeout,direction:direction,useInvertedRsiMomentum:useInvertedRsiMomentum);
+                start=boundary;
+            }
             var summary = await backtester.RunAsync(
                 symbols,
                 start,
@@ -451,7 +444,7 @@ public partial class BacktestWindow : Window
                 cancellationToken: _cts.Token);
 
             await SaveRunResultAsync(
-                direction == TradeDirection.Short ? "Rodar Backtest (VENDA)" : "Rodar Backtest",
+                chkChronologicalSplit.IsChecked==true ? "Validação posterior (parâmetros fixos)" : direction == TradeDirection.Short ? "Rodar Backtest (VENDA)" : "Rodar Backtest",
                 symbols, start, end, profile, thresholds, GetSelectedRiskMode(), evaluationHoursOverride, summary, disableTimeout: disableTimeout, direction: direction, useInvertedRsiMomentum: useInvertedRsiMomentum);
 
             string skippedInfo = summary.SkippedSymbols.Count > 0
@@ -472,7 +465,9 @@ public partial class BacktestWindow : Window
                 $"Retorno Acumulado: {summary.TotalReturnPercent:F2}%   |   " +
                 $"Drawdown Máx.: {summary.MaxDrawdownPercent:F2}%   |   " +
                 $"Profit Factor: {summary.ProfitFactor:F2}\n" +
-                "(Retorno e Drawdown são somatórios percentuais por operação, não simulação de banca composta.)\n\n" +
+                $"Carteira limitada: {summary.Portfolio.InitialCapital:F2} → {summary.Portfolio.FinalCapital:F2} USDT; retorno {summary.Portfolio.ReturnPercent:F2}%; aceitos {summary.Portfolio.Accepted}, sem vaga/capital {summary.Portfolio.Rejected}.\n" +
+                $"Queda do saldo realizado: {summary.Portfolio.MaxRealizedDrawdownPercent:F2}%. Não inclui oscilação das posições abertas; capital e parciais ficam reservados até o fechamento.\n" +
+                "As estatísticas por trade acima são somatórios, separados desta carteira.\n\n" +
                 $"RR Médio de Entrada: {summary.AvgRiskRewardAtEntry:F2}   |   " +
                 $"Win Rate de Equilíbrio: {summary.BreakEvenWinRate:F1}%   |   " +
                 $"Edge: {summary.Edge:F1} pontos % ({(summary.Edge >= 0 ? "vantagem" : "desvantagem")} estatística)\n\n" +

@@ -356,7 +356,7 @@ public partial class MainWindow : Window
 
     private async Task EvaluateLabAsync()
     {
-        try { await _lab.EvaluateAsync(_labClosed.Token); }
+        try { await _lab.EvaluateAsync(_labClosed.Token); await _scanner.EvaluateSignalExecutionsAsync(_labClosed.Token); }
         catch(OperationCanceledException) when(_labClosed.IsCancellationRequested) { }
         catch(Exception ex){_labStatus=$"Falha no laboratório: {ex.Message}";RefreshDiagnosticsDisplay();}
     }
@@ -1070,7 +1070,7 @@ public partial class MainWindow : Window
         var ranking=_rankingsByProfile.GetValueOrDefault(profile,Array.Empty<AssetScore>());
         var diag=_diagnosticsByProfile.GetValueOrDefault(profile);
         string updated=_scanCompletedAt.TryGetValue(profile,out var at)?at.ToString("dd/MM HH:mm:ss"):"aguardando";
-        txtScanSummary.Text=$"{profile} · Analisados: {diag?.TotalAnalyzed ?? 0} · Elegíveis: {ranking.Count(a=>a.IsEligible)} · Em observação: {ranking.Count(a=>a.DisplaySignal=="MONITORAR")} · Atualizado: {updated}";
+        txtScanSummary.Text=$"{profile} · Analisados: {diag?.TotalAnalyzed ?? 0} · Elegíveis no universo: {diag?.PassedAll ?? 0} · Em observação: {ranking.Count(a=>a.DisplaySignal=="MONITORAR")} · Atualizado: {updated}";
         txtScanSummary.ToolTip="Resumo do perfil completo, antes do filtro de favoritos. A busca manual não muda o horário da última varredura.";
         var top=diag is null?default:Blockers(diag).First();
         txtDiagnostics.Text=diag is null?"Aguardando análise deste perfil.":top.Count>0
@@ -1088,7 +1088,11 @@ public partial class MainWindow : Window
             lines.Add(profile);
             if(_diagnosticsByProfile.GetValueOrDefault(profile) is { } d)
             {
-                lines.Add($"Analisados: {d.TotalAnalyzed} | Passaram nos filtros: {d.PassedAll} | Sinais repetidos: {d.SkippedDuplicateToday}");
+                lines.Add($"Consultadas: {d.Requested} | Válidas: {d.TotalAnalyzed} | Erros: {d.Errors.Count} | Elegíveis: {d.PassedAll} | Gravados: {d.SignalsSaved} | Repetidos: {d.SkippedDuplicateToday}");
+                lines.Add("Candidatos: " + string.Join(" | ",d.CandidateTypes.Select(x=>$"{x.Key}: {x.Value}")));
+                lines.Add("Passariam removendo somente um filtro (diagnóstico, não recomendação):");
+                lines.AddRange(d.OnlyBlockedBy.Select(x=>$"{x.Key}: {string.Join(", ",x.Value)}"));
+                lines.AddRange(d.Errors.Select(x=>$"Erro em {x.Key}: {x.Value}"));
                 lines.AddRange(Blockers(d).Select(x=>$"{x.Label}: {x.Count}"));
             }
             else lines.Add("Ainda sem análise nesta sessão.");

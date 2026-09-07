@@ -7,14 +7,19 @@ namespace CryptoScanner.Infrastructure.Sqlite;
 public sealed class SqliteSignalRepository : ISignalRepository
 {
     private readonly string _connectionString;
+    private readonly SemaphoreSlim _initializeGate=new(1,1);
+    private bool _initialized;
 
     public SqliteSignalRepository(string databasePath) => _connectionString = $"Data Source={databasePath}";
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
+        await _initializeGate.WaitAsync(cancellationToken);
+        try{ if(_initialized)return;
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
         const string sql = """
+            CREATE TABLE IF NOT EXISTS ScanRuns(Id TEXT PRIMARY KEY, Profile TEXT NOT NULL, CompletedUtc TEXT NOT NULL, DiagnosticsJson TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS Signals
             (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -64,7 +69,7 @@ public sealed class SqliteSignalRepository : ISignalRepository
         // Migração leve para bancos criados antes desta mudança.
         var newColumns = new[]
         {
-            "TakeProfit REAL", "StopLoss REAL", "ExitReason TEXT", "Profile TEXT", "MarketRegime TEXT",
+            "ExecutionJson TEXT", "TakeProfit REAL", "StopLoss REAL", "ExitReason TEXT", "Profile TEXT", "MarketRegime TEXT",
             "Rsi REAL", "Adx REAL", "AtrPercent REAL", "EmaDistanceAtr REAL", "SwingUsageAtr REAL",
             "VolumeSpike REAL", "VolumeImbalance REAL", "RelativeStrength REAL", "RiskReward REAL",
             "TrendScore INTEGER", "StructureScore INTEGER", "VolumeScore INTEGER", "CandleScore INTEGER",
@@ -85,24 +90,29 @@ public sealed class SqliteSignalRepository : ISignalRepository
                 // Coluna já existe — ignora.
             }
         }
+        _initialized=true;
+        }finally{_initializeGate.Release();}
     }
 
-    public async Task InsertSignalAsync(SignalSnapshot snapshot, CancellationToken cancellationToken = default)
+    public async Task<bool> TryInsertSignalAsync(SignalSnapshot snapshot, int windowDays, CancellationToken cancellationToken = default)
     {
-        await ExecuteAsync("""
+        return await ExecuteAsync("""
             INSERT INTO Signals
-            (Timestamp, Symbol, Price, FinalScore, Signal, OutcomePrice, OutcomePercent, PreviousScore, Evaluated,
+            (ExecutionJson, Timestamp, Symbol, Price, FinalScore, Signal, OutcomePrice, OutcomePercent, PreviousScore, Evaluated,
              TakeProfit, StopLoss, ExitReason, Profile, MarketRegime,
              Rsi, Adx, AtrPercent, EmaDistanceAtr, SwingUsageAtr, VolumeSpike, VolumeImbalance, RelativeStrength, RiskReward,
              TrendScore, StructureScore, VolumeScore, CandleScore, SetupScore, MomentumScore, VolatilityScore, TrendStrengthScore,
              PatternName, SmartMoneyLabel, BreakoutSource, IsBullTrap, IsBearTrap)
-            VALUES
-            (@Timestamp, @Symbol, @Price, @Score, @Signal, NULL, NULL, @PreviousScore, 0,
+            SELECT
+            @ExecutionJson, @Timestamp, @Symbol, @Price, @Score, @Signal, NULL, NULL, @PreviousScore, 0,
              @TakeProfit, @StopLoss, NULL, @Profile, @MarketRegime,
              @Rsi, @Adx, @AtrPercent, @EmaDistanceAtr, @SwingUsageAtr, @VolumeSpike, @VolumeImbalance, @RelativeStrength, @RiskReward,
              @TrendScore, @StructureScore, @VolumeScore, @CandleScore, @SetupScore, @MomentumScore, @VolatilityScore, @TrendStrengthScore,
-             @PatternName, @SmartMoneyLabel, @BreakoutSource, @IsBullTrap, @IsBearTrap)
+             @PatternName, @SmartMoneyLabel, @BreakoutSource, @IsBullTrap, @IsBearTrap
+            WHERE NOT EXISTS (SELECT 1 FROM Signals WHERE Symbol=@Symbol AND Profile=@Profile AND BreakoutSource=@BreakoutSource AND Timestamp>=@WindowStart)
             """, cancellationToken,
+            ("@ExecutionJson",snapshot.ExecutionJson),
+            ("@WindowStart", DateTime.UtcNow.AddDays(-windowDays).ToString("O")),
             ("@Timestamp", DateTime.UtcNow.ToString("O")),
             ("@Symbol", snapshot.Symbol),
             ("@Price", (double)snapshot.Price),
@@ -134,17 +144,18 @@ public sealed class SqliteSignalRepository : ISignalRepository
             ("@SmartMoneyLabel", snapshot.SmartMoneyLabel),
             ("@BreakoutSource", snapshot.BreakoutSource),
             ("@IsBullTrap", snapshot.IsBullTrap ? 1 : 0),
-            ("@IsBearTrap", snapshot.IsBearTrap ? 1 : 0));
+            ("@IsBearTrap", snapshot.IsBearTrap ? 1 : 0)) > 0;
     }
 
-    public async Task<bool> SignalExistsWithinWindowAsync(string symbol, string signal, int windowDays, CancellationToken cancellationToken = default)
+    public async Task<bool> SignalExistsWithinWindowAsync(string symbol, string signal, string profile, int windowDays, CancellationToken cancellationToken = default)
     {
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
-        const string sql = "SELECT COUNT(*) FROM Signals WHERE Symbol = @Symbol AND Signal = @Signal AND Timestamp >= @WindowStart";
+        const string sql = "SELECT COUNT(*) FROM Signals WHERE Symbol = @Symbol AND Signal = @Signal AND Profile = @Profile AND Timestamp >= @WindowStart";
         await using var command = new SqliteCommand(sql, connection);
         command.Parameters.AddWithValue("@Symbol", symbol);
         command.Parameters.AddWithValue("@Signal", signal);
+        command.Parameters.AddWithValue("@Profile", profile);
         command.Parameters.AddWithValue("@WindowStart", DateTime.UtcNow.AddDays(-windowDays).ToString("O"));
         return Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken)) > 0;
     }
@@ -154,7 +165,7 @@ public sealed class SqliteSignalRepository : ISignalRepository
         TakeProfit, StopLoss, ExitReason, Profile, MarketRegime,
         Rsi, Adx, AtrPercent, EmaDistanceAtr, SwingUsageAtr, VolumeSpike, VolumeImbalance, RelativeStrength, RiskReward,
         TrendScore, StructureScore, VolumeScore, CandleScore, SetupScore, MomentumScore, VolatilityScore, TrendStrengthScore,
-        PatternName, SmartMoneyLabel, BreakoutSource, IsBullTrap, IsBearTrap
+        PatternName, SmartMoneyLabel, BreakoutSource, IsBullTrap, IsBearTrap, ExecutionJson
         """;
 
     public Task<IReadOnlyList<SignalHistory>> GetSignalsAsync(CancellationToken cancellationToken = default) =>
@@ -199,6 +210,7 @@ public sealed class SqliteSignalRepository : ISignalRepository
         {
             signals.Add(new SignalHistory
             {
+                ExecutionJson = reader.IsDBNull(reader.GetOrdinal("ExecutionJson")) ? "" : reader.GetString(reader.GetOrdinal("ExecutionJson")),
                 Id = reader.GetInt32(0),
                 Timestamp = DateTime.Parse(reader.GetString(1)),
                 Symbol = reader.GetString(2),
@@ -241,13 +253,23 @@ public sealed class SqliteSignalRepository : ISignalRepository
         return signals;
     }
 
-    private async Task ExecuteAsync(string sql, CancellationToken cancellationToken, params (string Name, object Value)[] parameters)
+    public Task UpdateExecutionAsync(int id,string expectedJson,LabTrade trade,CancellationToken cancellationToken = default) =>
+        ExecuteAsync("UPDATE Signals SET ExecutionJson=@json,Evaluated=@closed,OutcomePrice=@price,OutcomePercent=@result,ExitReason=@reason WHERE Id=@id AND ExecutionJson=@expected",cancellationToken,
+            ("@id",id),("@expected",expectedJson),("@json",System.Text.Json.JsonSerializer.Serialize(trade)),("@closed",trade.Closed?1:0),
+            ("@price",(double)trade.LastPrice),("@result",trade.Closed?(object)(double)(trade.NetProfit/trade.Cost*100):DBNull.Value),("@reason",trade.Closed?trade.ExitReason:""));
+
+    public Task SaveScanRunAsync(string profile, FilterDiagnostics diagnostics, CancellationToken cancellationToken = default) =>
+        ExecuteAsync("INSERT INTO ScanRuns VALUES(@id,@profile,@at,@json)", cancellationToken,
+            ("@id",diagnostics.RunId),("@profile",profile),("@at",diagnostics.CompletedUtc.ToString("O")),
+            ("@json",System.Text.Json.JsonSerializer.Serialize(diagnostics)));
+
+    private async Task<int> ExecuteAsync(string sql, CancellationToken cancellationToken, params (string Name, object Value)[] parameters)
     {
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
         await using var command = new SqliteCommand(sql, connection);
         foreach (var (name, value) in parameters)
             command.Parameters.AddWithValue(name, value);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        return await command.ExecuteNonQueryAsync(cancellationToken);
     }
 }

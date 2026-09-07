@@ -99,7 +99,7 @@ try
     archiveStream.Position=0;
     using(var archive=new System.IO.Compression.ZipArchive(archiveStream,System.IO.Compression.ZipArchiveMode.Read,true))
     {
-        Check(archive.Entries.Count==12,"Export includes portfolio and shadow tables, manifest and guide");
+        Check(archive.Entries.Count==13,"Export includes portfolio and shadow tables, manifest and guide");
         using var manifestReader=new StreamReader(archive.GetEntry("manifesto.json")!.Open());
         using var manifest=JsonDocument.Parse(await manifestReader.ReadToEndAsync());
         var counts=manifest.RootElement.GetProperty("Counts");

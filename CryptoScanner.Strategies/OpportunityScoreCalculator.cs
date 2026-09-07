@@ -20,7 +20,7 @@ public static class OpportunityScoreCalculator
             analysis.Trend.VolatilityScore * ScannerSettings.VolatilityWeight +
             analysis.Trend.TrendStrengthScore * ScannerSettings.TrendStrengthWeight;
 
-        score += (analysis.RetailFlowScore - 50m) * 0.10m;
+        if(analysis.EntryStrategy==EntryStrategy.Legacy) score += (analysis.RetailFlowScore - 50m) * 0.10m;
         return Math.Round(Math.Clamp(score, 0m, 100m), 2);
     }
 }

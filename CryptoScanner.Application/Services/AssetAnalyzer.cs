@@ -11,7 +11,7 @@ namespace CryptoScanner.Application.Services;
 
 public sealed class AssetAnalyzer
 {
-    public AssetAnalysis Analyze(string symbol, List<Candle> candles, List<Candle> btcCandles, ScanProfile profile, RiskCalculationMode riskMode = RiskCalculationMode.SwingBased, List<Candle>? symbolDailyCandles = null, TradeDirection direction = TradeDirection.Long, bool useInvertedRsiMomentum = false)
+    public AssetAnalysis Analyze(string symbol, List<Candle> candles, List<Candle> btcCandles, ScanProfile profile, RiskCalculationMode riskMode = RiskCalculationMode.SwingBased, List<Candle>? symbolDailyCandles = null, TradeDirection direction = TradeDirection.Long, bool useInvertedRsiMomentum = false, EntryStrategy entryStrategy = EntryStrategy.Legacy)
     {
         var structure = AnalyzeStructure(candles);
         var trend = AnalyzeTrend(candles, structure, direction, useInvertedRsiMomentum);
@@ -28,9 +28,23 @@ public sealed class AssetAnalyzer
         var risk = AnalyzeRisk(candles, trend.Close, trend.Atr, trend.Ema21, riskMode, trend.TrendStrengthScore, direction, bollinger, symbolDailyCandles);
         var setup = AnalyzeSetup(candles, trend, risk, structure, candle, volume, btcCandles, profile, direction, riskMode, bollinger);
 
+        if(entryStrategy != EntryStrategy.Legacy && direction == TradeDirection.Long)
+        {
+            entryStrategy=entryStrategy==EntryStrategy.Auto
+                ?(setup.IsBreakout?EntryStrategy.Breakout:EntryStrategy.Pullback):entryStrategy;
+            if(entryStrategy==EntryStrategy.Pullback)
+            {
+                decimal support=candles.TakeLast(5).Min(c=>c.Low)-trend.Atr*ScannerSettings.AtrBufferMultiplier;
+                decimal distance=(trend.Close-support)/trend.Close*100m;
+                risk=new RiskAnalysis{Mode=risk.Mode,Support=support,Resistance=risk.Resistance,
+                    SupportDistancePercent=distance,ResistanceDistancePercent=risk.ResistanceDistancePercent,
+                    RiskReward=distance>0?risk.ResistanceDistancePercent/distance:0,TakeProfit1=risk.TakeProfit1,TakeProfit3=risk.TakeProfit3};
+            }
+        }
         var analysis = new AssetAnalysis
         {
             Symbol = symbol,
+            EntryStrategy = entryStrategy,
             Trend = trend,
             Volume = volume,
             Structure = structure,
@@ -47,7 +61,7 @@ public sealed class AssetAnalyzer
         return analysis;
     }
 
-    private static TrendAnalysis AnalyzeTrend(List<Candle> candles, StructureAnalysis structure, TradeDirection direction, bool useInvertedRsiMomentum = false)
+    private static TrendAnalysis AnalyzeTrend(List<Candle> candles, StructureAnalysis structure, TradeDirection direction, bool useInvertedRsiMomentum = false, EntryStrategy entryStrategy = EntryStrategy.Legacy)
     {
         decimal close = candles[^1].Close;
 

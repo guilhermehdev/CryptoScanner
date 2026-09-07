@@ -10,11 +10,13 @@ public sealed partial class SqliteStrategyLabRepository
     // One read transaction keeps all exported tables at the same database snapshot.
     public Task ExportAsync(Stream destination, CancellationToken token = default) => Use(async db =>
     {
+        await Sql(db,null,"CREATE TABLE IF NOT EXISTS ScanRuns(Id TEXT PRIMARY KEY, Profile TEXT NOT NULL, CompletedUtc TEXT NOT NULL, DiagnosticsJson TEXT NOT NULL)",token);
         using var tx = db.BeginTransaction(deferred: true);
         using var zip = new ZipArchive(destination, ZipArchiveMode.Create, leaveOpen: true);
         var counts = new Dictionary<string, long>();
         var queries = new (string File, string Query)[]
         {
+            ("varreduras", "SELECT * FROM ScanRuns ORDER BY CompletedUtc,Id"),
             ("testes_sem_vaga", "SELECT * FROM LabShadowTrades ORDER BY Id"),
             ("saidas_sem_vaga", "SELECT * FROM LabShadowExits ORDER BY Id"),
             ("resumo_sem_vaga", """
@@ -66,10 +68,11 @@ public sealed partial class SqliteStrategyLabRepository
             counts[file] = rows;
         }
         await using (var writer = new StreamWriter(zip.CreateEntry("manifesto.json").Open(), Encoding.UTF8))
-            await writer.WriteAsync(JsonSerializer.Serialize(new { FormatVersion = 2, ExportedAtUtc = DateTimeOffset.UtcNow, Counts = counts }, new JsonSerializerOptions { WriteIndented = true }).AsMemory(), token);
+            await writer.WriteAsync(JsonSerializer.Serialize(new { FormatVersion = 3, ExportedAtUtc = DateTimeOffset.UtcNow, Counts = counts }, new JsonSerializerOptions { WriteIndented = true }).AsMemory(), token);
         await using (var writer = new StreamWriter(zip.CreateEntry("LEIA-ME.txt").Open(), Encoding.UTF8))
             await writer.WriteAsync("""
                 RELATÓRIO COMPLETO DO LABORATÓRIO
+                VARREDURAS: varreduras.csv contém o funil completo, erros por moeda e bloqueios exclusivos de cada varredura.
                 TESTES SEM VAGA: testes_sem_vaga.csv e saidas_sem_vaga.csv são experimentos
                 separados, sem saldo de carteira. resumo_sem_vaga.csv resume esse grupo.
                 testes_sem_vaga.OpportunityId liga aos indicadores em oportunidades.Id;

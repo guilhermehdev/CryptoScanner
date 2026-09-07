@@ -1,9 +1,10 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 
 namespace CryptoScanner.Core.Models;
 
 public sealed class BacktestSummary
 {
+    public BacktestPortfolioSummary Portfolio => BacktestPortfolioSummary.Calculate(Trades);
     public required int TotalTrades { get; init; }
     public required double WinRate { get; init; }
     public required decimal TotalReturnPercent { get; init; }
