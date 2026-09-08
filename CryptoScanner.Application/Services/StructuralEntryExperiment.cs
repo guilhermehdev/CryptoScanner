@@ -4,6 +4,12 @@ namespace CryptoScanner.Application.Services;
 // Fixed research hypothesis, not optimized on historical outcomes.
 public static class StructuralEntryExperiment
 {
+    public static bool HasCurrentSweep(IReadOnlyList<Candle> candles)
+    {
+        if(candles.Count<13)return false;
+        decimal level=candles.Skip(candles.Count-13).Take(10).Min(c=>c.Low);
+        return candles[^1].Low<level && candles[^1].Close>level;
+    }
     public sealed record Result(bool Breakout, bool Consolidating, decimal BreakoutStop, bool Pullback, decimal PullbackStop);
     public static Result Evaluate(IReadOnlyList<Candle> candles, decimal atr, bool uptrend)
     {

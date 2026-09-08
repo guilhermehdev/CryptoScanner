@@ -3,6 +3,8 @@
 public sealed class EligibilityThresholds
 {
     // Backtest experiment only; null preserves the live percentage rule.
+    // 0 reference, 1 breakout stop, 2 current pullback confirmation.
+    public int IsolatedEntryExperiment { get; init; }
     public bool StructuralEntryExperiment { get; init; }
     public decimal? MinimumTargetAtr { get; init; }
     public EntryStrategy EntryStrategy { get; init; } = EntryStrategy.Legacy;

@@ -87,7 +87,7 @@
                     <TextBlock Text="Timeout (h, vazio=padrão):" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox x:Name="txtEvaluationHoursOverride" Width="55" VerticalAlignment="Center" Margin="0,0,14,0"/>
                     <CheckBox x:Name="chkDisableTimeout" Content="Sem timeout — só TP/SL" VerticalAlignment="Center"/>
-                    <CheckBox x:Name="chkStructuralEntryExperiment" Content="Gatilho e stop na mesma estrutura (teste)" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                    <ComboBox x:Name="cmbStructureExperiment" Width="260" SelectedIndex="0" Margin="10,0,0,0"><ComboBoxItem Content="Referência (sem alteração)"/><ComboBoxItem Content="Teste A: só stop do rompimento"/><ComboBoxItem Content="Teste B: só confirmação atual do repique"/><ComboBoxItem Content="Estrutura completa (experimento anterior)"/></ComboBox>
                     <Button Content="Copiar parâmetros do scanner" Click="CopyScannerThresholds_Click" Margin="10,0,0,0" Padding="5,1"/>
                 </WrapPanel>
                 <WrapPanel Orientation="Horizontal" Margin="6,0,6,6">

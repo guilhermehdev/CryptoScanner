@@ -130,6 +130,22 @@ structuralCandles[^1]=new Candle{Open=101,Close=100.6m,High=101,Low=100};
 Check(!StructuralEntryExperiment.Evaluate(structuralCandles,2,true).Pullback,"Past recovery cannot authorize bearish current candle");
 Check(!StructuralEntryExperiment.Evaluate(structuralCandles,0,true).Pullback,"Missing ATR cannot authorize experiment");
 Check(!ScannerProfiles.For(ScanProfile.Swing).StructuralEntryExperiment,"Live scanner keeps reference strategy");
+var isolatedCandles=Enumerable.Range(0,60).Select(i=>new Candle{OpenTime=day.AddHours(i*4),Open=101,Close=101,High=102,Low=100}).ToList();
+isolatedCandles[20]=new Candle{Open=80,Close=80,High=81,Low=70};
+isolatedCandles[^1]=new Candle{Open=102,Close=103,High=104,Low=101};
+AssetAnalysis Isolated(EntryStrategy strategy,int mode)=>new AssetAnalyzer().Analyze("ISOLATED",isolatedCandles,isolatedCandles,ScanProfile.Swing,RiskCalculationMode.SwingWithPartialExits,entryStrategy:strategy,isolatedEntryExperiment:mode);
+var baseline=Isolated(EntryStrategy.Breakout,0);var stopOnly=Isolated(EntryStrategy.Breakout,1);
+Check(stopOnly.Risk.Support>baseline.Risk.Support && stopOnly.Setup==baseline.Setup,"Stop-only preserves complete setup and changes old support");
+Check(stopOnly.Risk.Resistance==baseline.Risk.Resistance && stopOnly.Risk.TakeProfit1==baseline.Risk.TakeProfit1,"Stop-only preserves targets");
+Check(Isolated(EntryStrategy.Pullback,1).Risk.Support==Isolated(EntryStrategy.Pullback,0).Risk.Support,"Stop experiment leaves pullback stop alone");
+var confirmation=Isolated(EntryStrategy.Pullback,2);var pullbackBase=Isolated(EntryStrategy.Pullback,0);
+Check(confirmation.Risk.Support==pullbackBase.Risk.Support && confirmation.Risk.Resistance==pullbackBase.Risk.Resistance,"Confirmation-only preserves stop and target");
+Check(Isolated(EntryStrategy.Breakout,2).Setup.IsBreakout==baseline.Setup.IsBreakout,"Confirmation experiment preserves breakout trigger");
+isolatedCandles[^2]=new Candle{Open=101,Close=101,High=102,Low=99};
+isolatedCandles[^1]=new Candle{Open=101,Close=101,High=102,Low=100};
+Check(!StructuralEntryExperiment.HasCurrentSweep(isolatedCandles),"Previous candle sweep cannot masquerade as current confirmation");
+isolatedCandles[^1]=new Candle{Open=100,Close=101,High=102,Low=99};
+Check(StructuralEntryExperiment.HasCurrentSweep(isolatedCandles),"Current reclaim of same reference low is accepted");
 Console.WriteLine($"PASS: {count} professional checks");
 sealed class Watchlist:IWatchlistRepository
 {
