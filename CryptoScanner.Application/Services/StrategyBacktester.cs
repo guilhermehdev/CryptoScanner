@@ -299,7 +299,7 @@ public sealed class StrategyBacktester
             decimal btcEma200 = EmaIndicator.Calculate(btcDailySoFar, 200)[^1] ?? 0;
             string marketRegime = MarketRegimeIndicator.Calculate(btcDailySoFar[^1].Close, btcEma200);
 
-            var analysis = _assetAnalyzer.Analyze(symbol, candlesSoFar, btcCandlesSoFar, profile, riskMode, symbolDailySoFar, direction, useInvertedRsiMomentum, thresholds?.EntryStrategy ?? EntryStrategy.Legacy, thresholds?.StructuralEntryExperiment ?? false, thresholds?.IsolatedEntryExperiment ?? 0);
+            var analysis = _assetAnalyzer.Analyze(symbol, candlesSoFar, btcCandlesSoFar, profile, riskMode, symbolDailySoFar, direction, useInvertedRsiMomentum, thresholds?.EntryStrategy ?? EntryStrategy.Legacy, thresholds?.StructuralEntryExperiment ?? false, thresholds?.IsolatedEntryExperiment ?? 0, thresholds?.TargetZoneExperiment ?? 0);
 
             if (thresholds?.EntryStrategy==EntryStrategy.Legacy && thresholds.EnableBollingerScoring == true)
             {

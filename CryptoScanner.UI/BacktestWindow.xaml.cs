@@ -360,6 +360,7 @@ public partial class BacktestWindow : Window
             EntryStrategy=cmbEntryStrategy.SelectedIndex >= 3 ? EntryStrategy.Auto : (EntryStrategy)cmbEntryStrategy.SelectedIndex,
             StructuralEntryExperiment=cmbStructureExperiment.SelectedIndex == 3,
             IsolatedEntryExperiment=cmbStructureExperiment.SelectedIndex is 1 or 2 ? cmbStructureExperiment.SelectedIndex : 0,
+            TargetZoneExperiment=cmbStructureExperiment.SelectedIndex is >= 4 and <= 6 ? cmbStructureExperiment.SelectedIndex - 3 : 0,
             MinimumTargetAtr=chkTargetAtr.IsChecked == true ? targetAtr : null,
             BuyOpportunityScore = minScore,
             BearRegimePenalty = ScannerSettings.BearRegimePenalty,

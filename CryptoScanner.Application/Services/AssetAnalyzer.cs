@@ -11,7 +11,7 @@ namespace CryptoScanner.Application.Services;
 
 public sealed class AssetAnalyzer
 {
-    public AssetAnalysis Analyze(string symbol, List<Candle> candles, List<Candle> btcCandles, ScanProfile profile, RiskCalculationMode riskMode = RiskCalculationMode.SwingBased, List<Candle>? symbolDailyCandles = null, TradeDirection direction = TradeDirection.Long, bool useInvertedRsiMomentum = false, EntryStrategy entryStrategy = EntryStrategy.Legacy, bool structuralEntryExperiment = false, int isolatedEntryExperiment = 0)
+    public AssetAnalysis Analyze(string symbol, List<Candle> candles, List<Candle> btcCandles, ScanProfile profile, RiskCalculationMode riskMode = RiskCalculationMode.SwingBased, List<Candle>? symbolDailyCandles = null, TradeDirection direction = TradeDirection.Long, bool useInvertedRsiMomentum = false, EntryStrategy entryStrategy = EntryStrategy.Legacy, bool structuralEntryExperiment = false, int isolatedEntryExperiment = 0, int targetZoneExperiment = 0)
     {
         var structure = AnalyzeStructure(candles);
         var trend = AnalyzeTrend(candles, structure, direction, useInvertedRsiMomentum);
@@ -25,7 +25,7 @@ public sealed class AssetAnalyzer
                 ? BollingerBandsIndicator.Calculate(candles)
                 : null;
 
-        var risk = AnalyzeRisk(candles, trend.Close, trend.Atr, trend.Ema21, riskMode, trend.TrendStrengthScore, direction, bollinger, symbolDailyCandles);
+        var risk = AnalyzeRisk(candles, trend.Close, trend.Atr, trend.Ema21, riskMode, trend.TrendStrengthScore, direction, bollinger, symbolDailyCandles, targetZoneExperiment);
         var setup = AnalyzeSetup(candles, trend, risk, structure, candle, volume, btcCandles, profile, direction, riskMode, bollinger);
 
         if(isolatedEntryExperiment is <0 or >2 || (structuralEntryExperiment && isolatedEntryExperiment!=0))
@@ -372,7 +372,7 @@ public sealed class AssetAnalyzer
 
     private static RiskAnalysis AnalyzeRisk(List<Candle> candles, decimal close, decimal atr, decimal ema21, RiskCalculationMode mode, int trendStrengthScore, TradeDirection direction,
         (List<decimal?> Middle, List<decimal?> Upper, List<decimal?> Lower, List<decimal?> BandWidthPercent)? bollinger = null,
-        List<Candle>? symbolDailyCandles = null)
+        List<Candle>? symbolDailyCandles = null, int targetZoneExperiment = 0)
     {
         if (mode == RiskCalculationMode.BollingerReversal && direction == TradeDirection.Short && bollinger.HasValue)
         {
@@ -463,7 +463,13 @@ public sealed class AssetAnalyzer
             decimal bufferedSupport = swingSupport - (atr * ScannerSettings.AtrBufferMultiplier);
             var zones = ResistanceScanner.ScanMultiTimeframe(candles, symbolDailyCandles, close, atr); // etapa 4.2
             decimal resistance = zones.Count > 0
-                ? zones[0].Price
+                ? targetZoneExperiment switch
+                {
+                    1 => zones[0].Lower,
+                    2 => zones[0].Upper,
+                    3 => zones[0].Upper + atr,
+                    _ => zones[0].Price
+                }
                 : SupportResistanceIndicator.GetResistance(candles);
             decimal resistanceDistance = (resistance - close) / close * 100m;
             decimal supportDistance = (close - bufferedSupport) / close * 100m;
