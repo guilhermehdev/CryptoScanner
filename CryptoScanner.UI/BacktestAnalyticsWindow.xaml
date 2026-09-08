@@ -232,6 +232,17 @@
                     </DataGrid>
                 </GroupBox>
 
+                <GroupBox Header="Por Posição do Alvo na Zona" Margin="0,0,10,10" Width="380">
+                    <DataGrid x:Name="dgTargetZone" Style="{StaticResource BucketGrid}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Posição" Binding="{Binding Label}" Width="160"/>
+                            <DataGridTextColumn Header="N" Binding="{Binding Count}" Width="50"/>
+                            <DataGridTextColumn Header="Win Rate %" Binding="{Binding WinRate, StringFormat=F1}" Width="90"/>
+                            <DataGridTextColumn Header="Retorno Médio %" Binding="{Binding AvgReturn, StringFormat=F2}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </GroupBox>
+
             </WrapPanel>
         </ScrollViewer>
     </Grid>

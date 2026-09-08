@@ -23,4 +23,5 @@ public sealed class BacktestPerformanceReport
     public required List<PerformanceBucket> ByMarketRegime { get; init; }
     public required List<PerformanceBucket> ByDirection { get; init; }
     public required List<PerformanceBucket> ByExitReason { get; init; }
+    public required List<PerformanceBucket> ByTargetZonePosition { get; init; }
 }

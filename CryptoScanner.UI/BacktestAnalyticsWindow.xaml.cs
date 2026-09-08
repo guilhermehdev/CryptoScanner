@@ -28,5 +28,6 @@ public partial class BacktestAnalyticsWindow : Window
         dgRegime.ItemsSource = report.ByMarketRegime;
         dgDirection.ItemsSource = report.ByDirection;
         dgExitReason.ItemsSource = report.ByExitReason;
+        dgTargetZone.ItemsSource = report.ByTargetZonePosition;
     }
 }

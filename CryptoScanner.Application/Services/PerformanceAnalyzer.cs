@@ -58,7 +58,8 @@ public static class PerformanceAnalyzer
             ByBreakoutSource = BucketByCategory(list, t => string.IsNullOrEmpty(t.BreakoutSource) ? "(nenhum)" : t.BreakoutSource, t => t.OutcomePercent),
             ByMarketRegime = BucketByCategory(list, t => string.IsNullOrEmpty(t.MarketRegime) ? "(desconhecido)" : t.MarketRegime, t => t.OutcomePercent),
             ByDirection = BucketByCategory(list, t => t.Direction.ToString(), t => t.OutcomePercent),
-            ByExitReason = BucketByCategory(list, t => string.IsNullOrEmpty(t.ExitReason) ? "(desconhecido)" : t.ExitReason, t => t.OutcomePercent)
+            ByExitReason = BucketByCategory(list, t => string.IsNullOrEmpty(t.ExitReason) ? "(desconhecido)" : t.ExitReason, t => t.OutcomePercent),
+            ByTargetZonePosition = BucketByCategory(list, t => string.IsNullOrEmpty(t.TargetZonePosition) ? "Sem zona registrada" : t.TargetZonePosition, t => t.OutcomePercent)
         };
     }
 
