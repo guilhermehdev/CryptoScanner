@@ -24,6 +24,11 @@ public sealed class BacktestTradeResult
     public required decimal ResistanceDistancePercent { get; init; }
     public required decimal SupportDistancePercent { get; init; }
     public required decimal RiskRewardAtEntry { get; init; }
+    public string TargetZonePosition { get; init; } = "Sem zona registrada";
+    public decimal? TargetZoneLower { get; init; }
+    public decimal? TargetZoneUpper { get; init; }
+    public decimal? TargetZoneScore { get; init; }
+    public int? TargetZoneTouches { get; init; }
 
     // Instrumentação — Fase A do lado de venda. Esses 2 campos já eram calculados em
     // TrendAnalysis (IsBearishMomentumConfirmed/IsBearishRsiDivergence) mas nunca tinham

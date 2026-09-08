@@ -453,6 +453,11 @@ public sealed class StrategyBacktester
                 ResistanceDistancePercent = direction == TradeDirection.Long ? entryRisk.TargetDistancePercent : (analysis.Risk.Resistance-entryPrice)/entryPrice*100,
                 SupportDistancePercent = direction == TradeDirection.Long ? entryRisk.StopDistancePercent : (entryPrice-analysis.Risk.Support)/entryPrice*100,
                 RiskRewardAtEntry = direction == TradeDirection.Long ? entryRisk.RiskReward : (entryPrice-analysis.Risk.Support)/(analysis.Risk.Resistance-entryPrice),
+                TargetZonePosition = analysis.Risk.TargetZone?.PositionOf(entryPrice) ?? "Sem zona registrada",
+                TargetZoneLower = analysis.Risk.TargetZone?.Lower,
+                TargetZoneUpper = analysis.Risk.TargetZone?.Upper,
+                TargetZoneScore = analysis.Risk.TargetZone?.Score,
+                TargetZoneTouches = analysis.Risk.TargetZone?.TouchCount,
                 TakeProfit1 = analysis.Risk.TakeProfit1,
                 TakeProfit3 = analysis.Risk.TakeProfit3,
                 Tp1Fraction = partialExitFractions?.Tp1 ?? 0.40m,
@@ -579,6 +584,11 @@ public sealed class StrategyBacktester
             ResistanceDistancePercent = position.ResistanceDistancePercent,
             SupportDistancePercent = position.SupportDistancePercent,
             RiskRewardAtEntry = position.RiskRewardAtEntry,
+            TargetZonePosition = position.TargetZonePosition,
+            TargetZoneLower = position.TargetZoneLower,
+            TargetZoneUpper = position.TargetZoneUpper,
+            TargetZoneScore = position.TargetZoneScore,
+            TargetZoneTouches = position.TargetZoneTouches,
             HadBearishMomentumConfirmed = position.HadBearishMomentumConfirmed,
             HadBearishRsiDivergence = position.HadBearishRsiDivergence,
             HadSwingHighDataAvailable = position.HadSwingHighDataAvailable,
@@ -636,6 +646,11 @@ public sealed class StrategyBacktester
             ResistanceDistancePercent = position.ResistanceDistancePercent,
             SupportDistancePercent = position.SupportDistancePercent,
             RiskRewardAtEntry = position.RiskRewardAtEntry,
+            TargetZonePosition = position.TargetZonePosition,
+            TargetZoneLower = position.TargetZoneLower,
+            TargetZoneUpper = position.TargetZoneUpper,
+            TargetZoneScore = position.TargetZoneScore,
+            TargetZoneTouches = position.TargetZoneTouches,
             HadBearishMomentumConfirmed = position.HadBearishMomentumConfirmed,
             HadBearishRsiDivergence = position.HadBearishRsiDivergence,
             HadSwingHighDataAvailable = position.HadSwingHighDataAvailable,
@@ -801,6 +816,11 @@ public sealed class StrategyBacktester
         public required decimal ResistanceDistancePercent { get; init; }
         public required decimal SupportDistancePercent { get; init; }
         public required decimal RiskRewardAtEntry { get; init; }
+        public string TargetZonePosition { get; init; } = "Sem zona registrada";
+        public decimal? TargetZoneLower { get; init; }
+        public decimal? TargetZoneUpper { get; init; }
+        public decimal? TargetZoneScore { get; init; }
+        public int? TargetZoneTouches { get; init; }
         // Campos da etapa 4.3 (saída parcial) — só usados quando TakeProfit1 tem valor
         // (ou seja, só no modo SwingWithPartialExits, e só Long). Nos outros casos, ficam
         // null/0 e o laço principal usa o comportamento original de fechamento único.
