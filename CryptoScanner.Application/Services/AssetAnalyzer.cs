@@ -48,7 +48,7 @@ public sealed class AssetAnalyzer
                 if(isolatedEntryExperiment==1 && entryStrategy==EntryStrategy.Breakout)
                     support=candles.Take(candles.Count-1).TakeLast(20).Min(c=>c.Low)-trend.Atr*ScannerSettings.AtrBufferMultiplier;
                 decimal distance=(trend.Close-support)/trend.Close*100m;
-                risk=new RiskAnalysis{Mode=risk.Mode,Support=support,Resistance=risk.Resistance,
+                risk=new RiskAnalysis{Mode=risk.Mode,Support=support,Resistance=risk.Resistance,TargetZone=risk.TargetZone,
                     SupportDistancePercent=distance,ResistanceDistancePercent=risk.ResistanceDistancePercent,
                     RiskReward=distance>0?risk.ResistanceDistancePercent/distance:0,TakeProfit1=risk.TakeProfit1,TakeProfit3=risk.TakeProfit3};
             }
@@ -514,6 +514,7 @@ public sealed class AssetAnalyzer
                     ? (supportDistance > 0 ? resistanceDistance / supportDistance : 0)
                     : (resistanceDistance > 0 ? supportDistance / resistanceDistance : 0),
                 Mode = RiskCalculationMode.SwingWithPartialExits,
+                TargetZone = zones.FirstOrDefault(),
                 TakeProfit1 = takeProfit1,
                 TakeProfit3 = takeProfit3
             };

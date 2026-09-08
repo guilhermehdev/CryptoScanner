@@ -48,6 +48,8 @@ public static class ResistanceScanner
             .Select(z => new ResistanceZone
             {
                 Price = z.Price,
+                LowerBound = z.Lower,
+                UpperBound = z.Upper,
                 TouchCount = z.TouchCount,
                 HasStrongRejection = z.HasStrongRejection,
                 HasVolumeConfirmation = z.HasVolumeConfirmation,
@@ -114,6 +116,8 @@ public static class ResistanceScanner
                 merged[^1] = new ResistanceZone
                 {
                     Price = stronger.Price,
+                    LowerBound = Math.Min(existing.Lower, zone.Lower),
+                    UpperBound = Math.Max(existing.Upper, zone.Upper),
                     TouchCount = existing.TouchCount + zone.TouchCount,
                     HasStrongRejection = existing.HasStrongRejection || zone.HasStrongRejection,
                     HasVolumeConfirmation = existing.HasVolumeConfirmation || zone.HasVolumeConfirmation,
@@ -198,6 +202,8 @@ public static class ResistanceScanner
             zones.Add(new ResistanceZone
             {
                 Price = price,
+                LowerBound = group.Min(p => p.Candle.High),
+                UpperBound = group.Max(p => p.Candle.High),
                 TouchCount = touchCount,
                 HasStrongRejection = strongRejection,
                 HasVolumeConfirmation = volumeConfirmed,

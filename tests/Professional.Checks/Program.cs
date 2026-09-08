@@ -146,6 +146,18 @@ isolatedCandles[^1]=new Candle{Open=101,Close=101,High=102,Low=100};
 Check(!StructuralEntryExperiment.HasCurrentSweep(isolatedCandles),"Previous candle sweep cannot masquerade as current confirmation");
 isolatedCandles[^1]=new Candle{Open=100,Close=101,High=102,Low=99};
 Check(StructuralEntryExperiment.HasCurrentSweep(isolatedCandles),"Current reclaim of same reference low is accepted");
+var zoneCandles=Enumerable.Range(0,70).Select(i=>new Candle{OpenTime=day.AddHours(i),Open=101,Close=101,Low=100,High=102,Volume=10}).ToList();
+zoneCandles[60].High=110;zoneCandles[65].High=110.1m;
+var zone=ResistanceScanner.ScanMultiTimeframe(zoneCandles,null,109,2).Single();
+Check(zone.Lower==110 && zone.Upper==110.1m && zone.Price==110.05m,"Zone bounds use observed pivot extremes and preserve centroid");
+Check(zone.PositionOf(110.02m)=="Dentro da zona" && zone.PositionOf(109)=="Abaixo da zona","Inside differs from below despite centroid above both entries");
+Check(zone.PositionOf(110)=="Dentro da zona" && zone.PositionOf(110.1m)=="Dentro da zona" && zone.PositionOf(111)=="Acima da zona","Zone boundaries are inclusive");
+var zoneSample=new RejectedCandidate("ZONE",day,110.02m,100,zone.Price,1,new[]{"FailedRiskReward"}){TargetZone=zone};
+var zoneRoundtrip=JsonSerializer.Deserialize<RejectedCandidate>(JsonSerializer.Serialize(zoneSample))!;
+Check(zoneRoundtrip.TargetPosition=="Dentro da zona" && zoneRoundtrip.TargetZone!.Upper==110.1m,"Rejected candidate export retains bounds");
+var zoneBucket=new StrategyDiagnostics();zoneBucket.TargetPositions["Dentro da zona"]=2;
+var zoneMerged=new StrategyDiagnostics();zoneMerged.Merge(zoneBucket);
+Check(zoneMerged.TargetPositions["Dentro da zona"]==2,"Zone counters merge across symbols");
 Console.WriteLine($"PASS: {count} professional checks");
 sealed class Watchlist:IWatchlistRepository
 {

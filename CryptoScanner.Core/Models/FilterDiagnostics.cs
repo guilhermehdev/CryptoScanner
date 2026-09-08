@@ -3,7 +3,7 @@
 public sealed class FilterDiagnostics
 {
     public string RunId { get; set; } = Guid.NewGuid().ToString("N");
-    public string Version { get; set; } = "scan-funnel-v3";
+    public string Version { get; set; } = "scan-funnel-v4";
     public DateTime StartedUtc { get; set; }
     public DateTime CompletedUtc { get; set; }
     public int Requested { get; set; }
@@ -15,7 +15,9 @@ public sealed class FilterDiagnostics
     public int BreakoutTriggers { get; set; }
     public int PullbackTriggers { get; set; }
     public Dictionary<string,StrategyDiagnostics> Strategies { get; set; } = new();
-    public string StrategySummary => string.Join("\n",Strategies.OrderBy(x=>x.Key).Select(x=>$"{StrategyDiagnostics.Label(x.Key)}: avaliados {x.Value.Evaluated}; gatilhos {x.Value.Triggered}; elegíveis antes da entrada {x.Value.Eligible}; bloqueios entre gatilhos: " + string.Join(", ",x.Value.Rejections.Select(p=>$"{StrategyDiagnostics.Label(p.Key)}={p.Value}"))));
+    public string StrategySummary => string.Join("\n",Strategies.OrderBy(x=>x.Key).Select(x=>$"{StrategyDiagnostics.Label(x.Key)}: avaliados {x.Value.Evaluated}; gatilhos {x.Value.Triggered}; elegíveis antes da entrada {x.Value.Eligible}; bloqueios entre gatilhos: " +
+        string.Join(", ",x.Value.Rejections.Select(p=>$"{StrategyDiagnostics.Label(p.Key)}={p.Value}")) + "; posição da entrada na zona do alvo: " +
+        string.Join(", ",x.Value.TargetPositions.Select(p=>$"{p.Key}={p.Value}"))));
     public Dictionary<string,string> Errors { get; set; } = new();
     public Dictionary<string,int> CandidateTypes { get; set; } = new();
     public Dictionary<string,List<string>> OnlyBlockedBy { get; set; } = new();
