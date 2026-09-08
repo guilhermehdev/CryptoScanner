@@ -453,7 +453,9 @@ public sealed class StrategyBacktester
                 ResistanceDistancePercent = direction == TradeDirection.Long ? entryRisk.TargetDistancePercent : (analysis.Risk.Resistance-entryPrice)/entryPrice*100,
                 SupportDistancePercent = direction == TradeDirection.Long ? entryRisk.StopDistancePercent : (entryPrice-analysis.Risk.Support)/entryPrice*100,
                 RiskRewardAtEntry = direction == TradeDirection.Long ? entryRisk.RiskReward : (entryPrice-analysis.Risk.Support)/(analysis.Risk.Resistance-entryPrice),
-                TargetZonePosition = analysis.Risk.TargetZone?.PositionOf(entryPrice) ?? "Sem zona registrada",
+                TargetZonePosition = analysis.Risk.TargetZone?.PositionOf(
+                    direction == TradeDirection.Long ? analysis.Risk.Resistance : analysis.Risk.Support)
+                    ?? "Sem zona registrada",
                 TargetZoneLower = analysis.Risk.TargetZone?.Lower,
                 TargetZoneUpper = analysis.Risk.TargetZone?.Upper,
                 TargetZoneScore = analysis.Risk.TargetZone?.Score,
