@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -15,6 +16,7 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Microsoft.Win32;
 using Forms = System.Windows.Forms;
 using MessageBox = System.Windows.MessageBox;
 using CheckBox = System.Windows.Controls.CheckBox;
@@ -42,6 +44,7 @@ public partial class MainWindow : Window
     private readonly IAppSettingsRepository _appSettingsRepository;
     private readonly BinanceWebSocketService _webSocketService = new();
     private readonly CoinGeckoService _coinGeckoService = new();
+    private readonly OllamaVisionAnalyzer _llmAnalyzer = new(new HttpClient { Timeout = TimeSpan.FromMinutes(3) });
     private IReadOnlyList<SimulatedTrade> _lastSimulatedTrades = Array.Empty<SimulatedTrade>();
     private bool _showClosedTrades; // Diário mostra só "em andamento" por padrão
     private bool _isWindowLoaded;
@@ -345,6 +348,77 @@ public partial class MainWindow : Window
     }
 
     private void BtnStrategyLab_Click(object sender,RoutedEventArgs e) => new StrategyLabWindow(_labRepository) { Owner=this }.Show();
+
+    private async void BtnAnalyzeWithLlm_Click(object sender, RoutedEventArgs e)
+    {
+        if (dgRanking.SelectedItem is not AssetScore asset)
+        {
+            MessageBox.Show("Selecione uma moeda no ranking antes de chamar a LLM.", "Análise com LLM", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = $"Escolha o gráfico de {asset.Symbol}",
+            Filter = "Imagens|*.png;*.jpg;*.jpeg;*.webp|Todos os arquivos|*.*",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+        if (dialog.ShowDialog(this) != true)
+            return;
+
+        txtLlmOpinion.Text = $"LLM consultiva: analisando {asset.Symbol}…";
+        try
+        {
+            var indicators = new
+            {
+                ativo = asset.Symbol,
+                sinalScanner = asset.DisplaySignal,
+                score = asset.Score,
+                precoFechamento = asset.Close,
+                precoAtual = asset.LivePrice,
+                tendencia = asset.TrendDirection,
+                regime = asset.MarketRegime,
+                rsi = asset.Rsi,
+                adx = asset.Adx,
+                atrPercentual = asset.AtrPercent,
+                volumeSpike = asset.VolumeSpike,
+                pressaoCompradora = asset.BuyingPressureScore,
+                fluxoVarejo = asset.RetailFlowScore,
+                forcaRelativa = asset.RelativeStrength,
+                suporte = asset.Support,
+                resistencia = asset.Resistance,
+                distanciaAlvoPercentual = asset.ResistanceDistance,
+                distanciaStopPercentual = asset.SupportDistance,
+                riscoRetorno = asset.RiskReward,
+                padrao = asset.PatternName,
+                armadilhaAlta = asset.IsBullTrap,
+                armadilhaBaixa = asset.IsBearTrap
+            };
+
+            var opinion = await _llmAnalyzer.AnalyzeAsync(dialog.FileName, indicators);
+            var reasons = opinion.Motivos.Length == 0 ? "(sem motivos informados)" : string.Join("; ", opinion.Motivos);
+            var risks = opinion.Riscos.Length == 0 ? "(nenhum risco informado)" : string.Join("; ", opinion.Riscos);
+            var levels = opinion.Entrada is null && opinion.Stop is null && opinion.Tp1 is null && opinion.Tp2 is null
+                ? "Níveis: não informados"
+                : $"Entrada {opinion.Entrada?.ToString("0.########") ?? "—"} | Stop {opinion.Stop?.ToString("0.########") ?? "—"} | TP1 {opinion.Tp1?.ToString("0.########") ?? "—"} | TP2 {opinion.Tp2?.ToString("0.########") ?? "—"}";
+
+            txtLlmOpinion.Text = $"LLM {asset.Symbol}: {opinion.Decisao} · {opinion.Direcao} · confiança {opinion.Confianca}/100 · {opinion.Tendencia}\n{levels}\nMotivos: {reasons}\nRiscos: {risks}\nSinal original do scanner: {asset.DisplaySignal}. A LLM é consultiva e não altera o ranking.";
+        }
+        catch (Exception ex)
+        {
+            txtLlmOpinion.Text = $"LLM consultiva indisponível: {ex.Message}";
+        }
+    }
+
+    private void BtnCopyLlmOpinion_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(txtLlmOpinion.Text))
+            return;
+
+        System.Windows.Clipboard.SetText(txtLlmOpinion.Text);
+        txtLlmOpinion.ToolTip = "Análise copiada para a área de transferência.";
+    }
 
     private async Task RecordLabGridAsync(ScanProfile profile)
     {

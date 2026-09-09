@@ -71,7 +71,14 @@
                 <Button Content="Alertas" Click="BtnAlertSettings_Click" Padding="8,2" Margin="0,3,6,0"/>
                 <Button Content="Análise da pressão" Click="BtnPressureAnalysis_Click" Padding="8,2" Margin="0,3,6,0"/>
                 <Button Content="Laboratório" Click="BtnStrategyLab_Click" Padding="8,2" Margin="0,3,6,0"/>
+                <Button Content="Analisar com LLM" ToolTip="Analisa a moeda selecionada junto com uma imagem de gráfico" Click="BtnAnalyzeWithLlm_Click" Padding="8,2" Margin="0,3,6,0"/>
             </WrapPanel>
+            <Border Background="#252525" BorderBrush="#444444" BorderThickness="1" Padding="6" Margin="0,5,0,0">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Content="Copiar análise" ToolTip="Copiar todo o retorno da LLM" Click="BtnCopyLlmOpinion_Click" Padding="8,2" Margin="8,0,0,0" VerticalAlignment="Top"/>
+                    <TextBox x:Name="txtLlmOpinion" Text="LLM consultiva: selecione uma moeda e use 'Analisar com LLM'." IsReadOnly="True" BorderThickness="0" Background="Transparent" Foreground="#D0D0D0" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" MaxHeight="90"/>
+                </DockPanel>
+            </Border>
         </StackPanel>
         <DockPanel Grid.Row="2">
             <TextBlock DockPanel.Dock="Top" Margin="5,2" FontSize="11" ToolTip="Verde: todos os filtros atendidos. Nos demais, score ≥70 azul; 55–69,99 amarelo; 40–54,99 cinza; abaixo de 40 preto. Armadilha de alta tem prioridade em laranja. As cores não representam probabilidade de lucro.">
