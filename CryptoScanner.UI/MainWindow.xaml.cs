@@ -45,6 +45,7 @@ public partial class MainWindow : Window
     private readonly BinanceWebSocketService _webSocketService = new();
     private readonly CoinGeckoService _coinGeckoService = new();
     private readonly OllamaVisionAnalyzer _llmAnalyzer = new(new HttpClient { Timeout = TimeSpan.FromMinutes(3) });
+    private readonly ILlmOpinionRepository _llmOpinionRepository;
     private IReadOnlyList<SimulatedTrade> _lastSimulatedTrades = Array.Empty<SimulatedTrade>();
     private bool _showClosedTrades; // Diário mostra só "em andamento" por padrão
     private bool _isWindowLoaded;
@@ -75,6 +76,7 @@ public partial class MainWindow : Window
         _runResultRepository = new SqliteBacktestRunResultRepository(databasePath);
         _alertSettingsRepository = new SqliteAlertSettingsRepository(databasePath);
         _appSettingsRepository = new SqliteAppSettingsRepository(databasePath);
+        _llmOpinionRepository = new SqliteLlmOpinionRepository(databasePath);
         _pressureHistory = new BuyingPressureHistoryService(new SqliteBuyingPressureRepository(databasePath), _priceCheckService);
         _labRepository=new SqliteStrategyLabRepository(databasePath);
         _lab=new StrategyLabService(_labRepository,_priceCheckService);
@@ -222,6 +224,8 @@ public partial class MainWindow : Window
         _labTimer.Start();
         _=EvaluateLabAsync();
         await LoadAutoScanIntervalAsync();
+        try { await _llmOpinionRepository.InitializeAsync(); }
+        catch (Exception ex) { txtLlmOpinion.Text = $"Histórico da LLM indisponível: {ex.Message}"; }
 
         try
         {
@@ -404,6 +408,34 @@ public partial class MainWindow : Window
                 : $"Entrada {opinion.Entrada?.ToString("0.########") ?? "—"} | Stop {opinion.Stop?.ToString("0.########") ?? "—"} | TP1 {opinion.Tp1?.ToString("0.########") ?? "—"} | TP2 {opinion.Tp2?.ToString("0.########") ?? "—"}";
 
             txtLlmOpinion.Text = $"LLM {asset.Symbol}: {opinion.Decisao} · {opinion.Direcao} · confiança {opinion.Confianca}/100 · {opinion.Tendencia}\n{levels}\nMotivos: {reasons}\nRiscos: {risks}\nSinal original do scanner: {asset.DisplaySignal}. A LLM é consultiva e não altera o ranking.";
+
+            try
+            {
+                await _llmOpinionRepository.AddAsync(new LlmOpinionRecord
+                {
+                    CreatedAt = DateTime.Now,
+                    Symbol = asset.Symbol,
+                    Profile = _viewedProfile.Name,
+                    ImagePath = dialog.FileName,
+                    AnalysisPrice = asset.Close,
+                    ScannerSignal = asset.DisplaySignal,
+                    Decision = opinion.Decisao,
+                    Direction = opinion.Direcao,
+                    Confidence = opinion.Confianca,
+                    Trend = opinion.Tendencia,
+                    Entry = opinion.Entrada,
+                    Stop = opinion.Stop,
+                    Tp1 = opinion.Tp1,
+                    Tp2 = opinion.Tp2,
+                    Reasons = reasons,
+                    Risks = risks
+                });
+                txtLlmOpinion.ToolTip = "Análise exibida e salva no histórico local.";
+            }
+            catch (Exception saveError)
+            {
+                txtLlmOpinion.ToolTip = $"Análise exibida, mas não foi salva: {saveError.Message}";
+            }
         }
         catch (Exception ex)
         {
