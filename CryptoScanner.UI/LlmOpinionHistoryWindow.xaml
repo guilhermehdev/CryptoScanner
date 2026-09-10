@@ -28,6 +28,8 @@
                 <DataGridTextColumn Header="Decisão" Binding="{Binding Decision}" Width="90"/>
                 <DataGridTextColumn Header="Direção" Binding="{Binding Direction}" Width="80"/>
                 <DataGridTextColumn Header="Conf." Binding="{Binding Confidence}" Width="55"/>
+                <DataGridTextColumn Header="Resultado %" Binding="{Binding OutcomePercent, StringFormat=F2, TargetNullValue=—}" Width="85"/>
+                <DataGridTextColumn Header="Saída" Binding="{Binding OutcomeReason}" Width="95"/>
                 <DataGridTextColumn Header="Preço" Binding="{Binding AnalysisPrice, StringFormat=0.########}" Width="95"/>
                 <DataGridTextColumn Header="Entrada" Binding="{Binding Entry, StringFormat=0.########}" Width="95"/>
                 <DataGridTextColumn Header="Stop" Binding="{Binding Stop, StringFormat=0.########}" Width="95"/>

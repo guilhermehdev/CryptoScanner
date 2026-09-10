@@ -33,12 +33,22 @@ public sealed class SqliteLlmOpinionRepository : ILlmOpinionRepository
                 Tp1 REAL NULL,
                 Tp2 REAL NULL,
                 Reasons TEXT NOT NULL DEFAULT '',
-                Risks TEXT NOT NULL DEFAULT ''
+                Risks TEXT NOT NULL DEFAULT '',
+                SimulatedTradeId INTEGER NULL,
+                OutcomeEvaluated INTEGER NOT NULL DEFAULT 0,
+                OutcomePercent REAL NULL,
+                OutcomeReason TEXT NOT NULL DEFAULT '',
+                OutcomeAt TEXT NULL
             );
             CREATE INDEX IF NOT EXISTS IX_LlmOpinions_CreatedAt ON LlmOpinions(CreatedAt DESC);
             """;
         await using var command = new SqliteCommand(sql, connection);
         await command.ExecuteNonQueryAsync(cancellationToken);
+        await EnsureColumnAsync(connection, "SimulatedTradeId", "INTEGER NULL", cancellationToken);
+        await EnsureColumnAsync(connection, "OutcomeEvaluated", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
+        await EnsureColumnAsync(connection, "OutcomePercent", "REAL NULL", cancellationToken);
+        await EnsureColumnAsync(connection, "OutcomeReason", "TEXT NOT NULL DEFAULT ''", cancellationToken);
+        await EnsureColumnAsync(connection, "OutcomeAt", "TEXT NULL", cancellationToken);
     }
 
     public async Task<long> AddAsync(LlmOpinionRecord opinion, CancellationToken cancellationToken = default)
@@ -48,10 +58,10 @@ public sealed class SqliteLlmOpinionRepository : ILlmOpinionRepository
         const string sql = """
             INSERT INTO LlmOpinions
             (CreatedAt, Symbol, Profile, ImagePath, AnalysisPrice, ScannerSignal, Decision, Direction,
-             Confidence, Trend, Entry, Stop, Tp1, Tp2, Reasons, Risks)
+             Confidence, Trend, Entry, Stop, Tp1, Tp2, Reasons, Risks, SimulatedTradeId, OutcomeEvaluated, OutcomePercent, OutcomeReason, OutcomeAt)
             VALUES
             (@CreatedAt, @Symbol, @Profile, @ImagePath, @AnalysisPrice, @ScannerSignal, @Decision, @Direction,
-             @Confidence, @Trend, @Entry, @Stop, @Tp1, @Tp2, @Reasons, @Risks);
+             @Confidence, @Trend, @Entry, @Stop, @Tp1, @Tp2, @Reasons, @Risks, @SimulatedTradeId, @OutcomeEvaluated, @OutcomePercent, @OutcomeReason, @OutcomeAt);
             SELECT last_insert_rowid();
             """;
         await using var command = new SqliteCommand(sql, connection);
@@ -71,6 +81,11 @@ public sealed class SqliteLlmOpinionRepository : ILlmOpinionRepository
         command.Parameters.AddWithValue("@Tp2", (object?)opinion.Tp2 ?? DBNull.Value);
         command.Parameters.AddWithValue("@Reasons", opinion.Reasons);
         command.Parameters.AddWithValue("@Risks", opinion.Risks);
+        command.Parameters.AddWithValue("@SimulatedTradeId", (object?)opinion.SimulatedTradeId ?? DBNull.Value);
+        command.Parameters.AddWithValue("@OutcomeEvaluated", opinion.OutcomeEvaluated ? 1 : 0);
+        command.Parameters.AddWithValue("@OutcomePercent", (object?)opinion.OutcomePercent ?? DBNull.Value);
+        command.Parameters.AddWithValue("@OutcomeReason", opinion.OutcomeReason);
+        command.Parameters.AddWithValue("@OutcomeAt", opinion.OutcomeAt?.ToUniversalTime().ToString("O") ?? (object)DBNull.Value);
         return (long)(await command.ExecuteScalarAsync(cancellationToken) ?? 0L);
     }
 
@@ -102,12 +117,67 @@ public sealed class SqliteLlmOpinionRepository : ILlmOpinionRepository
                 Tp1 = ReadNullableDecimal(reader, "Tp1"),
                 Tp2 = ReadNullableDecimal(reader, "Tp2"),
                 Reasons = reader.GetString(reader.GetOrdinal("Reasons")),
-                Risks = reader.GetString(reader.GetOrdinal("Risks"))
+                Risks = reader.GetString(reader.GetOrdinal("Risks")),
+                SimulatedTradeId = ReadNullableInt(reader, "SimulatedTradeId"),
+                OutcomeEvaluated = reader.GetInt32(reader.GetOrdinal("OutcomeEvaluated")) == 1,
+                OutcomePercent = ReadNullableDecimal(reader, "OutcomePercent"),
+                OutcomeReason = reader.GetString(reader.GetOrdinal("OutcomeReason")),
+                OutcomeAt = ReadNullableDateTime(reader, "OutcomeAt")
             });
         }
         return result;
     }
 
+    public async Task AttachTradeAsync(long opinionId, int simulatedTradeId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new SqliteCommand(
+            "UPDATE LlmOpinions SET SimulatedTradeId = @TradeId WHERE Id = @Id AND SimulatedTradeId IS NULL",
+            connection);
+        command.Parameters.AddWithValue("@Id", opinionId);
+        command.Parameters.AddWithValue("@TradeId", simulatedTradeId);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task UpdateOutcomeAsync(int simulatedTradeId, decimal outcomePercent, string outcomeReason, DateTime outcomeAt, CancellationToken cancellationToken = default)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new SqliteCommand(
+            "UPDATE LlmOpinions SET OutcomeEvaluated = 1, OutcomePercent = @Percent, OutcomeReason = @Reason, OutcomeAt = @At WHERE SimulatedTradeId = @TradeId",
+            connection);
+        command.Parameters.AddWithValue("@TradeId", simulatedTradeId);
+        command.Parameters.AddWithValue("@Percent", (double)outcomePercent);
+        command.Parameters.AddWithValue("@Reason", outcomeReason);
+        command.Parameters.AddWithValue("@At", outcomeAt.ToUniversalTime().ToString("O"));
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static async Task EnsureColumnAsync(SqliteConnection connection, string column, string definition, CancellationToken cancellationToken)
+    {
+        await using var check = new SqliteCommand("SELECT COUNT(*) FROM pragma_table_info('LlmOpinions') WHERE name = @Name", connection);
+        check.Parameters.AddWithValue("@Name", column);
+        var exists = Convert.ToInt32(await check.ExecuteScalarAsync(cancellationToken)) > 0;
+        if (exists)
+            return;
+
+        await using var alter = new SqliteCommand($"ALTER TABLE LlmOpinions ADD COLUMN {column} {definition}", connection);
+        await alter.ExecuteNonQueryAsync(cancellationToken);
+    }
+    private static int? ReadNullableInt(SqliteDataReader reader, string column)
+    {
+        var ordinal = reader.GetOrdinal(column);
+        return reader.IsDBNull(ordinal) ? null : reader.GetInt32(ordinal);
+    }
+
+    private static DateTime? ReadNullableDateTime(SqliteDataReader reader, string column)
+    {
+        var ordinal = reader.GetOrdinal(column);
+        return reader.IsDBNull(ordinal)
+            ? null
+            : DateTime.Parse(reader.GetString(ordinal), null, System.Globalization.DateTimeStyles.RoundtripKind).ToLocalTime();
+    }
     private static decimal? ReadNullableDecimal(SqliteDataReader reader, string column)
     {
         var ordinal = reader.GetOrdinal(column);

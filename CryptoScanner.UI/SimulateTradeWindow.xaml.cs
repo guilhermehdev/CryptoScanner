@@ -15,6 +15,7 @@ public partial class SimulateTradeWindow : Window
     private bool _saving;
 
     public bool Saved { get; private set; }
+    public int? SavedTradeId { get; private set; }
 
     public SimulateTradeWindow(ISimulatedTradeRepository repository, AssetScore asset, string profileName,
         Func<Task<decimal>> getCurrentPrice)
@@ -105,7 +106,7 @@ public partial class SimulateTradeWindow : Window
                 IsBearTrap = _asset.IsBearTrap
             };
 
-            await _repository.AddAsync(trade);
+            SavedTradeId = await _repository.AddAsync(trade);
             Saved = true;
             Close();
         }

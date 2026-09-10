@@ -447,6 +447,49 @@ public partial class MainWindow : Window
         return $"LLM {asset.Symbol}: {opinion.Decisao} · {opinion.Direcao} · confiança {opinion.Confianca}/100 · {opinion.Tendencia}\n{levels}\nMotivos: {reasons}\nRiscos: {risks}\nSinal original do scanner: {asset.DisplaySignal}. A LLM é consultiva e não altera o ranking.";
     }
 
+    private async Task LinkLatestLlmOpinionAsync(int simulatedTradeId, AssetScore asset, string profile)
+    {
+        try
+        {
+            var opinions = await _llmOpinionRepository.GetRecentAsync(200, _labClosed.Token);
+            var now = DateTime.Now;
+            var candidate = opinions
+                .Where(opinion =>
+                    opinion.SimulatedTradeId is null &&
+                    opinion.Symbol.Equals(asset.Symbol, StringComparison.OrdinalIgnoreCase) &&
+                    opinion.Profile.Equals(profile, StringComparison.OrdinalIgnoreCase) &&
+                    opinion.CreatedAt >= now.AddHours(-2) &&
+                    opinion.CreatedAt <= now.AddMinutes(10))
+                .OrderByDescending(opinion => opinion.CreatedAt)
+                .FirstOrDefault();
+
+            if (candidate != null)
+                await _llmOpinionRepository.AttachTradeAsync(candidate.Id, simulatedTradeId, _labClosed.Token);
+        }
+        catch (OperationCanceledException) when (_labClosed.IsCancellationRequested)
+        {
+        }
+        catch
+        {
+            // O vínculo é auxiliar e não pode impedir a abertura do trade.
+        }
+    }
+
+    private async Task RecordLlmOutcomeAsync(int simulatedTradeId, decimal outcomePercent, string outcomeReason, DateTime outcomeAt)
+    {
+        try
+        {
+            await _llmOpinionRepository.UpdateOutcomeAsync(
+                simulatedTradeId, outcomePercent, outcomeReason, outcomeAt, _labClosed.Token);
+        }
+        catch (OperationCanceledException) when (_labClosed.IsCancellationRequested)
+        {
+        }
+        catch
+        {
+            // A saída do trade já foi persistida; falha no histórico será tentada em outra abertura.
+        }
+    }
     private async Task AnalyzeTopRankingWithLlmAsync(ScanProfile profile, IReadOnlyList<AssetScore> ranking)
     {
         if (chkAutoLlmTop30?.IsChecked != true || ranking.Count == 0)
@@ -675,7 +718,11 @@ public partial class MainWindow : Window
         window.ShowDialog();
 
         if (window.Saved)
+        {
+            if (window.SavedTradeId is int tradeId)
+                _ = LinkLatestLlmOpinionAsync(tradeId, asset, _viewedProfile.Name);
             _ = LoadSimulatedTradesAsync();
+        }
     }
 
     private async Task LoadSimulatedTradesAsync()
@@ -839,6 +886,7 @@ public partial class MainWindow : Window
             try
             {
                 await _simulatedTradeRepository.CloseTradeAsync(trade.Id, closeExitPrice, closeOutcome, closeReason);
+                await RecordLlmOutcomeAsync(trade.Id, closeOutcome, closeReason, DateTime.UtcNow);
             }
             catch
             {
@@ -1022,6 +1070,7 @@ public partial class MainWindow : Window
             }
 
             await _simulatedTradeRepository.CloseTradeAsync(trade.Id, currentPrice, outcomePercent, "Manual");
+            await RecordLlmOutcomeAsync(trade.Id, outcomePercent, "Manual", DateTime.UtcNow);
             await LoadSimulatedTradesAsync();
         }
         catch (Exception ex)
