@@ -65,6 +65,12 @@
         <GroupBox Grid.Row="2" Header="Limiares deste teste &amp; Modo de Risco" Margin="0,0,0,6">
             <StackPanel>
                 <WrapPanel Orientation="Horizontal" Margin="6,6,6,4">
+                    <TextBlock Text="Modo do teste:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <ComboBox x:Name="cmbTestMode" Width="190" SelectedIndex="0" SelectionChanged="TestMode_Changed" Margin="0,0,12,0" ToolTip="Validado reproduz o scanner; Exploração relaxa limites; Diagnóstico abre os limiares quantitativos para medir o funil.">
+                        <ComboBoxItem Content="Validado (scanner)"/>
+                        <ComboBoxItem Content="Exploração (limiares flexíveis)"/>
+                        <ComboBoxItem Content="Diagnóstico (limiares abertos)"/>
+                    </ComboBox>
                     <TextBlock Text="Score mín.:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox x:Name="txtMinScore" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
                     <TextBlock Text="Dist. Resist. mín. Swing %:" VerticalAlignment="Center" Margin="0,0,4,0"/>

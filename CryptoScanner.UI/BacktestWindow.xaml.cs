@@ -312,7 +312,32 @@ public partial class BacktestWindow : Window
     {
         var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
         var t = ScannerProfiles.For(profile);
-        cmbEntryStrategy.SelectedIndex = 4;
+        ApplyValidatedThresholdFields(t);
+    }
+
+    private void TestMode_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (txtMinScore == null || cmbTestMode == null)
+            return;
+
+        var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
+        switch (cmbTestMode.SelectedIndex)
+        {
+            case 0:
+                ApplyValidatedThresholdFields(ScannerProfiles.For(profile));
+                break;
+            case 1:
+                ApplyExplorationThresholdFields();
+                break;
+            case 2:
+                ApplyDiagnosticThresholdFields();
+                break;
+        }
+    }
+
+    private void ApplyValidatedThresholdFields(EligibilityThresholds t)
+    {
+        cmbEntryStrategy.SelectedIndex = 3;
         txtMinScore.Text = t.BuyOpportunityScore.ToString();
         txtMinResistDistance.Text = t.MinResistanceDistance.ToString();
         txtMinResistDistanceAtr.Text = t.MinResistanceDistanceAtrMode.ToString();
@@ -332,6 +357,59 @@ public partial class BacktestWindow : Window
         chkLimitAtrForMeanReversion.IsChecked = t.LimitAtrForMeanReversion;
         chkEnableBollingerReversal.IsChecked = t.EnableBollingerReversal;
     }
+
+    private void ApplyExplorationThresholdFields()
+    {
+        cmbEntryStrategy.SelectedIndex = 4;
+        txtMinScore.Text = "55";
+        txtMinResistDistance.Text = "4";
+        txtMinResistDistanceAtr.Text = "5";
+        txtMinResistDistancePartialExits.Text = "2";
+        txtMinVolumeSpike.Text = "1,10";
+        txtMinRiskReward.Text = "1,20";
+        txtMinStopDistance.Text = "0";
+        txtMaxStopDistance.Text = "40";
+        txtMaxRiskReward.Text = "999";
+        chkTargetAtr.IsChecked = false;
+        cmbStructureExperiment.SelectedIndex = 0;
+        chkEnablePullbackBounce.IsChecked = true;
+        chkEnableMultiTimeframe.IsChecked = false;
+        chkEnableVolatilityScoringPhaseB.IsChecked = false;
+        chkEnableMeanReversionScalp.IsChecked = false;
+        chkBlockMeanReversionInBear.IsChecked = false;
+        chkLimitAtrForMeanReversion.IsChecked = false;
+        chkEnableBollingerReversal.IsChecked = false;
+    }
+
+    private void ApplyDiagnosticThresholdFields()
+    {
+        cmbEntryStrategy.SelectedIndex = 4;
+        txtMinScore.Text = "0";
+        txtMinResistDistance.Text = "0";
+        txtMinResistDistanceAtr.Text = "0";
+        txtMinResistDistancePartialExits.Text = "0";
+        txtMinVolumeSpike.Text = "0";
+        txtMinRiskReward.Text = "0";
+        txtMinStopDistance.Text = "0";
+        txtMaxStopDistance.Text = "100";
+        txtMaxRiskReward.Text = "999";
+        chkTargetAtr.IsChecked = false;
+        cmbStructureExperiment.SelectedIndex = 0;
+        chkEnablePullbackBounce.IsChecked = true;
+        chkEnableMultiTimeframe.IsChecked = false;
+        chkEnableVolatilityScoringPhaseB.IsChecked = false;
+        chkEnableMeanReversionScalp.IsChecked = false;
+        chkBlockMeanReversionInBear.IsChecked = false;
+        chkLimitAtrForMeanReversion.IsChecked = false;
+        chkEnableBollingerReversal.IsChecked = false;
+    }
+
+    private string SelectedTestModeLabel => cmbTestMode.SelectedIndex switch
+    {
+        1 => "Exploração",
+        2 => "Diagnóstico",
+        _ => "Validado"
+    };
 
     private bool TryBuildThresholds(out EligibilityThresholds thresholds)
     {
@@ -487,7 +565,7 @@ public partial class BacktestWindow : Window
                 cancellationToken: _cts.Token);
 
             await SaveRunResultAsync(
-                chkChronologicalSplit.IsChecked==true ? "Validação posterior (parâmetros fixos)" : direction == TradeDirection.Short ? "Rodar Backtest (VENDA)" : "Rodar Backtest",
+                $"{SelectedTestModeLabel} | " + (chkChronologicalSplit.IsChecked==true ? "Validação posterior (parâmetros fixos)" : direction == TradeDirection.Short ? "Rodar Backtest (VENDA)" : "Rodar Backtest"),
                 symbols, start, end, profile, thresholds, GetSelectedRiskMode(), evaluationHoursOverride, summary, disableTimeout: disableTimeout, direction: direction, useInvertedRsiMomentum: useInvertedRsiMomentum);
 
             string skippedInfo = summary.SkippedSymbols.Count > 0
@@ -501,7 +579,7 @@ public partial class BacktestWindow : Window
 
             _exportDiagnostics=summary.Diagnostics;
             txtSummaryResult.Text =
-                $"Direção: {(direction == TradeDirection.Short ? "VENDA (Fase 1)" : "Compra")} | " +
+                $"Modo: {SelectedTestModeLabel} | Direção: {(direction == TradeDirection.Short ? "VENDA (Fase 1)" : "Compra")} | " +
                 $"Score≥{thresholds.BuyOpportunityScore:F0} | RR mín.={thresholds.MinRiskReward:F1} | Stop mín.={thresholds.MinStopDistancePercent:F0}% | Stop máx.={maxStopText}" +
                 (disableTimeout ? " | Timeout=DESATIVADO (só TP/SL)" : "") + "\n\n" +
                 $"Operações: {summary.TotalTrades}   |   " +
