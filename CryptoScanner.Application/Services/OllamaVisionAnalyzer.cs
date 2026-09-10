@@ -71,26 +71,44 @@ public sealed class OllamaVisionAnalyzer(HttpClient httpClient)
     private static string NormalizeDecision(string? value)
     {
         var token = NormalizeToken(value);
-        return token switch
+        var exact = token switch
         {
             "COMPRAR" or "COMPRA" or "LONG" => "COMPRA",
             "VENDER" or "VENDA" or "SHORT" => "VENDA",
             "ESPERAR" or "AGUARDAR" or "WAIT" => "AGUARDAR",
             "IGNORAR" or "IGNORE" => "IGNORAR",
-            _ => value?.Trim().ToUpperInvariant() ?? "AGUARDAR"
+            _ => ""
         };
+        if (exact.Length > 0)
+            return exact;
+        if (token.Contains("VENDA") || token.Contains("VENDER") || token.Contains("SHORT"))
+            return "VENDA";
+        if (token.Contains("COMPRA") || token.Contains("COMPRAR") || token.Contains("LONG"))
+            return "COMPRA";
+        if (token.Contains("AGUARD") || token.Contains("ESPER") || token.Contains("WAIT"))
+            return "AGUARDAR";
+        if (token.Contains("IGNOR"))
+            return "IGNORAR";
+        return "AGUARDAR";
     }
 
     private static string NormalizeDirection(string? value)
     {
         var token = NormalizeToken(value);
-        return token switch
+        var exact = token switch
         {
             "COMPRA" or "COMPRAR" or "LONG" or "ALTA" => "LONG",
             "VENDA" or "VENDER" or "SHORT" or "BAIXA" => "SHORT",
             "NEUTRA" or "NEUTRO" or "NONE" or "NENHUMA" or "INDEFINIDA" => "NEUTRA",
-            _ => value?.Trim().ToUpperInvariant() ?? "NEUTRA"
+            _ => ""
         };
+        if (exact.Length > 0)
+            return exact;
+        if (token.Contains("SHORT") || token.Contains("VENDA") || token.Contains("VENDER") || token.Contains("BAIXA"))
+            return "SHORT";
+        if (token.Contains("LONG") || token.Contains("COMPRA") || token.Contains("COMPRAR") || token.Contains("ALTA"))
+            return "LONG";
+        return "NEUTRA";
     }
 
     private static string NormalizeToken(string? value)
