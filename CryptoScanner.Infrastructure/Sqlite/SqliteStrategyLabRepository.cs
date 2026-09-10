@@ -144,6 +144,19 @@ public sealed partial class SqliteStrategyLabRepository(string databasePath) : I
     },token);
     public Task SetEnabledAsync(bool enabled,CancellationToken token=default)=>Use(async db=>
     {await Sql(db,null,"UPDATE LabSettings SET Enabled=$enabled WHERE Id=1",token,("$enabled",enabled?1:0));return 0;},token);
+    public Task<IReadOnlyList<LabParameters>> GetParametersAsync(CancellationToken token=default)=>Use<IReadOnlyList<LabParameters>>(async db=>
+    {
+        var variants=await Variants(db,null,token);
+        return variants.Select(v=>v.Parameters).ToArray();
+    },token);
+    public Task UpdateParametersAsync(IReadOnlyList<LabParameters> parameters,CancellationToken token=default)=>Use(async db=>
+    {
+        using var tx=db.BeginTransaction();
+        foreach(var p in parameters)
+            await Sql(db,tx,"UPDATE LabVariants SET ParametersJson=$json WHERE Id=$id",token,
+                ("$json",JsonSerializer.Serialize(p)),("$id",p.Id));
+        tx.Commit();return 0;
+    },token);
     public Task<LabReport> ReportAsync(CancellationToken token=default)=>Use(async db=>
     {
         using var tx=db.BeginTransaction(deferred:true);var open=await Trades(db,tx,false,token);var reports=new List<LabVariantReport>();

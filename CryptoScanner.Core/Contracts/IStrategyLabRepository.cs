@@ -8,4 +8,6 @@ public interface IStrategyLabRepository
     Task TickAsync(IReadOnlyDictionary<string,decimal> prices,long at,CancellationToken token=default);
     Task<LabReport> ReportAsync(CancellationToken token=default);
     Task SetEnabledAsync(bool enabled,CancellationToken token=default);
+    Task<IReadOnlyList<LabParameters>> GetParametersAsync(CancellationToken token=default);
+    Task UpdateParametersAsync(IReadOnlyList<LabParameters> parameters,CancellationToken token=default);
 }

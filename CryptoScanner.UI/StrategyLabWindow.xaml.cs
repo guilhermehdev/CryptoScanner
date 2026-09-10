@@ -1,5 +1,7 @@
 using System.Windows;
 using CryptoScanner.Core.Contracts;
+using CryptoScanner.Core.Models;
+using MessageBox = System.Windows.MessageBox;
 namespace CryptoScanner.UI;
 public partial class StrategyLabWindow : Window
 {
@@ -48,6 +50,32 @@ public partial class StrategyLabWindow : Window
         }
     }
     private async void Refresh_Click(object sender,RoutedEventArgs e)=>await LoadAsync();
+    private async void ApplyParameters_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return;
+        var pressureText = new[] { txtPressure1.Text, txtPressure2.Text, txtPressure3.Text, txtPressure4.Text, txtPressure5.Text };
+        var stopText = new[] { txtStop1.Text, txtStop2.Text, txtStop3.Text, txtStop4.Text, txtStop5.Text };
+        if (pressureText.Any(v => !decimal.TryParse(v, out _)) || stopText.Any(v => !decimal.TryParse(v, out var stop) || stop <= 0))
+        {
+            MessageBox.Show("Informe pressão numérica e escala de stop maior que zero para as cinco variantes.", "Laboratório", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        try
+        {
+            _busy = true;
+            var current = (await _repository.GetParametersAsync(_closed.Token)).OrderBy(p => p.Id).ToArray();
+            var baseParameters = current.Length == 5 ? current : LabParameters.Initial;
+            var updated = baseParameters.Select((p, i) => new LabParameters(
+                p.Id, p.Name, p.Mutation, decimal.Parse(pressureText[i]), decimal.Parse(stopText[i]))).ToArray();
+            await _repository.UpdateParametersAsync(updated, _closed.Token);
+            summary.Text = "Parâmetros aplicados às novas oportunidades. Trades já abertos foram preservados.";
+            await LoadAsync();
+        }
+        catch (OperationCanceledException) when (_closed.IsCancellationRequested) { }
+        catch (Exception ex) { summary.Text = $"Falha ao salvar parâmetros: {ex.Message}"; }
+        finally { _busy = false; }
+    }
     private async void Pause_Click(object sender,RoutedEventArgs e)
     {
         if(_busy)return;
@@ -65,11 +93,25 @@ public partial class StrategyLabWindow : Window
             },_closed.Token);
             if(_closed.IsCancellationRequested)return;
             _enabled=report.Enabled;pause.Content=_enabled?"Pausar novas entradas":"Retomar novas entradas";
+            await LoadParametersAsync();
             shadowTrades.ItemsSource=report.ShadowTrades;variants.ItemsSource=report.Variants;trades.ItemsSource=report.Trades;decisions.ItemsSource=report.Decisions;
             summary.Text=$"{report.Opportunities:N0} oportunidades registradas · {report.ShadowCount:N0} testes sem vaga (fora das carteiras) · {(_enabled?"Entradas ativas":"Entradas pausadas; posições continuam acompanhadas")}\nPatrimônio inclui posições abertas na última cotação. Amostras iniciais não definem uma estratégia vencedora. Passe o mouse sobre uma variante para ver sua alteração.";
         }
         catch(OperationCanceledException) when(_closed.IsCancellationRequested){}
         catch(Exception ex){summary.Text=$"Falha ao carregar o laboratório: {ex.Message}";}
         finally{_busy=false;refresh.IsEnabled=true;pause.IsEnabled=true;export.IsEnabled=true;}
+    }
+
+    private async Task LoadParametersAsync()
+    {
+        var parameters = (await _repository.GetParametersAsync(_closed.Token)).OrderBy(p => p.Id).ToArray();
+        if (parameters.Length != 5) parameters = LabParameters.Initial.ToArray();
+        var pressure = new[] { txtPressure1, txtPressure2, txtPressure3, txtPressure4, txtPressure5 };
+        var stop = new[] { txtStop1, txtStop2, txtStop3, txtStop4, txtStop5 };
+        for (int i = 0; i < 5; i++)
+        {
+            pressure[i].Text = parameters[i].MinimumPressure.ToString("G");
+            stop[i].Text = parameters[i].StopScale.ToString("G");
+        }
     }
 }

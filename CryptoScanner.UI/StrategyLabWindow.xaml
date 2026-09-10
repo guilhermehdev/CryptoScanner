@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Laboratório de estratégias" Width="1320" Height="800" MinWidth="1050" MinHeight="650" WindowStartupLocation="CenterOwner" Background="#F5F6F8">
     <Grid Margin="16">
-        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="180"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="180"/><RowDefinition Height="*"/></Grid.RowDefinitions>
         <StackPanel>
             <TextBlock Text="Laboratório de estratégias · geração inicial" FontSize="23" FontWeight="SemiBold"/>
             <TextBlock Text="Somente simulação. Cinco variantes recebem os mesmos candidatos do grid visível. Nenhuma substitui os sinais do scanner automaticamente." Foreground="#555" TextWrapping="Wrap" Margin="0,8,0,8"/>
@@ -14,8 +14,24 @@
             <Button x:Name="export" Content="Exportar para análise" Padding="14,5" Margin="10,0,0,0" Click="Export_Click"/>
             <Button x:Name="pause" Content="Pausar novas entradas" Padding="14,5" Margin="10,0,0,0" Click="Pause_Click"/>
         </StackPanel>
-        <TextBlock x:Name="summary" Grid.Row="2" TextWrapping="Wrap" Margin="0,0,0,10" FontWeight="SemiBold"/>
-        <DataGrid x:Name="variants" Grid.Row="3" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
+        <Border Grid.Row="2" BorderBrush="#D0D4DA" BorderThickness="1" Padding="8" Margin="0,0,0,8">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Parâmetros das variantes · pressão mínima:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <TextBlock Text="V1" VerticalAlignment="Center"/><TextBox x:Name="txtPressure1" Width="42" Margin="3,0,8,0"/>
+                    <TextBlock Text="V2" VerticalAlignment="Center"/><TextBox x:Name="txtPressure2" Width="42" Margin="3,0,8,0"/>
+                    <TextBlock Text="V3" VerticalAlignment="Center"/><TextBox x:Name="txtPressure3" Width="42" Margin="3,0,8,0"/>
+                    <TextBlock Text="V4" VerticalAlignment="Center"/><TextBox x:Name="txtPressure4" Width="42" Margin="3,0,8,0"/>
+                    <TextBlock Text="V5" VerticalAlignment="Center"/><TextBox x:Name="txtPressure5" Width="42" Margin="3,0,12,0"/>
+                    <TextBlock Text="Stop ×:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                    <TextBox x:Name="txtStop1" Width="42" Margin="0,0,5,0"/><TextBox x:Name="txtStop2" Width="42" Margin="0,0,5,0"/><TextBox x:Name="txtStop3" Width="42" Margin="0,0,5,0"/><TextBox x:Name="txtStop4" Width="42" Margin="0,0,5,0"/><TextBox x:Name="txtStop5" Width="42" Margin="0,0,8,0"/>
+                    <Button Content="Aplicar parâmetros" Padding="8,3" Click="ApplyParameters_Click"/>
+                </StackPanel>
+                <TextBlock Text="V1–V5 correspondem às variantes exibidas abaixo. As alterações afetam novas oportunidades; trades já abertos continuam com os parâmetros originais." Foreground="#666" FontSize="10" Margin="0,5,0,0"/>
+            </StackPanel>
+        </Border>
+        <TextBlock x:Name="summary" Grid.Row="3" TextWrapping="Wrap" Margin="0,0,0,10" FontWeight="SemiBold"/>
+        <DataGrid x:Name="variants" Grid.Row="4" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
             <DataGrid.RowStyle><Style TargetType="DataGridRow"><Setter Property="ToolTip" Value="{Binding Mutation}"/></Style></DataGrid.RowStyle>
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Variante" Binding="{Binding Name}" Width="210"/>
@@ -30,7 +46,7 @@
                 <DataGridTextColumn Header="Trades com lacunas" Binding="{Binding Gaps}" Width="140"/>
             </DataGrid.Columns>
         </DataGrid>
-        <TabControl Grid.Row="4" Margin="0,12,0,0">
+        <TabControl Grid.Row="5" Margin="0,12,0,0">
             <TabItem Header="Trades experimentais · últimos 200">
                 <DataGrid x:Name="trades" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
                     <DataGrid.Columns>
