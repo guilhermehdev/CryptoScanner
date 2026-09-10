@@ -6,6 +6,7 @@ using CryptoScanner.Exchange.Services;
 using CryptoScanner.Infrastructure.Sqlite;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -47,9 +48,9 @@ public partial class MainWindow : Window
     private readonly OllamaVisionAnalyzer _llmAnalyzer = new(new HttpClient { Timeout = TimeSpan.FromMinutes(3) });
     private readonly ILlmOpinionRepository _llmOpinionRepository;
     private const int AutomaticLlmTopCount = 30;
-    private static readonly TimeSpan AutomaticLlmCooldown = TimeSpan.FromMinutes(10);
     private readonly SemaphoreSlim _automaticLlmGate = new(1, 1);
-    private readonly Dictionary<string, DateTime> _automaticLlmLastAnalysis = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _automaticLlmLastSignature = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, HashSet<string>> _automaticLlmTopSymbols = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _automaticLlmProfilesRunning = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<SimulatedTrade> _lastSimulatedTrades = Array.Empty<SimulatedTrade>();
     private bool _showClosedTrades; // Diário mostra só "em andamento" por padrão
@@ -490,6 +491,19 @@ public partial class MainWindow : Window
             // A saída do trade já foi persistida; falha no histórico será tentada em outra abertura.
         }
     }
+    private static string BuildLlmAnalysisSignature(AssetScore asset)
+        => string.Join("|",
+            asset.Close.ToString("G29", CultureInfo.InvariantCulture),
+            asset.OpportunityScore.ToString("G29", CultureInfo.InvariantCulture),
+            asset.DisplaySignal,
+            asset.Resistance.ToString("G29", CultureInfo.InvariantCulture),
+            asset.Support.ToString("G29", CultureInfo.InvariantCulture),
+            asset.RiskReward.ToString("G29", CultureInfo.InvariantCulture),
+            asset.VolumeSpike.ToString("G29", CultureInfo.InvariantCulture),
+            asset.Rsi.ToString("G29", CultureInfo.InvariantCulture),
+            asset.Adx.ToString("G29", CultureInfo.InvariantCulture),
+            asset.MarketRegime);
+
     private async Task AnalyzeTopRankingWithLlmAsync(ScanProfile profile, IReadOnlyList<AssetScore> ranking)
     {
         if (chkAutoLlmTop30?.IsChecked != true || ranking.Count == 0)
@@ -506,11 +520,20 @@ public partial class MainWindow : Window
                 .Take(AutomaticLlmTopCount)
                 .ToArray();
 
+            var previousTop = _automaticLlmTopSymbols.GetValueOrDefault(profile.Name) ?? [];
+            _automaticLlmTopSymbols[profile.Name] = top
+                .Select(asset => asset.Symbol)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
             foreach (var asset in top)
             {
                 var key = $"{profile.Name}|{asset.Symbol}";
-                if (_automaticLlmLastAnalysis.TryGetValue(key, out var last) &&
-                    DateTime.Now - last < AutomaticLlmCooldown)
+                var signature = BuildLlmAnalysisSignature(asset);
+                var enteredTop = !previousTop.Contains(asset.Symbol);
+
+                if (!enteredTop &&
+                    _automaticLlmLastSignature.TryGetValue(key, out var lastSignature) &&
+                    string.Equals(lastSignature, signature, StringComparison.Ordinal))
                     continue;
 
                 try
@@ -518,10 +541,6 @@ public partial class MainWindow : Window
                     await _automaticLlmGate.WaitAsync(_labClosed.Token);
                     try
                     {
-                        if (_automaticLlmLastAnalysis.TryGetValue(key, out last) &&
-                            DateTime.Now - last < AutomaticLlmCooldown)
-                            continue;
-
                         var opinion = await _llmAnalyzer.AnalyzeAsync(
                             null,
                             BuildLlmIndicators(asset),
@@ -547,7 +566,7 @@ public partial class MainWindow : Window
                             Risks = opinion.Riscos.Length == 0 ? "" : string.Join("; ", opinion.Riscos)
                         });
 
-                        _automaticLlmLastAnalysis[key] = DateTime.Now;
+                        _automaticLlmLastSignature[key] = signature;
 
                         if (profile.Name == _viewedProfile.Name)
                         {
