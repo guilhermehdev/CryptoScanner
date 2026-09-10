@@ -1,15 +1,29 @@
 namespace CryptoScanner.Core.Models;
 
-public sealed record LabParameters(int Id,string Name,string Mutation,decimal MinimumPressure,decimal StopScale)
+public sealed record LabParameters(
+    int Id,
+    string Name,
+    string Mutation,
+    decimal MinimumPressure,
+    decimal StopScale,
+    decimal MinimumScore = 55m,
+    decimal MinimumVolumeSpike = 0m,
+    decimal MinimumResistanceDistance = 0m,
+    decimal MinimumRiskReward = 0m,
+    decimal MaximumStopDistance = 100m,
+    string Mode = "Mutação",
+    bool RequireBreakout = false,
+    bool RequireConsolidation = false,
+    bool RequireTrendUp = false)
 {
     public const decimal InitialCapital=10000m, Ticket=1000m, Fee=.001m, Slippage=.0005m;
     public const int MaxPositions=5;
     public static IReadOnlyList<LabParameters> Initial => [
-        new(1,"Referência","Modelo inicial: score ≥55, pressão ≥50",50,1),
-        new(2,"Pressão flexível","Filha da referência: pressão ≥40",40,1),
-        new(3,"Pressão exigente","Filha da referência: pressão ≥60",60,1),
-        new(4,"Stop mais próximo","Filha da referência: distância do stop ×0,85",50,.85m),
-        new(5,"Stop mais distante","Filha da referência: distância do stop ×1,15",50,1.15m)];
+        new(1,"Validado","Scanner atual: score ≥60, volume ≥1,30×, alvo ≥4%, R/R ≥2",50,1,60,1.30m,4,2,25,"Validado",true,true,true),
+        new(2,"Exploração","Filtros flexíveis: score ≥55, volume ≥1,10×, alvo ≥2%, R/R ≥1,20",40,1,55,1.10m,2,1.20m,40,"Exploração",false,false,true),
+        new(3,"Diagnóstico","Limiares quantitativos e estrutura abertos para medir o funil",0,1,0,0,0,0,100,"Diagnóstico",false,false,false),
+        new(4,"Stop mais próximo","Mutação do Validado: distância do stop ×0,85",50,.85m,60,1.30m,4,2,25,"Mutação",true,true,true),
+        new(5,"Stop mais distante","Mutação do Validado: distância do stop ×1,15",50,1.15m,60,1.30m,4,2,25,"Mutação",true,true,true)];
 }
 
 public sealed record LabOpportunity(string Symbol,string Profile,long GridTimeMs,long QuoteTimeMs,
@@ -59,9 +73,15 @@ public static class LabSimulation
     {
         long decision=Math.Max(o.QuoteTimeMs,o.DecisionTimeMs);
         if (o.Quote is not >0 || o.QuoteTimeMs<o.GridTimeMs || o.QuoteTimeMs-o.GridTimeMs>60000 || decision-o.QuoteTimeMs>30000) return(null,"Cotação indisponível ou atrasada");
-        if (o.Asset.Score<55) return(null,"Score abaixo de 55");
+        if (p.RequireBreakout && !o.Asset.IsBreakout && !o.Asset.IsShortTermBreakout) return(null,"Sem rompimento");
+        if (p.RequireConsolidation && !o.Asset.IsConsolidating) return(null,"Sem consolidação");
+        if (p.RequireTrendUp && o.Asset.TrendDirection!="ALTA") return(null,"Tendência incompatível");
+        if (o.Asset.Score<p.MinimumScore) return(null,$"Score abaixo de {p.MinimumScore:F0}");
         if (o.Asset.BuyingPressureScore is null) return(null,"Pressão indisponível");
         if (o.Asset.BuyingPressureScore<p.MinimumPressure) return(null,"Pressão abaixo do limite");
+        if (o.Asset.VolumeSpike<p.MinimumVolumeSpike) return(null,$"Volume abaixo de {p.MinimumVolumeSpike:F2}×");
+        if (o.Asset.ResistanceDistance<p.MinimumResistanceDistance) return(null,$"Alvo abaixo de {p.MinimumResistanceDistance:F1}%");
+        if (o.Asset.RiskReward<p.MinimumRiskReward) return(null,$"R/R abaixo de {p.MinimumRiskReward:F2}");
         if (symbolOpen) return(null,"Já existe posição neste ativo");
         if (positions>=LabParameters.MaxPositions) return(null,"Limite de posições");
         if (cash<LabParameters.Ticket) return(null,"Capital indisponível");
@@ -69,6 +89,7 @@ public static class LabSimulation
         if (o.Asset.Support<=0 || o.Asset.Support>=quote || o.Asset.Resistance<=entry) return(null,"Stop ou alvo inválido");
         decimal stop=quote-(quote-o.Asset.Support)*p.StopScale;
         if (stop<=0 || stop>=quote) return(null,"Stop da variante inválido");
+        if ((quote-stop)/quote*100m>p.MaximumStopDistance) return(null,$"Stop acima de {p.MaximumStopDistance:F0}%");
         if (o.Asset.TakeProfit1.HasValue && (o.Asset.TakeProfit1<=entry || o.Asset.TakeProfit1>=o.Asset.Resistance ||
             !o.Asset.TakeProfit3.HasValue || o.Asset.TakeProfit3<=o.Asset.Resistance)) return(null,"Alvos parciais inválidos");
         if (o.HoldingHours<=0) return(null,"Prazo inválido");

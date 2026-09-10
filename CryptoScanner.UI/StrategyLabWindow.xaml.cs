@@ -66,14 +66,34 @@ public partial class StrategyLabWindow : Window
             _busy = true;
             var current = (await _repository.GetParametersAsync(_closed.Token)).OrderBy(p => p.Id).ToArray();
             var baseParameters = current.Length == 5 ? current : LabParameters.Initial;
-            var updated = baseParameters.Select((p, i) => new LabParameters(
-                p.Id, p.Name, p.Mutation, decimal.Parse(pressureText[i]), decimal.Parse(stopText[i]))).ToArray();
+            var updated = baseParameters.Select((p, i) => p with
+            {
+                MinimumPressure = decimal.Parse(pressureText[i]),
+                StopScale = decimal.Parse(stopText[i])
+            }).ToArray();
             await _repository.UpdateParametersAsync(updated, _closed.Token);
+            await LoadParametersAsync();
             summary.Text = "Parâmetros aplicados às novas oportunidades. Trades já abertos foram preservados.";
-            await LoadAsync();
         }
         catch (OperationCanceledException) when (_closed.IsCancellationRequested) { }
         catch (Exception ex) { summary.Text = $"Falha ao salvar parâmetros: {ex.Message}"; }
+        finally { _busy = false; }
+    }
+
+    private async void ApplyPreset_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy || cmbLabPreset.SelectedIndex != 1)
+            return;
+
+        try
+        {
+            _busy = true;
+            await _repository.UpdateParametersAsync(LabParameters.Initial, _closed.Token);
+            await LoadParametersAsync();
+            summary.Text = "Preset simultâneo aplicado: V1 Validado, V2 Exploração e V3 Diagnóstico. V4 e V5 permanecem mutações do Validado.";
+        }
+        catch (OperationCanceledException) when (_closed.IsCancellationRequested) { }
+        catch (Exception ex) { summary.Text = $"Falha ao aplicar preset: {ex.Message}"; }
         finally { _busy = false; }
     }
     private async void Pause_Click(object sender,RoutedEventArgs e)

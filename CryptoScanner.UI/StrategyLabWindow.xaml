@@ -17,6 +17,12 @@
         <Border Grid.Row="2" BorderBrush="#D0D4DA" BorderThickness="1" Padding="8" Margin="0,0,0,8">
             <StackPanel>
                 <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Presetes:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                    <ComboBox x:Name="cmbLabPreset" Width="230" SelectedIndex="1" Margin="0,0,8,0">
+                        <ComboBoxItem Content="Variantes atuais"/>
+                        <ComboBoxItem Content="Validado + Exploração + Diagnóstico"/>
+                    </ComboBox>
+                    <Button Content="Aplicar preset" Padding="8,3" Click="ApplyPreset_Click" Margin="0,0,14,0"/>
                     <TextBlock Text="Parâmetros das variantes · pressão mínima:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <TextBlock Text="V1" VerticalAlignment="Center"/><TextBox x:Name="txtPressure1" Width="42" Margin="3,0,8,0"/>
                     <TextBlock Text="V2" VerticalAlignment="Center"/><TextBox x:Name="txtPressure2" Width="42" Margin="3,0,8,0"/>
