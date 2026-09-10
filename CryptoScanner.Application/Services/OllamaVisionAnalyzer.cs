@@ -1,6 +1,8 @@
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Globalization;
+using System.Text;
 using CryptoScanner.Core.Models;
 
 namespace CryptoScanner.Application.Services;
@@ -40,12 +42,70 @@ public sealed class OllamaVisionAnalyzer(HttpClient httpClient)
         var envelope = await response.Content.ReadFromJsonAsync<OllamaEnvelope>(cancellationToken: cancellationToken)
             ?? throw new InvalidOperationException("Ollama retornou uma resposta vazia.");
 
-        var opinion = JsonSerializer.Deserialize<LlmTradeOpinion>(envelope.Message.Content,
+        var parsedOpinion = JsonSerializer.Deserialize<LlmTradeOpinion>(envelope.Message.Content,
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
             ?? throw new InvalidOperationException("Ollama retornou JSON inválido.");
 
+        var opinion = Normalize(parsedOpinion);
         Validate(opinion);
         return opinion;
+    }
+
+    private static LlmTradeOpinion Normalize(LlmTradeOpinion opinion)
+    {
+        return new LlmTradeOpinion
+        {
+            Decisao = NormalizeDecision(opinion.Decisao),
+            Direcao = NormalizeDirection(opinion.Direcao),
+            Confianca = opinion.Confianca,
+            Tendencia = opinion.Tendencia,
+            Entrada = opinion.Entrada,
+            Stop = opinion.Stop,
+            Tp1 = opinion.Tp1,
+            Tp2 = opinion.Tp2,
+            Motivos = opinion.Motivos,
+            Riscos = opinion.Riscos
+        };
+    }
+
+    private static string NormalizeDecision(string? value)
+    {
+        var token = NormalizeToken(value);
+        return token switch
+        {
+            "COMPRAR" or "COMPRA" or "LONG" => "COMPRA",
+            "VENDER" or "VENDA" or "SHORT" => "VENDA",
+            "ESPERAR" or "AGUARDAR" or "WAIT" => "AGUARDAR",
+            "IGNORAR" or "IGNORE" => "IGNORAR",
+            _ => value?.Trim().ToUpperInvariant() ?? "AGUARDAR"
+        };
+    }
+
+    private static string NormalizeDirection(string? value)
+    {
+        var token = NormalizeToken(value);
+        return token switch
+        {
+            "COMPRA" or "COMPRAR" or "LONG" or "ALTA" => "LONG",
+            "VENDA" or "VENDER" or "SHORT" or "BAIXA" => "SHORT",
+            "NEUTRA" or "NEUTRO" or "NONE" or "NENHUMA" or "INDEFINIDA" => "NEUTRA",
+            _ => value?.Trim().ToUpperInvariant() ?? "NEUTRA"
+        };
+    }
+
+    private static string NormalizeToken(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return "";
+
+        var decomposed = value.Trim().ToUpperInvariant().Normalize(NormalizationForm.FormD);
+        var builder = new StringBuilder(decomposed.Length);
+        foreach (var character in decomposed)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark)
+                builder.Append(character);
+        }
+        return builder.ToString().Normalize(NormalizationForm.FormC);
     }
 
     private static void Validate(LlmTradeOpinion opinion)
