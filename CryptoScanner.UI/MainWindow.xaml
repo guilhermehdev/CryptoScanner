@@ -72,7 +72,7 @@
                 <Button Content="Análise da pressão" Click="BtnPressureAnalysis_Click" Padding="8,2" Margin="0,3,6,0"/>
                 <Button Content="Laboratório" Click="BtnStrategyLab_Click" Padding="8,2" Margin="0,3,6,0"/>
                 <Button Content="Histórico LLM" Click="BtnLlmHistory_Click" Padding="8,2" Margin="0,3,6,0"/>
-                <Button Content="Analisar com LLM" ToolTip="Analisa a moeda selecionada junto com uma imagem de gráfico" Click="BtnAnalyzeWithLlm_Click" Padding="8,2" Margin="0,3,6,0"/>
+                <Button Content="Analisar com LLM" ToolTip="Analisa a moeda selecionada usando os dados estruturados do scanner" Click="BtnAnalyzeWithLlm_Click" Padding="8,2" Margin="0,3,6,0"/>
             </WrapPanel>
             <Border Background="#252525" BorderBrush="#444444" BorderThickness="1" Padding="6" Margin="0,5,0,0">
                 <DockPanel>

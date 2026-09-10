@@ -16,7 +16,6 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
-using Microsoft.Win32;
 using Forms = System.Windows.Forms;
 using MessageBox = System.Windows.MessageBox;
 using CheckBox = System.Windows.Controls.CheckBox;
@@ -364,16 +363,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        var dialog = new Microsoft.Win32.OpenFileDialog
-        {
-            Title = $"Escolha o gráfico de {asset.Symbol}",
-            Filter = "Imagens|*.png;*.jpg;*.jpeg;*.webp|Todos os arquivos|*.*",
-            CheckFileExists = true,
-            Multiselect = false
-        };
-        if (dialog.ShowDialog(this) != true)
-            return;
-
         txtLlmOpinion.Text = $"LLM consultiva: analisando {asset.Symbol}…";
         try
         {
@@ -403,7 +392,7 @@ public partial class MainWindow : Window
                 armadilhaBaixa = asset.IsBearTrap
             };
 
-            var opinion = await _llmAnalyzer.AnalyzeAsync(dialog.FileName, indicators);
+            var opinion = await _llmAnalyzer.AnalyzeAsync(null, indicators);
             var reasons = opinion.Motivos.Length == 0 ? "(sem motivos informados)" : string.Join("; ", opinion.Motivos);
             var risks = opinion.Riscos.Length == 0 ? "(nenhum risco informado)" : string.Join("; ", opinion.Riscos);
             var levels = opinion.Entrada is null && opinion.Stop is null && opinion.Tp1 is null && opinion.Tp2 is null
@@ -419,7 +408,7 @@ public partial class MainWindow : Window
                     CreatedAt = DateTime.Now,
                     Symbol = asset.Symbol,
                     Profile = _viewedProfile.Name,
-                    ImagePath = dialog.FileName,
+                    ImagePath = "",
                     AnalysisPrice = asset.Close,
                     ScannerSignal = asset.DisplaySignal,
                     Decision = opinion.Decisao,

@@ -13,28 +13,38 @@ public sealed class OllamaVisionAnalyzer(HttpClient httpClient)
     private const string Endpoint = "http://localhost:11434/api/chat";
 
     public async Task<LlmTradeOpinion> AnalyzeAsync(
-        string imagePath,
+        string? imagePath,
         object indicators,
         CancellationToken cancellationToken = default)
     {
-        if (!File.Exists(imagePath))
+        if (!string.IsNullOrWhiteSpace(imagePath) && !File.Exists(imagePath))
             throw new FileNotFoundException("Imagem do gráfico não encontrada.", imagePath);
 
-        var image = Convert.ToBase64String(await File.ReadAllBytesAsync(imagePath, cancellationToken));
         var prompt = "Você é um analista auxiliar de um scanner de criptomoedas.\n" +
             "Analise Long e Short, mas não invente valores.\n" +
             "A decisão deve ser exclusivamente COMPRA, VENDA, AGUARDAR ou IGNORAR.\n" +
-            "Use os indicadores estruturados como fonte principal e a imagem apenas como contexto visual.\n" +
+            "Use os indicadores estruturados como fonte principal. Não suponha dados que não foram enviados.\n" +
             "Se um valor não estiver disponível, use null. Confiança é um inteiro de 0 a 100.\n" +
             "Responda somente JSON no contrato decisao, direcao, confianca, tendencia, entrada, stop, tp1, tp2, motivos e riscos.\n" +
             "Indicadores do scanner:\n" + JsonSerializer.Serialize(indicators);
+
+        object message;
+        if (string.IsNullOrWhiteSpace(imagePath))
+        {
+            message = new { role = "user", content = prompt };
+        }
+        else
+        {
+            var image = Convert.ToBase64String(await File.ReadAllBytesAsync(imagePath, cancellationToken));
+            message = new { role = "user", content = prompt, images = new[] { image } };
+        }
 
         var request = new
         {
             model = Model,
             stream = false,
             format = "json",
-            messages = new[] { new { role = "user", content = prompt, images = new[] { image } } }
+            messages = new[] { message }
         };
 
         using var response = await httpClient.PostAsJsonAsync(Endpoint, request, cancellationToken);
