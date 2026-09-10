@@ -24,7 +24,7 @@ public sealed class OllamaVisionAnalyzer(HttpClient httpClient)
             "Analise Long e Short, mas não invente valores.\n" +
             "A decisão deve ser exclusivamente COMPRA, VENDA, AGUARDAR ou IGNORAR.\n" +
             "Use os indicadores estruturados como fonte principal. Não suponha dados que não foram enviados.\n" +
-            "Se um valor não estiver disponível, use null. Confiança é um inteiro de 0 a 100.\n" +
+            "Se um valor não estiver disponível ou vier como faixa, use null. Cada entrada, stop, tp1 e tp2 deve ser um único número decimal, nunca um intervalo. Confiança é um inteiro de 0 a 100.\n" +
             "Responda somente JSON no contrato decisao, direcao, confianca, tendencia, entrada, stop, tp1, tp2, motivos e riscos.\n" +
             "Indicadores do scanner:\n" + JsonSerializer.Serialize(indicators);
 

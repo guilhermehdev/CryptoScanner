@@ -44,6 +44,11 @@ public sealed class FlexibleNullableDecimalConverter : JsonConverter<decimal?>
         if (string.IsNullOrWhiteSpace(text) || text is "—" or "-" or "N/A" or "null")
             return null;
 
+        // A LLM pode devolver uma faixa (ex.: "1.8065 - 1.7850").
+        // O contrato aceita um único nível; não escolha silenciosamente uma das pontas.
+        if (text.Contains(" - ", StringComparison.Ordinal) || text.Contains("–", StringComparison.Ordinal) || text.Contains("—", StringComparison.Ordinal))
+            return null;
+
         if (text.Contains(','))
         {
             // A vírgula é o separador decimal usual no retorno em português;
@@ -59,7 +64,8 @@ public sealed class FlexibleNullableDecimalConverter : JsonConverter<decimal?>
             return invariant;
         }
 
-        throw new JsonException($"O valor '{text}' não é um nível decimal válido.");
+        // Níveis malformados não invalidam a análise inteira; ficam indisponíveis para a UI.
+        return null;
     }
 
     public override void Write(Utf8JsonWriter writer, decimal? value, JsonSerializerOptions options)
@@ -88,7 +94,7 @@ public sealed class FlexibleStringArrayConverter : JsonConverter<string[]>
         }
 
         if (reader.TokenType != JsonTokenType.StartArray)
-            throw new JsonException($"Esperada lista ou texto; recebido {reader.TokenType}.");
+            throw new JsonException("Esperada lista ou texto; recebido " + reader.TokenType + ".");
 
         using var document = JsonDocument.ParseValue(ref reader);
         return document.RootElement.EnumerateArray()
