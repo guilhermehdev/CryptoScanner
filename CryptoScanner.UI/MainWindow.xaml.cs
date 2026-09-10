@@ -353,6 +353,9 @@ public partial class MainWindow : Window
 
     private void BtnStrategyLab_Click(object sender,RoutedEventArgs e) => new StrategyLabWindow(_labRepository) { Owner=this }.Show();
 
+    private void BtnLlmHistory_Click(object sender, RoutedEventArgs e)
+        => new LlmOpinionHistoryWindow(_llmOpinionRepository) { Owner = this }.Show();
+
     private async void BtnAnalyzeWithLlm_Click(object sender, RoutedEventArgs e)
     {
         if (dgRanking.SelectedItem is not AssetScore asset)
