@@ -18,7 +18,9 @@ public sealed class LlmTradeOpinion
     public decimal? Tp1 { get; init; }
     [JsonConverter(typeof(FlexibleNullableDecimalConverter))]
     public decimal? Tp2 { get; init; }
+    [JsonConverter(typeof(FlexibleStringArrayConverter))]
     public string[] Motivos { get; init; } = [];
+    [JsonConverter(typeof(FlexibleStringArrayConverter))]
     public string[] Riscos { get; init; } = [];
 }
 
@@ -67,4 +69,35 @@ public sealed class FlexibleNullableDecimalConverter : JsonConverter<decimal?>
         else
             writer.WriteNullValue();
     }
+}
+
+/// <summary>
+/// Aceita uma lista de textos ou uma única frase no retorno da LLM.
+/// </summary>
+public sealed class FlexibleStringArrayConverter : JsonConverter<string[]>
+{
+    public override string[] Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.Null)
+            return [];
+
+        if (reader.TokenType == JsonTokenType.String)
+        {
+            var value = reader.GetString()?.Trim();
+            return string.IsNullOrWhiteSpace(value) ? [] : [value];
+        }
+
+        if (reader.TokenType != JsonTokenType.StartArray)
+            throw new JsonException($"Esperada lista ou texto; recebido {reader.TokenType}.");
+
+        using var document = JsonDocument.ParseValue(ref reader);
+        return document.RootElement.EnumerateArray()
+            .Select(item => item.ValueKind == JsonValueKind.String ? item.GetString() : item.ToString())
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Select(item => item!.Trim())
+            .ToArray();
+    }
+
+    public override void Write(Utf8JsonWriter writer, string[] value, JsonSerializerOptions options)
+        => JsonSerializer.Serialize(writer, value ?? [], options);
 }
