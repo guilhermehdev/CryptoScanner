@@ -62,7 +62,7 @@
                 <Button x:Name="btnSearch" Content="Buscar" Padding="8,2" Margin="0,3,12,3" Click="BtnSearch_Click"/>
                 <Button x:Name="btAtualizar" Content="Atualizar" Padding="8,2" Margin="0,3,8,3" Click="btAtualizar_Click" Background="DarkSeaGreen"/>
                 <TextBlock Text="Auto (min):" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                <TextBox x:Name="txtAutoScanInterval" Width="32" Margin="0,3,12,3" VerticalAlignment="Center" TextAlignment="Center" LostFocus="TxtAutoScanInterval_LostFocus" ToolTip="Intervalo em minutos. Saia do campo para salvar."/>
+                <TextBox x:Name="txtAutoScanInterval" Width="32" Margin="0,3,12,3" VerticalAlignment="Center" TextAlignment="Center" LostFocus="TxtAutoScanInterval_LostFocus" ToolTip="Intervalo em minutos. Saia do campo para salvar."/><CheckBox x:Name="chkAutoLlmTop30" Content="LLM auto top 30" IsChecked="True" Margin="0,3,16,3" VerticalAlignment="Center" ToolTip="Analisa automaticamente os 30 melhores ativos de cada perfil após a varredura."/>
             </WrapPanel>
             <WrapPanel>
                 <Button Content="Análise" Click="BtnAnalytics_Click" Padding="8,2" Margin="0,3,6,0"/>

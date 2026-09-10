@@ -4,6 +4,7 @@ using CryptoScanner.Core.Contracts;
 using CryptoScanner.Core.Models;
 using CryptoScanner.Exchange.Services;
 using CryptoScanner.Infrastructure.Sqlite;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -45,6 +46,11 @@ public partial class MainWindow : Window
     private readonly CoinGeckoService _coinGeckoService = new();
     private readonly OllamaVisionAnalyzer _llmAnalyzer = new(new HttpClient { Timeout = TimeSpan.FromMinutes(3) });
     private readonly ILlmOpinionRepository _llmOpinionRepository;
+    private const int AutomaticLlmTopCount = 30;
+    private static readonly TimeSpan AutomaticLlmCooldown = TimeSpan.FromMinutes(10);
+    private readonly SemaphoreSlim _automaticLlmGate = new(1, 1);
+    private readonly Dictionary<string, DateTime> _automaticLlmLastAnalysis = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, byte> _automaticLlmProfilesRunning = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<SimulatedTrade> _lastSimulatedTrades = Array.Empty<SimulatedTrade>();
     private bool _showClosedTrades; // Diário mostra só "em andamento" por padrão
     private bool _isWindowLoaded;
@@ -171,6 +177,7 @@ public partial class MainWindow : Window
             _lastHistory = result.History; // já é global (Signals não filtra por Profile)
             _rankingsByProfile[profile.Name] = result.Ranking;
             _diagnosticsByProfile[profile.Name] = result.Diagnostics;
+            _ = AnalyzeTopRankingWithLlmAsync(profile, result.Ranking);
             _scanCompletedAt[profile.Name] = DateTime.Now;
             _lastMarketRegime = result.MarketRegime;
 
@@ -366,40 +373,8 @@ public partial class MainWindow : Window
         txtLlmOpinion.Text = $"LLM consultiva: analisando {asset.Symbol}…";
         try
         {
-            var indicators = new
-            {
-                ativo = asset.Symbol,
-                sinalScanner = asset.DisplaySignal,
-                score = asset.Score,
-                precoFechamento = asset.Close,
-                precoAtual = asset.LivePrice,
-                tendencia = asset.TrendDirection,
-                regime = asset.MarketRegime,
-                rsi = asset.Rsi,
-                adx = asset.Adx,
-                atrPercentual = asset.AtrPercent,
-                volumeSpike = asset.VolumeSpike,
-                pressaoCompradora = asset.BuyingPressureScore,
-                fluxoVarejo = asset.RetailFlowScore,
-                forcaRelativa = asset.RelativeStrength,
-                suporte = asset.Support,
-                resistencia = asset.Resistance,
-                distanciaAlvoPercentual = asset.ResistanceDistance,
-                distanciaStopPercentual = asset.SupportDistance,
-                riscoRetorno = asset.RiskReward,
-                padrao = asset.PatternName,
-                armadilhaAlta = asset.IsBullTrap,
-                armadilhaBaixa = asset.IsBearTrap
-            };
-
-            var opinion = await _llmAnalyzer.AnalyzeAsync(null, indicators);
-            var reasons = opinion.Motivos.Length == 0 ? "(sem motivos informados)" : string.Join("; ", opinion.Motivos);
-            var risks = opinion.Riscos.Length == 0 ? "(nenhum risco informado)" : string.Join("; ", opinion.Riscos);
-            var levels = opinion.Entrada is null && opinion.Stop is null && opinion.Tp1 is null && opinion.Tp2 is null
-                ? "Níveis: não informados"
-                : $"Entrada {opinion.Entrada?.ToString("0.########") ?? "—"} | Stop {opinion.Stop?.ToString("0.########") ?? "—"} | TP1 {opinion.Tp1?.ToString("0.########") ?? "—"} | TP2 {opinion.Tp2?.ToString("0.########") ?? "—"}";
-
-            txtLlmOpinion.Text = $"LLM {asset.Symbol}: {opinion.Decisao} · {opinion.Direcao} · confiança {opinion.Confianca}/100 · {opinion.Tendencia}\n{levels}\nMotivos: {reasons}\nRiscos: {risks}\nSinal original do scanner: {asset.DisplaySignal}. A LLM é consultiva e não altera o ranking.";
+            var opinion = await _llmAnalyzer.AnalyzeAsync(null, BuildLlmIndicators(asset));
+            txtLlmOpinion.Text = FormatLlmOpinion(asset, opinion);
 
             try
             {
@@ -419,8 +394,8 @@ public partial class MainWindow : Window
                     Stop = opinion.Stop,
                     Tp1 = opinion.Tp1,
                     Tp2 = opinion.Tp2,
-                    Reasons = reasons,
-                    Risks = risks
+                    Reasons = opinion.Motivos.Length == 0 ? "" : string.Join("; ", opinion.Motivos),
+                    Risks = opinion.Riscos.Length == 0 ? "" : string.Join("; ", opinion.Riscos)
                 });
                 txtLlmOpinion.ToolTip = "Análise exibida e salva no histórico local.";
             }
@@ -435,6 +410,129 @@ public partial class MainWindow : Window
         }
     }
 
+    private object BuildLlmIndicators(AssetScore asset) => new
+    {
+        ativo = asset.Symbol,
+        sinalScanner = asset.DisplaySignal,
+        score = asset.Score,
+        precoFechamento = asset.Close,
+        precoAtual = asset.LivePrice,
+        tendencia = asset.TrendDirection,
+        regime = asset.MarketRegime,
+        rsi = asset.Rsi,
+        adx = asset.Adx,
+        atrPercentual = asset.AtrPercent,
+        volumeSpike = asset.VolumeSpike,
+        pressaoCompradora = asset.BuyingPressureScore,
+        fluxoVarejo = asset.RetailFlowScore,
+        forcaRelativa = asset.RelativeStrength,
+        suporte = asset.Support,
+        resistencia = asset.Resistance,
+        distanciaAlvoPercentual = asset.ResistanceDistance,
+        distanciaStopPercentual = asset.SupportDistance,
+        riscoRetorno = asset.RiskReward,
+        padrao = asset.PatternName,
+        armadilhaAlta = asset.IsBullTrap,
+        armadilhaBaixa = asset.IsBearTrap
+    };
+
+    private static string FormatLlmOpinion(AssetScore asset, LlmTradeOpinion opinion)
+    {
+        var reasons = opinion.Motivos.Length == 0 ? "(sem motivos informados)" : string.Join("; ", opinion.Motivos);
+        var risks = opinion.Riscos.Length == 0 ? "(nenhum risco informado)" : string.Join("; ", opinion.Riscos);
+        var levels = opinion.Entrada is null && opinion.Stop is null && opinion.Tp1 is null && opinion.Tp2 is null
+            ? "Níveis: não informados"
+            : $"Entrada {opinion.Entrada?.ToString("0.########") ?? "—"} | Stop {opinion.Stop?.ToString("0.########") ?? "—"} | TP1 {opinion.Tp1?.ToString("0.########") ?? "—"} | TP2 {opinion.Tp2?.ToString("0.########") ?? "—"}";
+
+        return $"LLM {asset.Symbol}: {opinion.Decisao} · {opinion.Direcao} · confiança {opinion.Confianca}/100 · {opinion.Tendencia}\n{levels}\nMotivos: {reasons}\nRiscos: {risks}\nSinal original do scanner: {asset.DisplaySignal}. A LLM é consultiva e não altera o ranking.";
+    }
+
+    private async Task AnalyzeTopRankingWithLlmAsync(ScanProfile profile, IReadOnlyList<AssetScore> ranking)
+    {
+        if (chkAutoLlmTop30?.IsChecked != true || ranking.Count == 0)
+            return;
+
+        if (!_automaticLlmProfilesRunning.TryAdd(profile.Name, 0))
+            return;
+
+        try
+        {
+            var top = ranking
+                .OrderByDescending(asset => asset.OpportunityScore)
+                .ThenByDescending(asset => asset.Score)
+                .Take(AutomaticLlmTopCount)
+                .ToArray();
+
+            foreach (var asset in top)
+            {
+                var key = $"{profile.Name}|{asset.Symbol}";
+                if (_automaticLlmLastAnalysis.TryGetValue(key, out var last) &&
+                    DateTime.Now - last < AutomaticLlmCooldown)
+                    continue;
+
+                try
+                {
+                    await _automaticLlmGate.WaitAsync(_labClosed.Token);
+                    try
+                    {
+                        if (_automaticLlmLastAnalysis.TryGetValue(key, out last) &&
+                            DateTime.Now - last < AutomaticLlmCooldown)
+                            continue;
+
+                        var opinion = await _llmAnalyzer.AnalyzeAsync(
+                            null,
+                            BuildLlmIndicators(asset),
+                            _labClosed.Token);
+
+                        await _llmOpinionRepository.AddAsync(new LlmOpinionRecord
+                        {
+                            CreatedAt = DateTime.Now,
+                            Symbol = asset.Symbol,
+                            Profile = profile.Name,
+                            ImagePath = "",
+                            AnalysisPrice = asset.Close,
+                            ScannerSignal = asset.DisplaySignal,
+                            Decision = opinion.Decisao,
+                            Direction = opinion.Direcao,
+                            Confidence = opinion.Confianca,
+                            Trend = opinion.Tendencia,
+                            Entry = opinion.Entrada,
+                            Stop = opinion.Stop,
+                            Tp1 = opinion.Tp1,
+                            Tp2 = opinion.Tp2,
+                            Reasons = opinion.Motivos.Length == 0 ? "" : string.Join("; ", opinion.Motivos),
+                            Risks = opinion.Riscos.Length == 0 ? "" : string.Join("; ", opinion.Riscos)
+                        });
+
+                        _automaticLlmLastAnalysis[key] = DateTime.Now;
+
+                        if (profile.Name == _viewedProfile.Name)
+                        {
+                            txtLlmOpinion.Text = FormatLlmOpinion(asset, opinion);
+                            txtLlmOpinion.ToolTip = $"Análise automática salva no histórico: {asset.Symbol}.";
+                        }
+                    }
+                    finally
+                    {
+                        _automaticLlmGate.Release();
+                    }
+                }
+                catch (OperationCanceledException) when (_labClosed.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    if (profile.Name == _viewedProfile.Name)
+                        txtLlmOpinion.ToolTip = $"Falha na análise automática de {asset.Symbol}: {ex.Message}";
+                }
+            }
+        }
+        finally
+        {
+            _automaticLlmProfilesRunning.TryRemove(profile.Name, out _);
+        }
+    }
     private void BtnCopyLlmOpinion_Click(object sender, RoutedEventArgs e)
     {
         if (string.IsNullOrWhiteSpace(txtLlmOpinion.Text))
