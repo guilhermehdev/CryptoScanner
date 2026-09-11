@@ -15,12 +15,14 @@ public partial class LlmOpinionHistoryWindow : Window
     private readonly ILlmOpinionRepository _repository;
     private readonly ObservableCollection<LlmOpinionRecord> _rows = [];
     private List<LlmOpinionRecord> _all = [];
+    private bool _controlsReady;
 
     public LlmOpinionHistoryWindow(ILlmOpinionRepository repository)
     {
         InitializeComponent();
         _repository = repository;
         dgOpinions.ItemsSource = _rows;
+        _controlsReady = true;
         Loaded += async (_, _) => await LoadAsync();
     }
 
@@ -40,20 +42,28 @@ public partial class LlmOpinionHistoryWindow : Window
 
     private void ApplyFilter()
     {
-        var symbol = txtSymbolFilter.Text.Trim();
-        var decision = (cmbDecisionFilter.SelectedItem as ComboBoxItem)?.Content?.ToString();
+        if (!_controlsReady)
+            return;
+
+        var symbol = txtSymbolFilter?.Text?.Trim() ?? "";
+        var decision = (cmbDecisionFilter?.SelectedItem as ComboBoxItem)?.Content?.ToString();
         var filtered = _all.Where(row =>
-            (symbol.Length == 0 || row.Symbol.Contains(symbol, StringComparison.OrdinalIgnoreCase)) &&
-            (string.IsNullOrWhiteSpace(decision) || decision == "Todas" || row.Decision.Equals(decision, StringComparison.OrdinalIgnoreCase)))
+            (symbol.Length == 0 || (row.Symbol ?? "").Contains(symbol, StringComparison.OrdinalIgnoreCase)) &&
+            (string.IsNullOrWhiteSpace(decision) || decision == "Todas" || (row.Decision ?? "").Equals(decision, StringComparison.OrdinalIgnoreCase)))
             .ToList();
 
         _rows.Clear();
         foreach (var row in filtered)
             _rows.Add(row);
-        txtSummary.Text = $"{filtered.Count} opinião(ões) exibida(s) de {_all.Count} registrada(s).";
-    }
 
-    private void FilterChanged(object sender, RoutedEventArgs e) => ApplyFilter();
+        if (txtSummary != null)
+            txtSummary.Text = $"{filtered.Count} opinião(ões) exibida(s) de {_all.Count} registrada(s).";
+    }
+    private void FilterChanged(object sender, RoutedEventArgs e)
+    {
+        if (_controlsReady)
+            ApplyFilter();
+    }
 
     private async void BtnRefresh_Click(object sender, RoutedEventArgs e) => await LoadAsync();
 
