@@ -173,7 +173,9 @@ public partial class MainWindow : Window
 
         try
         {
-            var result = await _scanner.RunAsync(profile, GetSelectedScannerDirection());
+            var direction = GetSelectedScannerDirection();
+            var shortExperimental = GetUseShortExperimentalProfile();
+            var result = await _scanner.RunAsync(profile, direction, shortExperimental: shortExperimental);
 
             _lastHistory = result.History; // já é global (Signals não filtra por Profile)
             _rankingsByProfile[profile.Name] = result.Ranking;
@@ -317,11 +319,25 @@ public partial class MainWindow : Window
     private TradeDirection GetSelectedScannerDirection() =>
         rbScanShort?.IsChecked == true ? TradeDirection.Short : TradeDirection.Long;
 
+    private bool GetUseShortExperimentalProfile() =>
+        GetSelectedScannerDirection() == TradeDirection.Short && chkShortExperimental?.IsChecked == true;
+
     private void ScanDirectionChanged(object sender, RoutedEventArgs e)
     {
         if (!_isWindowLoaded)
             return;
 
+        _ = RunScannerAsync(ScanProfile.Swing);
+        _ = RunScannerAsync(ScanProfile.Intraday);
+    }
+
+    private void ShortExperimentalChanged(object sender, RoutedEventArgs e)
+    {
+        if (!_isWindowLoaded)
+            return;
+
+        // A change to the experimental profile must refresh both rankings so the
+        // visible grid and the background profile use exactly the same thresholds.
         _ = RunScannerAsync(ScanProfile.Swing);
         _ = RunScannerAsync(ScanProfile.Intraday);
     }
@@ -697,7 +713,11 @@ public partial class MainWindow : Window
         try
         {
             // Busca sempre no perfil que está sendo exibido agora.
-            var result = await _scanner.LookupSymbolAsync(input, _viewedProfile, direction: GetSelectedScannerDirection());
+            var result = await _scanner.LookupSymbolAsync(
+                input,
+                _viewedProfile,
+                direction: GetSelectedScannerDirection(),
+                shortExperimental: GetUseShortExperimentalProfile());
             if (result == null)
             {
                 MessageBox.Show(
@@ -1393,7 +1413,8 @@ public partial class MainWindow : Window
         var diag=_diagnosticsByProfile.GetValueOrDefault(profile);
         string updated=_scanCompletedAt.TryGetValue(profile,out var at)?at.ToString("dd/MM HH:mm:ss"):"aguardando";
         string side = GetSelectedScannerDirection() == TradeDirection.Short ? "Venda" : "Compra";
-        txtScanSummary.Text=$"{profile} · {side} · Analisados: {diag?.TotalAnalyzed ?? 0} · Elegíveis no universo: {diag?.PassedAll ?? 0} · Em observação: {ranking.Count(a=>a.DisplaySignal=="MONITORAR")} · Atualizado: {updated}";
+        string experiment = GetUseShortExperimentalProfile() ? " · Short experimental" : "";
+        txtScanSummary.Text=$"{profile} · {side}{experiment} · Analisados: {diag?.TotalAnalyzed ?? 0} · Elegíveis no universo: {diag?.PassedAll ?? 0} · Em observação: {ranking.Count(a=>a.DisplaySignal=="MONITORAR")} · Atualizado: {updated}";
         txtScanSummary.ToolTip="Resumo do perfil completo, antes do filtro de favoritos. A busca manual não muda o horário da última varredura.";
         var top=diag is null?default:Blockers(diag).First();
         txtDiagnostics.Text=diag is null?"Aguardando análise deste perfil.":top.Count>0
@@ -1444,6 +1465,7 @@ public partial class MainWindow : Window
     // valores já calculados em RunScannerAsync.
     private void RefreshTitle()
     {
-        Title = $"Scanner [{_lastMarketRegime}] | { (GetSelectedScannerDirection() == TradeDirection.Short ? "Venda" : "Compra") } | Exibindo: {_viewedProfile.Name}";
+        string experiment = GetUseShortExperimentalProfile() ? " | Short experimental" : "";
+        Title = $"Scanner [{_lastMarketRegime}] | { (GetSelectedScannerDirection() == TradeDirection.Short ? "Venda" : "Compra") }{experiment} | Exibindo: {_viewedProfile.Name}";
     }
 }

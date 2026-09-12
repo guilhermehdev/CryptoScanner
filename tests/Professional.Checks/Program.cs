@@ -203,6 +203,17 @@ structuralCandles[^1]=new Candle{Open=101,Close=100.6m,High=101,Low=100};
 Check(!StructuralEntryExperiment.Evaluate(structuralCandles,2,true).Pullback,"Past recovery cannot authorize bearish current candle");
 Check(!StructuralEntryExperiment.Evaluate(structuralCandles,0,true).Pullback,"Missing ATR cannot authorize experiment");
 Check(!ScannerProfiles.For(ScanProfile.Swing).StructuralEntryExperiment,"Live scanner keeps reference strategy");
+var shortExperimentalProfile = ScannerProfiles.For(ScanProfile.Swing, TradeDirection.Short, true);
+Check(shortExperimentalProfile.MaxShortOpportunityScore == 80 && shortExperimentalProfile.MaxShortAdxInBear == 30,
+    "Short experimental profile applies the calibrated score and ADX ceilings");
+Check(shortExperimentalProfile.RequireBearishMomentumConfirmed && shortExperimentalProfile.BlockShortInSideways,
+    "Short experimental profile applies momentum and sideways filters");
+Check(ScannerProfiles.For(ScanProfile.Swing, TradeDirection.Short, false).MaxShortOpportunityScore == 100 &&
+      !ScannerProfiles.For(ScanProfile.Swing, TradeDirection.Short, false).RequireBearishMomentumConfirmed,
+    "Default Short profile remains unchanged until explicitly enabled");
+Check(ScannerProfiles.For(ScanProfile.Swing, TradeDirection.Long, true).MaxShortOpportunityScore == 100 &&
+      !ScannerProfiles.For(ScanProfile.Swing, TradeDirection.Long, true).BlockShortInSideways,
+    "Short experimental profile does not alter Long thresholds");
 var isolatedCandles=Enumerable.Range(0,60).Select(i=>new Candle{OpenTime=day.AddHours(i*4),Open=101,Close=101,High=102,Low=100}).ToList();
 isolatedCandles[20]=new Candle{Open=80,Close=80,High=81,Low=70};
 isolatedCandles[^1]=new Candle{Open=102,Close=103,High=104,Low=101};

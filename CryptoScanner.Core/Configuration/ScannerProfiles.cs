@@ -72,5 +72,52 @@ public static class ScannerProfiles
         profile.Name == ScanProfile.Scalp.Name ? ScalpValidatedThresholds :
         SwingValidatedThresholds;
 
+    /// <summary>
+    /// Returns the thresholds for the requested scanner side.  The experimental
+    /// Short profile is opt-in so the existing Long and Short behaviour remain
+    /// unchanged until the operator explicitly enables it in the UI.
+    /// </summary>
+    public static EligibilityThresholds For(ScanProfile profile, TradeDirection direction, bool shortExperimental)
+    {
+        var baseThresholds = For(profile);
+        if (direction != TradeDirection.Short || !shortExperimental)
+            return baseThresholds;
+
+        return new EligibilityThresholds
+        {
+            IsolatedEntryExperiment = baseThresholds.IsolatedEntryExperiment,
+            TargetZoneExperiment = baseThresholds.TargetZoneExperiment,
+            StructuralEntryExperiment = baseThresholds.StructuralEntryExperiment,
+            MinimumTargetAtr = baseThresholds.MinimumTargetAtr,
+            EntryStrategy = baseThresholds.EntryStrategy,
+            BuyOpportunityScore = baseThresholds.BuyOpportunityScore,
+            BearRegimePenalty = baseThresholds.BearRegimePenalty,
+            SidewaysRegimePenalty = baseThresholds.SidewaysRegimePenalty,
+            MinVolumeSpike = baseThresholds.MinVolumeSpike,
+            DefensiveMinVolumeSpike = baseThresholds.DefensiveMinVolumeSpike,
+            MinResistanceDistance = baseThresholds.MinResistanceDistance,
+            EnableMultiTimeframe = baseThresholds.EnableMultiTimeframe,
+            MinResistanceDistanceAtrMode = baseThresholds.MinResistanceDistanceAtrMode,
+            MinRiskReward = baseThresholds.MinRiskReward,
+            MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
+            MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
+            MaxStopDistancePercent = baseThresholds.MaxStopDistancePercent,
+            MaxShortOpportunityScore = 80m,
+            MaxShortAdxInBear = 30m,
+            MaxRiskReward = baseThresholds.MaxRiskReward,
+            EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
+            EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
+            EnableVolatilityScoringPhaseB = baseThresholds.EnableVolatilityScoringPhaseB,
+            MinResistanceDistancePartialExits = baseThresholds.MinResistanceDistancePartialExits,
+            EnableMeanReversionScalp = baseThresholds.EnableMeanReversionScalp,
+            EnableBollingerReversal = baseThresholds.EnableBollingerReversal,
+            RequireBearishMomentumConfirmed = true,
+            BlockShortInSideways = true,
+            EnableLowRsiPath = baseThresholds.EnableLowRsiPath,
+            BlockMeanReversionInBear = baseThresholds.BlockMeanReversionInBear,
+            LimitAtrForMeanReversion = baseThresholds.LimitAtrForMeanReversion,
+        };
+    }
+
 
 }

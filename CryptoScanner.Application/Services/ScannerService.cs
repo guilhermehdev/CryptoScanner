@@ -31,7 +31,7 @@ public sealed class ScannerService
         _pressureHistory = pressureHistory;
     }
 
-    public async Task<ScannerRunResult> RunAsync(ScanProfile profile, TradeDirection direction = TradeDirection.Long, CancellationToken cancellationToken = default)
+    public async Task<ScannerRunResult> RunAsync(ScanProfile profile, TradeDirection direction = TradeDirection.Long, CancellationToken cancellationToken = default, bool shortExperimental = false)
     {
         var started = DateTime.UtcNow;
         var errors = new System.Collections.Concurrent.ConcurrentDictionary<string,string>();
@@ -61,7 +61,7 @@ public sealed class ScannerService
 
         try{await EvaluatePendingSignalsAsync(pendingSignals, profile, cancellationToken);}
         catch(Exception ex) when(!cancellationToken.IsCancellationRequested){errors["[avaliação de sinais]"]=ex.Message;}
-        var (diagnostics, newSignals) = await PersistEligibleSignalsForDirectionAsync(allAnalyzed, marketRegime, profile, cancellationToken, direction);
+        var (diagnostics, newSignals) = await PersistEligibleSignalsForDirectionWithProfileAsync(allAnalyzed, marketRegime, profile, cancellationToken, direction, shortExperimental);
         diagnostics.StartedUtc=started; diagnostics.CompletedUtc=DateTime.UtcNow; diagnostics.Requested=symbols.Count; foreach(var error in errors)diagnostics.Errors[error.Key]=error.Value;
         await _signals.SaveScanRunAsync(profile.Name,diagnostics,cancellationToken);
         var history = await _signals.GetSignalsAsync(cancellationToken);
@@ -69,7 +69,7 @@ public sealed class ScannerService
         return new ScannerRunResult
         {
             MarketRegime = marketRegime,
-            Ranking = analysesResult.Select(asset => AssetScoreFactory.Create(asset, marketRegime, favoriteSet, ScannerProfiles.For(profile))).ToList(),
+            Ranking = analysesResult.Select(asset => AssetScoreFactory.Create(asset, marketRegime, favoriteSet, ScannerProfiles.For(profile, direction, shortExperimental))).ToList(),
             History = history,
             WinRate = await _signals.GetWinRateAsync(cancellationToken),
             AverageReturn = await _signals.GetAverageReturnAsync(cancellationToken),
@@ -86,11 +86,15 @@ public sealed class ScannerService
         IReadOnlyList<AssetAnalysis> ranking, string marketRegime, ScanProfile profile, CancellationToken cancellationToken) =>
         PersistEligibleSignalsForDirectionAsync(ranking, marketRegime, profile, cancellationToken, TradeDirection.Long);
 
-    private async Task<(FilterDiagnostics Diagnostics, List<NewSignalAlert> NewSignals)> PersistEligibleSignalsForDirectionAsync(IReadOnlyList<AssetAnalysis> ranking, string marketRegime, ScanProfile profile, CancellationToken cancellationToken, TradeDirection direction)
+    private Task<(FilterDiagnostics Diagnostics, List<NewSignalAlert> NewSignals)> PersistEligibleSignalsForDirectionAsync(
+        IReadOnlyList<AssetAnalysis> ranking, string marketRegime, ScanProfile profile, CancellationToken cancellationToken, TradeDirection direction) =>
+        PersistEligibleSignalsForDirectionWithProfileAsync(ranking, marketRegime, profile, cancellationToken, direction, false);
+
+    private async Task<(FilterDiagnostics Diagnostics, List<NewSignalAlert> NewSignals)> PersistEligibleSignalsForDirectionWithProfileAsync(IReadOnlyList<AssetAnalysis> ranking, string marketRegime, ScanProfile profile, CancellationToken cancellationToken, TradeDirection direction, bool shortExperimental)
     {
         var diagnostics = new FilterDiagnostics { TotalAnalyzed = ranking.Count };
         var newSignals = new List<NewSignalAlert>();
-        var thresholds = ScannerProfiles.For(profile);
+        var thresholds = ScannerProfiles.For(profile, direction, shortExperimental);
         diagnostics.MarketRegime = marketRegime;
         diagnostics.Thresholds = thresholds;
         diagnostics.Analyses = ranking.ToList();
@@ -295,7 +299,7 @@ public sealed class ScannerService
         }
     }
 
-    public async Task<AssetScore?> LookupSymbolAsync(string symbol, ScanProfile profile, CancellationToken cancellationToken = default, TradeDirection direction = TradeDirection.Long)
+    public async Task<AssetScore?> LookupSymbolAsync(string symbol, ScanProfile profile, CancellationToken cancellationToken = default, TradeDirection direction = TradeDirection.Long, bool shortExperimental = false)
     {
         await _watchlist.InitializeAsync(cancellationToken);
 
@@ -321,7 +325,7 @@ public sealed class ScannerService
         var analysis = _assetAnalyzer.Analyze(symbol, candles, btcCandles, profile, ValidatedRiskMode, direction: direction, entryStrategy:EntryStrategy.Auto);
         await UpdateMarketFlowAsync(symbol, analysis, cancellationToken);
 
-        return AssetScoreFactory.Create(analysis, marketRegime, favoriteSet, ScannerProfiles.For(profile));
+        return AssetScoreFactory.Create(analysis, marketRegime, favoriteSet, ScannerProfiles.For(profile, direction, shortExperimental));
     }
 
     private async Task UpdateMarketFlowAsync(string symbol, AssetAnalysis analysis, CancellationToken cancellationToken)
