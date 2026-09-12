@@ -55,6 +55,7 @@ public sealed class AssetAnalyzer
         }
         var analysis = new AssetAnalysis
         {
+            Direction = direction,
             Symbol = symbol,
             EntryStrategy = entryStrategy,
             Trend = trend,

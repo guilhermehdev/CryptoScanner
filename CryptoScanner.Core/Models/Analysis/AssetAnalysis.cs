@@ -1,7 +1,10 @@
+using CryptoScanner.Core.Configuration;
+
 namespace CryptoScanner.Core.Models.Analysis;
 
 public sealed class AssetAnalysis
 {
+    public TradeDirection Direction { get; init; } = TradeDirection.Long;
     public CryptoScanner.Core.Configuration.EntryStrategy EntryStrategy { get; init; }
     public required string Symbol { get; init; }
     public required TrendAnalysis Trend { get; init; }
@@ -16,13 +19,15 @@ public sealed class AssetAnalysis
     public decimal RetailFlowScore { get; set; } = 50m;
     public BuyingPressureResult BuyingPressure { get; set; } = BuyingPressureResult.Unavailable("aguardando atualização.");
 
-    public string Signal => OpportunityScore >= 70 ? "COMPRA+" :
+    public string Signal => Direction == TradeDirection.Short
+        ? (OpportunityScore >= 70 ? "VENDA+" : OpportunityScore >= 55 ? "VENDA" : OpportunityScore >= 40 ? "MONITORAR" : "IGNORAR")
+        : OpportunityScore >= 70 ? "COMPRA+" :
                             OpportunityScore >= 55 ? "COMPRA" :
                             OpportunityScore >= 40 ? "MONITORAR" : "IGNORAR";
 
     public bool IsEliteSetup =>
         OpportunityScore >= 75 &&
-        Trend.Direction == "ALTA" &&
+        Trend.Direction == (Direction == TradeDirection.Long ? "ALTA" : "BAIXA") &&
         Risk.RiskReward >= 2.5m &&
         Candle.RejectionScore <= 0.40m;
 }

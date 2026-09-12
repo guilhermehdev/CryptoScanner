@@ -1,4 +1,5 @@
-﻿using CryptoScanner.Core.Contracts;
+using CryptoScanner.Core.Configuration;
+using CryptoScanner.Core.Contracts;
 using CryptoScanner.Core.Models;
 using Microsoft.Data.Sqlite;
 
@@ -33,7 +34,8 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
                 EntryPrice REAL NOT NULL,
                 TakeProfit REAL NOT NULL,
                 StopLoss REAL NOT NULL,
-                Closed INTEGER DEFAULT 0
+                Closed INTEGER DEFAULT 0,
+                Direction TEXT NOT NULL DEFAULT 'Long'
             );
             """;
         await using (var createCommand = new SqliteCommand(createSql, connection))
@@ -42,6 +44,7 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
         var expectedColumns = new (string Name, string Type)[]
         {
             ("BuyingPressureSnapshotId", "INTEGER REFERENCES BuyingPressureSnapshots(Id)"),
+            ("Direction", "TEXT NOT NULL DEFAULT 'Long'"),
             ("Note", "TEXT"),
             ("Profile", "TEXT"),
             ("ScoreAtEntry", "REAL"),
@@ -106,7 +109,7 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
 
         const string sql = """
             INSERT INTO SimulatedTrades
-            (Symbol, EntryTime, EntryPrice, TakeProfit, StopLoss, Note, Profile,
+            (Symbol, EntryTime, EntryPrice, TakeProfit, StopLoss, Note, Profile, Direction,
              ScoreAtEntry, Rsi, Adx, AtrPercent, EmaDistanceAtr, SwingUsageAtr,
              VolumeSpike, VolumeImbalance, RelativeStrength, RiskRewardAtEntry,
              TrendScore, StructureScore, VolumeScore, CandleScore, SetupScore,
@@ -114,7 +117,7 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
              PatternName, SmartMoneyLabel, BreakoutSource, MarketRegime, IsBullTrap, IsBearTrap,
              TakeProfit1, TakeProfit3, Tp1Hit, Tp2Hit, RemainingFraction, WeightedExitSum, Closed, BuyingPressureSnapshotId)
             VALUES
-            (@Symbol, @EntryTime, @EntryPrice, @TakeProfit, @StopLoss, @Note, @Profile,
+            (@Symbol, @EntryTime, @EntryPrice, @TakeProfit, @StopLoss, @Note, @Profile, @Direction,
              @ScoreAtEntry, @Rsi, @Adx, @AtrPercent, @EmaDistanceAtr, @SwingUsageAtr,
              @VolumeSpike, @VolumeImbalance, @RelativeStrength, @RiskRewardAtEntry,
              @TrendScore, @StructureScore, @VolumeScore, @CandleScore, @SetupScore,
@@ -137,6 +140,7 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
         command.Parameters.AddWithValue("@StopLoss", (double)trade.StopLoss);
         command.Parameters.AddWithValue("@Note", trade.Note ?? "");
         command.Parameters.AddWithValue("@Profile", trade.Profile ?? "");
+        command.Parameters.AddWithValue("@Direction", trade.Direction.ToString());
         command.Parameters.AddWithValue("@ScoreAtEntry", (double)trade.ScoreAtEntry);
         command.Parameters.AddWithValue("@Rsi", (double)trade.Rsi);
         command.Parameters.AddWithValue("@Adx", (double)trade.Adx);
@@ -256,6 +260,7 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
                 StopLoss = Convert.ToDecimal(reader.GetDouble(reader.GetOrdinal("StopLoss"))),
                 Note = GetStringOrDefault(reader, "Note"),
                 Profile = GetStringOrDefault(reader, "Profile"),
+                Direction = Enum.TryParse<TradeDirection>(GetStringOrDefault(reader, "Direction"), true, out var direction) ? direction : TradeDirection.Long,
                 ScoreAtEntry = GetDecimalOrDefault(reader, "ScoreAtEntry"),
                 Rsi = GetDecimalOrDefault(reader, "Rsi"),
                 Adx = GetDecimalOrDefault(reader, "Adx"),

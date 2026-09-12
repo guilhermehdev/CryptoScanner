@@ -173,7 +173,7 @@ public partial class MainWindow : Window
 
         try
         {
-            var result = await _scanner.RunAsync(profile);
+            var result = await _scanner.RunAsync(profile, GetSelectedScannerDirection());
 
             _lastHistory = result.History; // já é global (Signals não filtra por Profile)
             _rankingsByProfile[profile.Name] = result.Ranking;
@@ -314,6 +314,18 @@ public partial class MainWindow : Window
         RefreshTitle();
     }
 
+    private TradeDirection GetSelectedScannerDirection() =>
+        rbScanShort?.IsChecked == true ? TradeDirection.Short : TradeDirection.Long;
+
+    private void ScanDirectionChanged(object sender, RoutedEventArgs e)
+    {
+        if (!_isWindowLoaded)
+            return;
+
+        _ = RunScannerAsync(ScanProfile.Swing);
+        _ = RunScannerAsync(ScanProfile.Intraday);
+    }
+
     private void BtnBacktestHistory_Click(object sender, RoutedEventArgs e)
     {
         var window = new BacktestHistoryWindow(_runResultRepository)
@@ -414,6 +426,7 @@ public partial class MainWindow : Window
     private object BuildLlmIndicators(AssetScore asset) => new
     {
         ativo = asset.Symbol,
+        direcao = asset.Direction == TradeDirection.Short ? "VENDA" : "COMPRA",
         sinalScanner = asset.DisplaySignal,
         score = asset.Score,
         precoFechamento = asset.Close,
@@ -493,6 +506,7 @@ public partial class MainWindow : Window
     }
     private static string BuildLlmAnalysisSignature(AssetScore asset)
         => string.Join("|",
+            asset.Direction,
             asset.Close.ToString("G29", CultureInfo.InvariantCulture),
             asset.OpportunityScore.ToString("G29", CultureInfo.InvariantCulture),
             asset.DisplaySignal,
@@ -683,7 +697,7 @@ public partial class MainWindow : Window
         try
         {
             // Busca sempre no perfil que está sendo exibido agora.
-            var result = await _scanner.LookupSymbolAsync(input, _viewedProfile);
+            var result = await _scanner.LookupSymbolAsync(input, _viewedProfile, direction: GetSelectedScannerDirection());
             if (result == null)
             {
                 MessageBox.Show(
@@ -759,7 +773,7 @@ public partial class MainWindow : Window
                 {
                     decimal currentPrice = await _priceCheckService.GetCurrentPriceAsync(trade.Symbol);
                     trade.CurrentPrice = currentPrice;
-                    trade.UnrealizedPnLPercent = ((currentPrice - trade.EntryPrice) / trade.EntryPrice) * 100m;
+                    trade.UnrealizedPnLPercent = (trade.Direction == TradeDirection.Short ? trade.EntryPrice - currentPrice : currentPrice - trade.EntryPrice) / trade.EntryPrice * 100m;
                 }
                 catch
                 {
@@ -840,17 +854,61 @@ public partial class MainWindow : Window
             if (trade.TakeProfit1 == null)
             {
                 // Sem TP1 — comportamento original, fechamento único.
-                if (price <= trade.StopLoss)
+                bool stopHit = trade.Direction == TradeDirection.Short ? price >= trade.StopLoss : price <= trade.StopLoss;
+                bool targetHit = trade.Direction == TradeDirection.Short ? price <= trade.TakeProfit : price >= trade.TakeProfit;
+                if (stopHit)
                 {
                     closeReason = "SL";
                     closeExitPrice = trade.StopLoss;
-                    closeOutcome = (trade.StopLoss - trade.EntryPrice) / trade.EntryPrice * 100m;
+                    closeOutcome = (trade.Direction == TradeDirection.Short ? trade.EntryPrice - trade.StopLoss : trade.StopLoss - trade.EntryPrice) / trade.EntryPrice * 100m;
                 }
-                else if (price >= trade.TakeProfit)
+                else if (targetHit)
                 {
                     closeReason = "TP";
                     closeExitPrice = trade.TakeProfit;
-                    closeOutcome = (trade.TakeProfit - trade.EntryPrice) / trade.EntryPrice * 100m;
+                    closeOutcome = (trade.Direction == TradeDirection.Short ? trade.EntryPrice - trade.TakeProfit : trade.TakeProfit - trade.EntryPrice) / trade.EntryPrice * 100m;
+                }
+                return;
+            }
+
+            if (trade.Direction == TradeDirection.Short)
+            {
+                if (price >= trade.StopLoss)
+                {
+                    decimal legReturn = (trade.EntryPrice - trade.StopLoss) / trade.EntryPrice * 100m;
+                    closeOutcome = trade.WeightedExitSum + trade.RemainingFraction * legReturn;
+                    closeReason = trade.Tp1Hit ? (trade.Tp2Hit ? "TP1TP2SL" : "TP1SL") : "SL";
+                    closeExitPrice = trade.StopLoss;
+                    return;
+                }
+
+                if (!trade.Tp1Hit && price <= trade.TakeProfit1.Value)
+                {
+                    const decimal tp1Fraction = 0.40m;
+                    decimal legReturn = (trade.EntryPrice - trade.TakeProfit1.Value) / trade.EntryPrice * 100m;
+                    trade.WeightedExitSum += tp1Fraction * legReturn;
+                    trade.RemainingFraction -= tp1Fraction;
+                    trade.Tp1Hit = true;
+                    partialHit = true;
+                }
+
+                if (trade.Tp1Hit && !trade.Tp2Hit && price <= trade.TakeProfit)
+                {
+                    const decimal tp2Fraction = 0.40m;
+                    decimal legReturn = (trade.EntryPrice - trade.TakeProfit) / trade.EntryPrice * 100m;
+                    trade.WeightedExitSum += tp2Fraction * legReturn;
+                    trade.RemainingFraction -= tp2Fraction;
+                    trade.Tp2Hit = true;
+                    trade.StopLoss = Math.Min(trade.StopLoss, trade.EntryPrice);
+                    partialHit = true;
+                }
+
+                if (trade.Tp2Hit && trade.TakeProfit3.HasValue && price <= trade.TakeProfit3.Value)
+                {
+                    decimal legReturn = (trade.EntryPrice - trade.TakeProfit3.Value) / trade.EntryPrice * 100m;
+                    closeOutcome = trade.WeightedExitSum + trade.RemainingFraction * legReturn;
+                    closeReason = "TP1TP2TP3";
+                    closeExitPrice = trade.TakeProfit3.Value;
                 }
                 return;
             }
@@ -963,7 +1021,7 @@ public partial class MainWindow : Window
                          t.IsOpen && string.Equals(t.Symbol, symbol, StringComparison.OrdinalIgnoreCase)))
             {
                 trade.CurrentPrice = price;
-                trade.UnrealizedPnLPercent = ((price - trade.EntryPrice) / trade.EntryPrice) * 100m;
+                trade.UnrealizedPnLPercent = (trade.Direction == TradeDirection.Short ? trade.EntryPrice - price : price - trade.EntryPrice) / trade.EntryPrice * 100m;
                 matchingTrades.Add(trade);
             }
         });
@@ -1080,12 +1138,12 @@ public partial class MainWindow : Window
             decimal outcomePercent;
             if (trade.TakeProfit1 != null && (trade.Tp1Hit || trade.Tp2Hit))
             {
-                decimal legReturn = (currentPrice - trade.EntryPrice) / trade.EntryPrice * 100m;
+                decimal legReturn = (trade.Direction == TradeDirection.Short ? trade.EntryPrice - currentPrice : currentPrice - trade.EntryPrice) / trade.EntryPrice * 100m;
                 outcomePercent = trade.WeightedExitSum + trade.RemainingFraction * legReturn;
             }
             else
             {
-                outcomePercent = (currentPrice - trade.EntryPrice) / trade.EntryPrice * 100m;
+                outcomePercent = (trade.Direction == TradeDirection.Short ? trade.EntryPrice - currentPrice : currentPrice - trade.EntryPrice) / trade.EntryPrice * 100m;
             }
 
             await _simulatedTradeRepository.CloseTradeAsync(trade.Id, currentPrice, outcomePercent, "Manual");
@@ -1248,7 +1306,7 @@ public partial class MainWindow : Window
 
     private static void CopyAssetQualityToClipboard(AssetScore asset)
     {
-        string text = $"{asset.Symbol} | Preço: {asset.CloseFormatted} | Score: {asset.Score:F2} | " +
+        string text = $"{asset.Symbol} | Lado: {(asset.Direction == TradeDirection.Short ? "VENDA" : "COMPRA")} | Preço: {asset.CloseFormatted} | Score: {asset.Score:F2} | " +
                       $"Elegível: {(asset.IsEligible ? "Sim" : "Não")} | Sinal: {asset.DisplaySignal} | Elite: {(asset.IsEliteSetup ? "Sim" : "Não")} | " +
                       $"Var: {asset.VariationText} | Trend: {asset.TrendDirection} | RR: {asset.RiskReward:F2} | " +
                       $"Res %: {asset.ResistanceDistance:F1} | Sup %: {asset.SupportDistance:F1} | Vol Spike: {asset.VolumeSpike:F2} | " +
@@ -1334,7 +1392,8 @@ public partial class MainWindow : Window
         var ranking=_rankingsByProfile.GetValueOrDefault(profile,Array.Empty<AssetScore>());
         var diag=_diagnosticsByProfile.GetValueOrDefault(profile);
         string updated=_scanCompletedAt.TryGetValue(profile,out var at)?at.ToString("dd/MM HH:mm:ss"):"aguardando";
-        txtScanSummary.Text=$"{profile} · Analisados: {diag?.TotalAnalyzed ?? 0} · Elegíveis no universo: {diag?.PassedAll ?? 0} · Em observação: {ranking.Count(a=>a.DisplaySignal=="MONITORAR")} · Atualizado: {updated}";
+        string side = GetSelectedScannerDirection() == TradeDirection.Short ? "Venda" : "Compra";
+        txtScanSummary.Text=$"{profile} · {side} · Analisados: {diag?.TotalAnalyzed ?? 0} · Elegíveis no universo: {diag?.PassedAll ?? 0} · Em observação: {ranking.Count(a=>a.DisplaySignal=="MONITORAR")} · Atualizado: {updated}";
         txtScanSummary.ToolTip="Resumo do perfil completo, antes do filtro de favoritos. A busca manual não muda o horário da última varredura.";
         var top=diag is null?default:Blockers(diag).First();
         txtDiagnostics.Text=diag is null?"Aguardando análise deste perfil.":top.Count>0
@@ -1385,6 +1444,6 @@ public partial class MainWindow : Window
     // valores já calculados em RunScannerAsync.
     private void RefreshTitle()
     {
-        Title = $"Scanner [{_lastMarketRegime}] | Exibindo: {_viewedProfile.Name}";
+        Title = $"Scanner [{_lastMarketRegime}] | { (GetSelectedScannerDirection() == TradeDirection.Short ? "Venda" : "Compra") } | Exibindo: {_viewedProfile.Name}";
     }
 }

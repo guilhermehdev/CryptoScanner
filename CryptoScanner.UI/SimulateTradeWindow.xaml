@@ -5,7 +5,10 @@
         WindowStartupLocation="CenterOwner">
 
     <StackPanel Margin="15">
-        <TextBlock x:Name="txtSymbolHeader" FontWeight="Bold" FontSize="16" Margin="0,0,0,10"/>
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+            <TextBlock x:Name="txtSymbolHeader" FontWeight="Bold" FontSize="16"/>
+            <TextBlock x:Name="txtDirectionHeader" Margin="12,0,0,0" FontWeight="SemiBold" VerticalAlignment="Center"/>
+        </StackPanel>
 
         <TextBlock Text="Preço de Entrada (atualizado ao salvar):" FontSize="11" Foreground="Gray"/>
         <TextBox x:Name="txtEntryPrice" IsReadOnly="True" Margin="0,2,0,10"/>

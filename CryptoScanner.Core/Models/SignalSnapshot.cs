@@ -1,7 +1,10 @@
+using CryptoScanner.Core.Configuration;
+
 namespace CryptoScanner.Core.Models;
 
 public sealed class SignalSnapshot
 {
+    public TradeDirection Direction { get; init; } = TradeDirection.Long;
     public string ExecutionJson { get; init; } = "";
     public required string Symbol { get; init; }
     public required decimal Price { get; init; }

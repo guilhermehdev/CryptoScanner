@@ -424,16 +424,20 @@ public sealed class StrategyBacktester
             if(i+1>=candles.Count)continue;
             decimal entryPrice=candles[i+1].Open;
             if(entryPrice<=analysis.Risk.Support || entryPrice>=analysis.Risk.Resistance || entryPrice<=0){diagnostics.EntryRejected++;continue;}
-            if(direction==TradeDirection.Long && analysis.Risk.TakeProfit1 is decimal firstTarget && entryPrice>=firstTarget){diagnostics.EntryRejected++;continue;}
-            var entryRisk = EntryRiskMetrics.Calculate(entryPrice * (1 + LabParameters.Slippage), analysis.Risk.Support, analysis.Risk.Resistance);
-            if(direction == TradeDirection.Long)
-            {
-                decimal fill = entryPrice * (1 + LabParameters.Slippage);
-                if(fill >= analysis.Risk.Resistance || (analysis.Risk.TakeProfit1 is decimal tp1 && fill >= tp1))
-                { diagnostics.EntryRejected++; continue; }
-                if(entryRisk.RiskReward < (thresholds ?? EligibilityThresholds.Default).MinRiskReward)
-                { diagnostics.EntryRejected++; continue; }
-            }
+            decimal fill = direction == TradeDirection.Long
+                ? entryPrice * (1 + LabParameters.Slippage)
+                : entryPrice * (1 - LabParameters.Slippage);
+            if (direction == TradeDirection.Long && (fill >= analysis.Risk.Resistance || (analysis.Risk.TakeProfit1 is decimal longTp1 && fill >= longTp1)))
+            { diagnostics.EntryRejected++; continue; }
+            if (direction == TradeDirection.Short && (fill <= analysis.Risk.Support || (analysis.Risk.TakeProfit1 is decimal shortTp1 && fill <= shortTp1)))
+            { diagnostics.EntryRejected++; continue; }
+            var entryRisk = EntryRiskMetrics.CalculateDirectional(
+                fill,
+                direction == TradeDirection.Long ? analysis.Risk.Support : analysis.Risk.Resistance,
+                direction == TradeDirection.Long ? analysis.Risk.Resistance : analysis.Risk.Support,
+                direction);
+            if(entryRisk.RiskReward < (thresholds ?? EligibilityThresholds.Default).MinRiskReward)
+            { diagnostics.EntryRejected++; continue; }
             lastSignalTimeByKey[key] = decisionTime;
             diagnostics.PassedAll++;
 

@@ -1,7 +1,10 @@
-﻿namespace CryptoScanner.Core.Models;
+using CryptoScanner.Core.Configuration;
+
+namespace CryptoScanner.Core.Models;
 
 public sealed class SimulatedTrade : ObservableModel
 {
+    public TradeDirection Direction { get; set; } = TradeDirection.Long;
     public int Id { get; set; }
     public string Symbol { get; set; } = "";
     public DateTime EntryTime { get; set; }

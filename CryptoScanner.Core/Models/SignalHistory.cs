@@ -1,3 +1,4 @@
+using CryptoScanner.Core.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -7,6 +8,7 @@ namespace CryptoScanner.Core.Models
 
     public class SignalHistory
     {
+        public TradeDirection Direction { get; set; } = TradeDirection.Long;
         public string ExecutionJson { get; init; } = "";
         public int Id { get; set; }
         public DateTime Timestamp { get; set; }

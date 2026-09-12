@@ -13,6 +13,13 @@ void Check(bool value,string name){if(!value)throw new Exception(name);count++;}
 AssetAnalysis Asset(string symbol,decimal volume=2)=>new(){Symbol=symbol,EntryStrategy=EntryStrategy.Breakout,OpportunityScore=85,
  Trend=new(){Close=100,Direction="ALTA"},Volume=new(){Spike=volume},Structure=new(),Candle=new(),Setup=new(){IsBreakout=true,IsConsolidating=true},
  Risk=new(){Mode=RiskCalculationMode.SwingWithPartialExits,Support=95,Resistance=120,TakeProfit1=112,TakeProfit3=130,SupportDistancePercent=5,ResistanceDistancePercent=20,RiskReward=4}};
+var shortFixture = new AssetAnalysis
+{
+    Direction = TradeDirection.Short, Symbol = "SHORTSCAN", OpportunityScore = 90,
+    Trend = new() { Close = 100, Direction = "BAIXA" }, Volume = new() { Spike = 2 },
+    Structure = new(), Candle = new(), Setup = new() { IsBreakout = true, IsConsolidating = true },
+    Risk = new() { Mode = RiskCalculationMode.SwingWithPartialExits, Support = 79, Resistance = 110, SupportDistancePercent = 21, ResistanceDistancePercent = 10, RiskReward = 2.1m }
+};
 var path=Path.Combine(AppContext.BaseDirectory,Guid.NewGuid()+".db");
 try
 {
@@ -48,6 +55,10 @@ try
  await using(var db=new SqliteConnection($"Data Source={path}")){await db.OpenAsync();await using var cmd=db.CreateCommand();cmd.CommandText="SELECT DiagnosticsJson FROM ScanRuns";var saved=JsonSerializer.Deserialize<FilterDiagnostics>((string)(await cmd.ExecuteScalarAsync())!)!;Check(saved.Errors.ContainsKey("BAD")&&saved.OnlyBlockedBy.Count==1,"Full funnel and errors persisted");}
  var concurrent=await Task.WhenAll(Enumerable.Range(0,4).Select(_=>Persist(new(){Asset("ATOMIC")},ScanProfile.Swing)));
  Check(concurrent.Sum(r=>r.Signals.Count)==1,"Concurrent insertion atomic");
+ var shortMethod = typeof(ScannerService).GetMethod("PersistEligibleSignalsForDirectionAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+ var shortPersist = await (Task<(FilterDiagnostics, List<NewSignalAlert>)>)shortMethod.Invoke(scanner, new object[] { new List<AssetAnalysis> { shortFixture }, "BEAR", ScanProfile.Swing, CancellationToken.None, TradeDirection.Short })!;
+ Check(shortPersist.Item2.Count == 1 && shortPersist.Item2[0].Signal.StartsWith("VENDA"), "Scanner persists a Short signal with the correct side");
+ Check((await repo.GetSignalsAsync()).Any(s => s.Symbol == "SHORTSCAN" && s.Direction == TradeDirection.Short), "Signal history preserves Short direction");
 }
 finally{SqliteConnection.ClearAllPools();File.Delete(path);}
 Check(ExecutionCosts.NetReturn(0)<0,"Flat trade loses execution costs");
@@ -74,6 +85,13 @@ var fixture=Asset("PARITY");
 var live=EligibilityEvaluator.Evaluate(fixture,"BULL",ScannerProfiles.For(ScanProfile.Swing));
 var historical=EligibilityEvaluator.Evaluate(fixture,"BULL",ScannerProfiles.For(ScanProfile.Swing));
 Check(live.IsEligible&&historical.IsEligible,"Shared scanner preset accepts controlled strategy fixture");
+var shortEligibility = EligibilityEvaluator.Evaluate(shortFixture, "BEAR", ScannerProfiles.For(ScanProfile.Swing), TradeDirection.Short);
+Check(shortEligibility.IsEligible,"Short uses bearish trend and target/stop distances");
+var shortAsset = new AssetScore { Symbol = "SHORT", Score = 90, BuyingPressureScore = 100, Support = 80, Resistance = 110 };
+var shortTrade = LabSimulation.TryOpen(new("SHORT", "Swing", 1800000, 1800000, 100, 24, shortAsset, ""), new(0, "", "", 0, 1), 10000, 0, false, TradeDirection.Short).Trade!;
+Check(shortTrade.Direction == TradeDirection.Short && shortTrade.Stop > shortTrade.EntryFill && shortTrade.Tp2 < shortTrade.EntryFill,"Short execution inverts stop and target");
+LabSimulation.Tick(shortTrade, 80, 1800000 + 30000);
+Check(shortTrade.Closed && shortTrade.NetProfit > 0,"Short target closes with positive return");
 var score=CryptoScanner.Strategies.OpportunityScoreCalculator.Calculate(fixture);fixture.RetailFlowScore=100;
 Check(CryptoScanner.Strategies.OpportunityScoreCalculator.Calculate(fixture)==score,"New strategy score does not depend on unavailable historical futures flow");
 var portfolioTrades=Enumerable.Range(0,6).Select(i=>new BacktestTradeResult{Symbol="P"+i,EntryTime=day,ExitTime=day.AddHours(1),EntryPrice=100,ExitPrice=110,OutcomePercent=10,ExitReason="TP",Signal="COMPRA",Score=80-i,ResistanceDistancePercent=10,SupportDistancePercent=5,RiskRewardAtEntry=2}).ToList();

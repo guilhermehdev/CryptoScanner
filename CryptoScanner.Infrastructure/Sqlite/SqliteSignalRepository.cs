@@ -1,3 +1,4 @@
+using CryptoScanner.Core.Configuration;
 using CryptoScanner.Core.Contracts;
 using CryptoScanner.Core.Models;
 using Microsoft.Data.Sqlite;
@@ -58,7 +59,8 @@ public sealed class SqliteSignalRepository : ISignalRepository
                 SmartMoneyLabel TEXT,
                 BreakoutSource TEXT,
                 IsBullTrap INTEGER DEFAULT 0,
-                IsBearTrap INTEGER DEFAULT 0
+                IsBearTrap INTEGER DEFAULT 0,
+                Direction TEXT NOT NULL DEFAULT 'Long'
             );
             CREATE INDEX IF NOT EXISTS IX_Signals_Evaluated_Timestamp ON Signals (Evaluated, Timestamp);
             CREATE INDEX IF NOT EXISTS IX_Signals_Symbol_Timestamp ON Signals (Symbol, Timestamp);
@@ -75,7 +77,7 @@ public sealed class SqliteSignalRepository : ISignalRepository
             "TrendScore INTEGER", "StructureScore INTEGER", "VolumeScore INTEGER", "CandleScore INTEGER",
             "SetupScore INTEGER", "MomentumScore INTEGER", "VolatilityScore INTEGER", "TrendStrengthScore INTEGER",
             "PatternName TEXT", "SmartMoneyLabel TEXT", "BreakoutSource TEXT",
-            "IsBullTrap INTEGER DEFAULT 0", "IsBearTrap INTEGER DEFAULT 0"
+            "IsBullTrap INTEGER DEFAULT 0", "IsBearTrap INTEGER DEFAULT 0", "Direction TEXT NOT NULL DEFAULT 'Long'"
         };
 
         foreach (var column in newColumns)
@@ -102,14 +104,14 @@ public sealed class SqliteSignalRepository : ISignalRepository
              TakeProfit, StopLoss, ExitReason, Profile, MarketRegime,
              Rsi, Adx, AtrPercent, EmaDistanceAtr, SwingUsageAtr, VolumeSpike, VolumeImbalance, RelativeStrength, RiskReward,
              TrendScore, StructureScore, VolumeScore, CandleScore, SetupScore, MomentumScore, VolatilityScore, TrendStrengthScore,
-             PatternName, SmartMoneyLabel, BreakoutSource, IsBullTrap, IsBearTrap)
+             PatternName, SmartMoneyLabel, BreakoutSource, IsBullTrap, IsBearTrap, Direction)
             SELECT
             @ExecutionJson, @Timestamp, @Symbol, @Price, @Score, @Signal, NULL, NULL, @PreviousScore, 0,
              @TakeProfit, @StopLoss, NULL, @Profile, @MarketRegime,
              @Rsi, @Adx, @AtrPercent, @EmaDistanceAtr, @SwingUsageAtr, @VolumeSpike, @VolumeImbalance, @RelativeStrength, @RiskReward,
              @TrendScore, @StructureScore, @VolumeScore, @CandleScore, @SetupScore, @MomentumScore, @VolatilityScore, @TrendStrengthScore,
-             @PatternName, @SmartMoneyLabel, @BreakoutSource, @IsBullTrap, @IsBearTrap
-            WHERE NOT EXISTS (SELECT 1 FROM Signals WHERE Symbol=@Symbol AND Profile=@Profile AND BreakoutSource=@BreakoutSource AND Timestamp>=@WindowStart)
+             @PatternName, @SmartMoneyLabel, @BreakoutSource, @IsBullTrap, @IsBearTrap, @Direction
+            WHERE NOT EXISTS (SELECT 1 FROM Signals WHERE Symbol=@Symbol AND Profile=@Profile AND BreakoutSource=@BreakoutSource AND Direction=@Direction AND Timestamp>=@WindowStart)
             """, cancellationToken,
             ("@ExecutionJson",snapshot.ExecutionJson),
             ("@WindowStart", DateTime.UtcNow.AddDays(-windowDays).ToString("O")),
@@ -144,7 +146,8 @@ public sealed class SqliteSignalRepository : ISignalRepository
             ("@SmartMoneyLabel", snapshot.SmartMoneyLabel),
             ("@BreakoutSource", snapshot.BreakoutSource),
             ("@IsBullTrap", snapshot.IsBullTrap ? 1 : 0),
-            ("@IsBearTrap", snapshot.IsBearTrap ? 1 : 0)) > 0;
+            ("@IsBearTrap", snapshot.IsBearTrap ? 1 : 0),
+            ("@Direction", snapshot.Direction.ToString())) > 0;
     }
 
     public async Task<bool> SignalExistsWithinWindowAsync(string symbol, string signal, string profile, int windowDays, CancellationToken cancellationToken = default)
@@ -165,7 +168,7 @@ public sealed class SqliteSignalRepository : ISignalRepository
         TakeProfit, StopLoss, ExitReason, Profile, MarketRegime,
         Rsi, Adx, AtrPercent, EmaDistanceAtr, SwingUsageAtr, VolumeSpike, VolumeImbalance, RelativeStrength, RiskReward,
         TrendScore, StructureScore, VolumeScore, CandleScore, SetupScore, MomentumScore, VolatilityScore, TrendStrengthScore,
-        PatternName, SmartMoneyLabel, BreakoutSource, IsBullTrap, IsBearTrap, ExecutionJson
+        PatternName, SmartMoneyLabel, BreakoutSource, IsBullTrap, IsBearTrap, Direction, ExecutionJson
         """;
 
     public Task<IReadOnlyList<SignalHistory>> GetSignalsAsync(CancellationToken cancellationToken = default) =>
@@ -247,7 +250,8 @@ public sealed class SqliteSignalRepository : ISignalRepository
                 SmartMoneyLabel = reader.IsDBNull(33) ? "" : reader.GetString(33),
                 BreakoutSource = reader.IsDBNull(34) ? "" : reader.GetString(34),
                 IsBullTrap = !reader.IsDBNull(35) && reader.GetInt32(35) == 1,
-                IsBearTrap = !reader.IsDBNull(36) && reader.GetInt32(36) == 1
+                IsBearTrap = !reader.IsDBNull(36) && reader.GetInt32(36) == 1,
+                Direction = reader.IsDBNull(37) ? TradeDirection.Long : Enum.TryParse<TradeDirection>(reader.GetString(37), true, out var direction) ? direction : TradeDirection.Long
             });
         }
         return signals;

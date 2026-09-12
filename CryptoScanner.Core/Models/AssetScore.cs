@@ -1,7 +1,10 @@
+using CryptoScanner.Core.Configuration;
+
 namespace CryptoScanner.Core.Models;
 
 public sealed class AssetScore : ObservableModel
 {
+    public TradeDirection Direction { get; init; } = TradeDirection.Long;
     public string Symbol { get; init; } = "";
 
     private decimal _close;
@@ -69,7 +72,9 @@ public sealed class AssetScore : ObservableModel
     public bool IsEligible { get; init; }
     public bool IsFavorite { get; set; }
     public string CloseFormatted => Close >= 1 ? Close.ToString("N2") : Close.ToString("N8");
-    public string Signal => OpportunityScore >= 70 ? "COMPRA+" :
+    public string Signal => Direction == TradeDirection.Short
+        ? (OpportunityScore >= 70 ? "VENDA+" : OpportunityScore >= 55 ? "VENDA" : OpportunityScore >= 40 ? "MONITORAR" : "IGNORAR")
+        : OpportunityScore >= 70 ? "COMPRA+" :
                         OpportunityScore >= 55 ? "COMPRA" :
                         OpportunityScore >= 40 ? "MONITORAR" : "IGNORAR";
     public string EliteText => IsEliteSetup ? "⭐" : "";
@@ -108,12 +113,10 @@ public sealed class AssetScore : ObservableModel
     {
         get
         {
-            if (IsBullTrap)
-                return "🚫 Bull Trap — Não opere\n\n" +
-                       "O Smart Money detectou uma armadilha de alta: o preço rompeu uma resistência, atraiu " +
-                       "compradores, e reverteu logo em seguida — padrão clássico de \"puxada\" pra vender em cima " +
-                       "de quem entrou atrasado. É o único sinal que a estratégia trata como desqualificante por " +
-                       "si só, mesmo que o resto dos números pareça bom.";
+            if (Direction == TradeDirection.Short ? IsBearTrap : IsBullTrap)
+                return Direction == TradeDirection.Short
+                    ? "🚫 Bear Trap — Não opere\n\nO Smart Money detectou uma armadilha de baixa: o preço rompeu um suporte, atraiu vendedores e reverteu para cima."
+                    : "🚫 Bull Trap — Não opere\n\nO Smart Money detectou uma armadilha de alta: o preço rompeu uma resistência, atraiu compradores e reverteu logo em seguida.";
 
             if (!IsEligible)
                 return string.IsNullOrEmpty(EligibilityDetails) ? BuildIneligibilityReasons() : EligibilityDetails;
@@ -191,7 +194,7 @@ public sealed class AssetScore : ObservableModel
             reasons.Add($"Score efetivo abaixo do mínimo ({opportunity:F1} < 60{(defensiveMode ? ", já descontada a penalidade de regime" : "")}).");
 
         bool passesBreakoutPath = defensiveMode
-            ? (IsBreakout || IsShortTermBreakout || RelativeStrength >= 0m)
+            ? (IsBreakout || IsShortTermBreakout || (Direction == TradeDirection.Short ? RelativeStrength <= 0m : RelativeStrength >= 0m))
             : IsBreakout;
         if (!passesBreakoutPath)
         {
@@ -208,10 +211,11 @@ public sealed class AssetScore : ObservableModel
             reasons.Add($"Volume Spike abaixo do piso ({VolumeSpike:F2} < {volumeFloor:F2}).");
 
         if (ResistanceDistance < 4m)
-            reasons.Add($"Resistência próxima demais ({ResistanceDistance:F1}% < 4% mínimo).");
+            reasons.Add($"Alvo próximo demais ({ResistanceDistance:F1}% < 4% mínimo).");
 
-        if (TrendDirection != "ALTA")
-            reasons.Add($"Tendência não está em ALTA (atual: {TrendDirection}).");
+        string expectedTrend = Direction == TradeDirection.Short ? "BAIXA" : "ALTA";
+        if (TrendDirection != expectedTrend)
+            reasons.Add($"Tendência não está em {expectedTrend} (atual: {TrendDirection}).");
 
         if (RiskReward < 1.5m)
             reasons.Add($"Risk/Reward abaixo do mínimo ({RiskReward:F2} < 1,5).");

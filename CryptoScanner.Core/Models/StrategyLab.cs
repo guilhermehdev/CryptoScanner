@@ -1,3 +1,5 @@
+using CryptoScanner.Core.Configuration;
+
 namespace CryptoScanner.Core.Models;
 
 public sealed record LabParameters(
@@ -39,6 +41,7 @@ public sealed class LabTrade
     public int VariantId { get; set; }
     public string Symbol { get; set; }="";
     public string Profile { get; set; }="";
+    public TradeDirection Direction { get; set; } = TradeDirection.Long;
     public long EntryMs { get; set; }
     public long DeadlineMs { get; set; }
     public decimal EntryFill { get; set; }
@@ -69,34 +72,46 @@ public sealed class LabTrade
 
 public static class LabSimulation
 {
-    public static (LabTrade? Trade,string Reason) TryOpen(LabOpportunity o,LabParameters p,decimal cash,int positions,bool symbolOpen)
+    public static (LabTrade? Trade,string Reason) TryOpen(LabOpportunity o,LabParameters p,decimal cash,int positions,bool symbolOpen,TradeDirection direction=TradeDirection.Long)
     {
         long decision=Math.Max(o.QuoteTimeMs,o.DecisionTimeMs);
         if (o.Quote is not >0 || o.QuoteTimeMs<o.GridTimeMs || o.QuoteTimeMs-o.GridTimeMs>60000 || decision-o.QuoteTimeMs>30000) return(null,"Cotação indisponível ou atrasada");
         if (p.RequireBreakout && !o.Asset.IsBreakout && !o.Asset.IsShortTermBreakout) return(null,"Sem rompimento");
         if (p.RequireConsolidation && !o.Asset.IsConsolidating) return(null,"Sem consolidação");
-        if (p.RequireTrendUp && o.Asset.TrendDirection!="ALTA") return(null,"Tendência incompatível");
+        if (p.RequireTrendUp && o.Asset.TrendDirection != (direction == TradeDirection.Short ? "BAIXA" : "ALTA")) return(null,"Tendência incompatível");
         if (o.Asset.Score<p.MinimumScore) return(null,$"Score abaixo de {p.MinimumScore:F0}");
         if (o.Asset.BuyingPressureScore is null) return(null,"Pressão indisponível");
-        if (o.Asset.BuyingPressureScore<p.MinimumPressure) return(null,"Pressão abaixo do limite");
+        decimal directionalPressure = direction == TradeDirection.Short ? 100m - o.Asset.BuyingPressureScore.Value : o.Asset.BuyingPressureScore.Value;
+        if (directionalPressure<p.MinimumPressure) return(null,"Pressão abaixo do limite");
         if (o.Asset.VolumeSpike<p.MinimumVolumeSpike) return(null,$"Volume abaixo de {p.MinimumVolumeSpike:F2}×");
         if (o.Asset.ResistanceDistance<p.MinimumResistanceDistance) return(null,$"Alvo abaixo de {p.MinimumResistanceDistance:F1}%");
         if (o.Asset.RiskReward<p.MinimumRiskReward) return(null,$"R/R abaixo de {p.MinimumRiskReward:F2}");
         if (symbolOpen) return(null,"Já existe posição neste ativo");
         if (positions>=LabParameters.MaxPositions) return(null,"Limite de posições");
         if (cash<LabParameters.Ticket) return(null,"Capital indisponível");
-        decimal quote=o.Quote.Value,entry=quote*(1+LabParameters.Slippage);
-        if (o.Asset.Support<=0 || o.Asset.Support>=quote || o.Asset.Resistance<=entry) return(null,"Stop ou alvo inválido");
-        decimal stop=quote-(quote-o.Asset.Support)*p.StopScale;
-        if (stop<=0 || stop>=quote) return(null,"Stop da variante inválido");
-        if ((quote-stop)/quote*100m>p.MaximumStopDistance) return(null,$"Stop acima de {p.MaximumStopDistance:F0}%");
-        if (o.Asset.TakeProfit1.HasValue && (o.Asset.TakeProfit1<=entry || o.Asset.TakeProfit1>=o.Asset.Resistance ||
+        decimal quote=o.Quote.Value;
+        decimal entry=direction==TradeDirection.Long
+            ? quote*(1+LabParameters.Slippage)
+            : quote*(1-LabParameters.Slippage);
+        if (o.Asset.Support<=0 || o.Asset.Support>=entry || o.Asset.Resistance<=entry) return(null,"Stop ou alvo inválido");
+        decimal stop=direction==TradeDirection.Long
+            ? quote-(quote-o.Asset.Support)*p.StopScale
+            : quote+(o.Asset.Resistance-quote)*p.StopScale;
+        decimal target=direction==TradeDirection.Long ? o.Asset.Resistance : o.Asset.Support;
+        if ((direction == TradeDirection.Long && stop >= entry) || (direction == TradeDirection.Short && stop <= entry)) return(null,"Stop da variante inválido");
+        if ((direction==TradeDirection.Long ? (quote-stop) : (stop-quote))/quote*100m>p.MaximumStopDistance) return(null,$"Stop acima de {p.MaximumStopDistance:F0}%");
+        if (direction==TradeDirection.Long && o.Asset.TakeProfit1.HasValue && (o.Asset.TakeProfit1<=entry || o.Asset.TakeProfit1>=o.Asset.Resistance ||
             !o.Asset.TakeProfit3.HasValue || o.Asset.TakeProfit3<=o.Asset.Resistance)) return(null,"Alvos parciais inválidos");
+        if (direction==TradeDirection.Long && target<=entry) return(null,"Alvo inválido");
+        if (direction==TradeDirection.Short && target>=entry) return(null,"Alvo inválido");
+        decimal targetDistance=direction==TradeDirection.Long ? target-entry : entry-target;
+        decimal stopDistance=direction==TradeDirection.Long ? entry-stop : stop-entry;
+        if (targetDistance<=0 || stopDistance<=0 || targetDistance/stopDistance<p.MinimumRiskReward) return(null,$"R/R abaixo de {p.MinimumRiskReward:F2}");
         if (o.HoldingHours<=0) return(null,"Prazo inválido");
         return(new LabTrade { VariantId=p.Id,Symbol=o.Symbol,Profile=o.Profile,EntryMs=decision,
             DeadlineMs=decision+o.HoldingHours*3600000L,EntryFill=entry,
-            Quantity=LabParameters.Ticket/(entry*(1+LabParameters.Fee)),Stop=stop,Tp1=o.Asset.TakeProfit1,
-            Tp2=o.Asset.Resistance,Tp3=o.Asset.TakeProfit3,LastPrice=quote,LastQuoteMs=decision },"Entrada aceita");
+            Quantity=LabParameters.Ticket/(entry*(1+LabParameters.Fee)),Stop=stop,Tp1=direction==TradeDirection.Long?o.Asset.TakeProfit1:null,
+            Tp2=target,Tp3=direction==TradeDirection.Long?o.Asset.TakeProfit3:null,Direction=direction,LastPrice=quote,LastQuoteMs=decision },"Entrada aceita");
     }
 
     public static IReadOnlyList<LabExit> Tick(LabTrade t,decimal price,long at)
@@ -107,21 +122,33 @@ public static class LabSimulation
         t.LastQuoteMs=at;t.LastPrice=price;
         void Exit(decimal fraction,decimal raw,string reason)
         {
-            decimal fill=raw*(1-t.SlippageRate);
-            decimal proceeds=t.Quantity*fraction*fill*(1-t.FeeRate);
+            decimal fill=t.Direction == TradeDirection.Short
+                ? raw*(1+t.SlippageRate)
+                : raw*(1-t.SlippageRate);
+            decimal proceeds = t.Direction == TradeDirection.Short
+                ? t.Cost * fraction + t.Quantity * fraction * (t.EntryFill - fill) - t.Quantity * fraction * (t.EntryFill + fill) * t.FeeRate
+                : t.Quantity * fraction * fill * (1-t.FeeRate);
             t.Remaining-=fraction;t.Proceeds+=proceeds;
             exits.Add(new(at,reason,fill,fraction,proceeds));
             if(t.Remaining==0){t.Closed=true;t.ExitReason=reason;}
         }
         // A stop crossing fills at the observed quote, never at a better, unseen stop price.
-        if(price<=t.Stop){Exit(t.Remaining,price,"SL");return exits;}
-        if(t.Tp1 is null)
-        { if(price>=t.Tp2) Exit(t.Remaining,t.Tp2,"TP"); }
-        else
+        if(t.Direction==TradeDirection.Long)
         {
+            if(price<=t.Stop){Exit(t.Remaining,price,"SL");return exits;}
+            if(t.Tp1 is null)
+            { if(price>=t.Tp2) Exit(t.Remaining,t.Tp2,"TP"); }
+            else
+            {
             if(!t.Tp1Hit && price>=t.Tp1.Value){Exit(.4m,t.Tp1.Value,"TP1");t.Tp1Hit=true;}
             if(t.Tp1Hit && !t.Tp2Hit && price>=t.Tp2){Exit(.4m,t.Tp2,"TP2");t.Tp2Hit=true;t.Stop=Math.Max(t.Stop,t.EntryFill);}
             if(t.Tp2Hit && t.Tp3.HasValue && price>=t.Tp3.Value) Exit(t.Remaining,t.Tp3.Value,"TP3");
+            }
+        }
+        else
+        {
+            if(price>=t.Stop){Exit(t.Remaining,price,"SL");return exits;}
+            if(price<=t.Tp2) Exit(t.Remaining,t.Tp2,"TP");
         }
         if(!t.Closed && at>=t.DeadlineMs) Exit(t.Remaining,price,"Prazo");
         return exits;

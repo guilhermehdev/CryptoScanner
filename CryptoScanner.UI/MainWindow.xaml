@@ -56,6 +56,9 @@
                 <TextBlock Text="Perfil:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                 <RadioButton x:Name="rbIntraday" Content="Intraday (1h / 24h)" GroupName="Profile" Margin="0,3,12,3" VerticalAlignment="Center" Checked="ProfileChanged"/>
                 <RadioButton x:Name="rbSwing" Content="Swing (4h / 10 dias)" GroupName="Profile" IsChecked="True" Margin="0,3,16,3" VerticalAlignment="Center" Checked="ProfileChanged"/>
+                <TextBlock Text="Lado:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <RadioButton x:Name="rbScanLong" Content="Compra" GroupName="ScanDirection" IsChecked="True" Margin="0,3,8,3" VerticalAlignment="Center" Checked="ScanDirectionChanged"/>
+                <RadioButton x:Name="rbScanShort" Content="Venda" GroupName="ScanDirection" Margin="0,3,16,3" VerticalAlignment="Center" Checked="ScanDirectionChanged"/>
                 <CheckBox x:Name="chkFavoritesOnly" Content="★ Só favoritos" Margin="0,3,16,3" VerticalAlignment="Center" Checked="ChkFavoritesOnly_Changed" Unchecked="ChkFavoritesOnly_Changed"/>
                 <TextBlock Text="Ativo:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                 <TextBox x:Name="txtSearchSymbol" Width="100" Margin="0,3,6,3" VerticalAlignment="Center" KeyDown="TxtSearchSymbol_KeyDown"/>
@@ -94,6 +97,8 @@
                         <DataTrigger Binding="{Binding Signal}" Value="MONITORAR"><Setter Property="Background" Value="#383838"/></DataTrigger>
                         <DataTrigger Binding="{Binding Signal}" Value="COMPRA"><Setter Property="Background" Value="#E6C96A"/><Setter Property="Foreground" Value="#171717"/></DataTrigger>
                         <DataTrigger Binding="{Binding Signal}" Value="COMPRA+"><Setter Property="Background" Value="#244C70"/><Setter Property="Foreground" Value="#FFFFFF"/></DataTrigger>
+                        <DataTrigger Binding="{Binding Signal}" Value="VENDA"><Setter Property="Background" Value="#E58B8B"/><Setter Property="Foreground" Value="#171717"/></DataTrigger>
+                        <DataTrigger Binding="{Binding Signal}" Value="VENDA+"><Setter Property="Background" Value="#7A2636"/><Setter Property="Foreground" Value="#FFFFFF"/></DataTrigger>
                         <DataTrigger Binding="{Binding IsEligible}" Value="True"><Setter Property="Background" Value="#24613D"/><Setter Property="Foreground" Value="#FFFFFF"/></DataTrigger>
                         <DataTrigger Binding="{Binding IsBullTrap}" Value="True"><Setter Property="Background" Value="#D98125"/><Setter Property="Foreground" Value="#171717"/></DataTrigger>
                     </Style.Triggers>
@@ -157,6 +162,7 @@
                         <DataGrid.Columns>
                             <DataGridTemplateColumn Header="" Width="30"><DataGridTemplateColumn.CellTemplate><DataTemplate><Button Content="X" FontSize="11" Padding="4,1" Foreground="#00FFFF" Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisibilityConverter}}" Click="BtnCloseSimulatedTradeRow_Click"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                             <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Lado" Binding="{Binding Direction}" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Data" Binding="{Binding EntryTime, StringFormat=dd/MM HH:mm}" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Entrada" Binding="{Binding EntryPrice, StringFormat=0.########}" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Pressão na entrada" Binding="{Binding BuyingPressureAtEntry, StringFormat=F0, TargetNullValue=—}" IsReadOnly="True"/>
@@ -177,7 +183,7 @@
             <TabItem Header="Histórico de Sinais">
                 <DataGrid x:Name="dgHistory" AutoGenerateColumns="False" IsReadOnly="True">
                     <DataGrid.RowStyle><Style TargetType="DataGridRow"><Style.Triggers><DataTrigger Binding="{Binding ExitReason}" Value="TP"><Setter Property="Background" Value="LightGreen"/></DataTrigger><DataTrigger Binding="{Binding ExitReason}" Value="SL"><Setter Property="Background" Value="LightSalmon"/></DataTrigger><DataTrigger Binding="{Binding ExitReason}" Value="TIMEOUT"><Setter Property="Background" Value="LightGray"/></DataTrigger></Style.Triggers></Style></DataGrid.RowStyle>
-                    <DataGrid.Columns><DataGridTextColumn Header="Data" Binding="{Binding Timestamp, StringFormat=dd/MM HH:mm}"/><DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}"/><DataGridTextColumn Header="Entrada" Binding="{Binding Price}"/><DataGridTextColumn Header="Score" Binding="{Binding FinalScore}"/><DataGridTextColumn Header="Resultado %" Binding="{Binding OutcomePercent, StringFormat=F2}"/><DataGridTextColumn Header="Motivo" Binding="{Binding ExitReason}"/><DataGridCheckBoxColumn Header="Avaliado" Binding="{Binding Evaluated}"/></DataGrid.Columns>
+                    <DataGrid.Columns><DataGridTextColumn Header="Data" Binding="{Binding Timestamp, StringFormat=dd/MM HH:mm}"/><DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}"/><DataGridTextColumn Header="Lado" Binding="{Binding Direction}"/><DataGridTextColumn Header="Entrada" Binding="{Binding Price}"/><DataGridTextColumn Header="Score" Binding="{Binding FinalScore}"/><DataGridTextColumn Header="Resultado %" Binding="{Binding OutcomePercent, StringFormat=F2}"/><DataGridTextColumn Header="Motivo" Binding="{Binding ExitReason}"/><DataGridCheckBoxColumn Header="Avaliado" Binding="{Binding Evaluated}"/></DataGrid.Columns>
                 </DataGrid>
             </TabItem>
         </TabControl>

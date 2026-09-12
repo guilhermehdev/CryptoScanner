@@ -1,4 +1,5 @@
 using CryptoScanner.Core.Contracts;
+using CryptoScanner.Core.Configuration;
 using CryptoScanner.Core.Models;
 using System;
 using System.Windows;
@@ -27,6 +28,7 @@ public partial class SimulateTradeWindow : Window
         _getCurrentPrice = getCurrentPrice;
 
         txtSymbolHeader.Text = asset.Symbol;
+        txtDirectionHeader.Text = asset.Direction == TradeDirection.Short ? "VENDA (Short)" : "COMPRA (Long)";
         txtEntryPrice.Text = asset.Close.ToString("0.########");
         txtTakeProfit.Text = asset.Resistance.ToString("0.########");
         txtStopLoss.Text = asset.Support.ToString("0.########");
@@ -52,14 +54,19 @@ public partial class SimulateTradeWindow : Window
             decimal entryPrice = await _getCurrentPrice();
             txtEntryPrice.Text = entryPrice.ToString("0.########");
 
-            if (entryPrice <= 0 || stopLoss <= 0 || stopLoss >= entryPrice || takeProfit <= entryPrice)
+            bool invalidGeometry = _asset.Direction == TradeDirection.Short
+                ? entryPrice <= 0 || stopLoss <= entryPrice || takeProfit >= entryPrice
+                : entryPrice <= 0 || stopLoss <= 0 || stopLoss >= entryPrice || takeProfit <= entryPrice;
+            if (invalidGeometry)
             {
-                MessageBox.Show("Trade não aberto: o stop deve ser positivo e menor que a cotação atual, e o TP maior. Atualize a análise ou ajuste os níveis.",
+                MessageBox.Show(_asset.Direction == TradeDirection.Short
+                    ? "Trade não aberto: no Short o stop deve ficar acima da cotação atual e o alvo abaixo."
+                    : "Trade não aberto: no Long o stop deve ficar abaixo da cotação atual e o alvo acima.",
                     "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            if (_asset.TakeProfit1.HasValue &&
+            if (_asset.Direction == TradeDirection.Long && _asset.TakeProfit1.HasValue &&
                 (_asset.TakeProfit1.Value <= entryPrice || _asset.TakeProfit1.Value >= takeProfit ||
                  !_asset.TakeProfit3.HasValue || _asset.TakeProfit3.Value <= takeProfit))
             {
@@ -68,9 +75,19 @@ public partial class SimulateTradeWindow : Window
                 return;
             }
 
+            if (_asset.Direction == TradeDirection.Short && _asset.TakeProfit1.HasValue &&
+                (_asset.TakeProfit1.Value >= entryPrice || _asset.TakeProfit1.Value <= takeProfit ||
+                 !_asset.TakeProfit3.HasValue || _asset.TakeProfit3.Value >= takeProfit))
+            {
+                MessageBox.Show("Trade não aberto: os alvos do Short devem seguir entrada > TP1 > TP2 > TP3. Atualize a análise antes de simular.",
+                    "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
             var trade = new SimulatedTrade
             {
                 Symbol = _asset.Symbol,
+                Direction = _asset.Direction,
                 EntryTime = DateTime.UtcNow,
                 EntryPrice = entryPrice,
                 TakeProfit = takeProfit,
