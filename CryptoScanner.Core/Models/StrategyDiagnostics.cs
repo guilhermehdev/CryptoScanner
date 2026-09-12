@@ -10,7 +10,7 @@ public sealed class StrategyDiagnostics
         "FailedDirection" => "Tendência", "FailedRiskReward" => "R/R baixo",
         "FailedInvalidLevels" => "Níveis inválidos", "FailedStopDistance" => "Stop próximo",
         "FailedStopDistanceTooHigh" => "Stop distante", "FailedRiskRewardTooHigh" => "R/R acima do teto",
-        "FailedBullTrap" => "Armadilha", _ => key
+        "FailedBullTrap" => "Armadilha", "FailedMomentumFilter" => "Momentum", "FailedShortSideways" => "Short lateral", _ => key
     };
     public int Evaluated { get; set; }
     public int Triggered { get; set; }

@@ -147,6 +147,7 @@ public partial class BacktestWindow : Window
         sb.Append(thresholds.EnableVolatilityScoringPhaseB).Append('|');
         sb.Append(thresholds.EnableMultiTimeframe).Append('|');
         sb.Append(thresholds.RequireBearishMomentumConfirmed).Append('|');
+        sb.Append(thresholds.BlockShortInSideways).Append('|');
         sb.Append(thresholds.EnableLowRsiPath).Append('|');
         sb.Append(thresholds.BlockMeanReversionInBear).Append('|');
         sb.Append(thresholds.LimitAtrForMeanReversion).Append('|');
@@ -184,7 +185,8 @@ public partial class BacktestWindow : Window
             {
                 SignatureHash = signature,
                 SavedAt = DateTime.UtcNow,
-                Label = label + (thresholds.StructuralEntryExperiment ? " | Estrutura experimental v1" :  $" | Experimento isolado {thresholds.IsolatedEntryExperiment}") + $" | {thresholds.EntryStrategy} | Alvo mín.: " + (thresholds.MinimumTargetAtr is decimal atrFloor ? $"{atrFloor:G} ATR" : $"{thresholds.MinResistanceDistancePartialExits:G}% (parciais)"),
+                Label = label + (thresholds.StructuralEntryExperiment ? " | Estrutura experimental v1" :  $" | Experimento isolado {thresholds.IsolatedEntryExperiment}") + $" | {thresholds.EntryStrategy} | Alvo mín.: " + (thresholds.MinimumTargetAtr is decimal atrFloor ? $"{atrFloor:G} ATR" : $"{thresholds.MinResistanceDistancePartialExits:G}% (parciais)") +
+                    $" | Short momentum={(thresholds.RequireBearishMomentumConfirmed ? "sim" : "não")}, lateral={(thresholds.BlockShortInSideways ? "bloqueado" : "aceito")}",
                 Profile = profile.Name,
                 RiskMode = riskMode.ToString(),
                 StartDate = start,
@@ -354,6 +356,8 @@ public partial class BacktestWindow : Window
         chkBlockMeanReversionInBear.IsChecked = t.BlockMeanReversionInBear;
         chkLimitAtrForMeanReversion.IsChecked = t.LimitAtrForMeanReversion;
         chkEnableBollingerReversal.IsChecked = t.EnableBollingerReversal;
+        chkRequireBearishMomentum.IsChecked = t.RequireBearishMomentumConfirmed;
+        chkBlockShortInSideways.IsChecked = t.BlockShortInSideways;
     }
 
     private void ApplyExplorationThresholdFields()
@@ -377,6 +381,8 @@ public partial class BacktestWindow : Window
         chkBlockMeanReversionInBear.IsChecked = false;
         chkLimitAtrForMeanReversion.IsChecked = false;
         chkEnableBollingerReversal.IsChecked = false;
+        chkRequireBearishMomentum.IsChecked = false;
+        chkBlockShortInSideways.IsChecked = false;
     }
 
     private void ApplyDiagnosticThresholdFields()
@@ -400,6 +406,8 @@ public partial class BacktestWindow : Window
         chkBlockMeanReversionInBear.IsChecked = false;
         chkLimitAtrForMeanReversion.IsChecked = false;
         chkEnableBollingerReversal.IsChecked = false;
+        chkRequireBearishMomentum.IsChecked = false;
+        chkBlockShortInSideways.IsChecked = false;
     }
 
     private string SelectedTestModeLabel => cmbTestMode.SelectedIndex switch
@@ -462,11 +470,8 @@ public partial class BacktestWindow : Window
             BlockMeanReversionInBear = chkBlockMeanReversionInBear.IsChecked == true,
             LimitAtrForMeanReversion = chkLimitAtrForMeanReversion.IsChecked == true,
             EnableBollingerReversal = chkEnableBollingerReversal.IsChecked == true,
-            // RequireBearishMomentumConfirmed (Venda) e EnableLowRsiPath (Compra) — testados
-            // e descartados (ver memória do projeto: efeito negativo no bear market isolado
-            // / trades novos sem catalisador de rompimento). Checkboxes removidos da tela
-            // (16/08/2026); campos mantidos em EligibilityThresholds caso retomados no futuro.
-            RequireBearishMomentumConfirmed = false,
+            RequireBearishMomentumConfirmed = chkRequireBearishMomentum.IsChecked == true,
+            BlockShortInSideways = chkBlockShortInSideways.IsChecked == true,
             EnableLowRsiPath = false
         };
 

@@ -16,7 +16,7 @@ public sealed class FilterDiagnostics
     public int PullbackTriggers { get; set; }
     public Dictionary<string,StrategyDiagnostics> Strategies { get; set; } = new();
     public string StrategySummary => string.Join("\n",Strategies.OrderBy(x=>x.Key).Select(x=>$"{StrategyDiagnostics.Label(x.Key)}: avaliados {x.Value.Evaluated}; gatilhos {x.Value.Triggered}; elegíveis antes da entrada {x.Value.Eligible}; bloqueios entre gatilhos: " +
-        string.Join(", ",x.Value.Rejections.Select(p=>$"{StrategyDiagnostics.Label(p.Key)}={p.Value}")) + "; posição da entrada na zona do alvo: " +
+        string.Join(", ",x.Value.Rejections.Select(p=>$"{StrategyDiagnostics.Label(p.Key)}={p.Value}")) + "; posição na zona estrutural: " +
         string.Join(", ",x.Value.TargetPositions.Select(p=>$"{p.Key}={p.Value}"))));
     public Dictionary<string,string> Errors { get; set; } = new();
     public Dictionary<string,int> CandidateTypes { get; set; } = new();
@@ -43,6 +43,7 @@ public sealed class FilterDiagnostics
 
     // Filtro experimental (12/2026) — ver EligibilityThresholds.RequireBearishMomentumConfirmed.
     public int FailedMomentumFilter { get; set; }
+    public int FailedShortSideways { get; set; }
 
     // Filtro experimental (22/08/2026) — ver EligibilityThresholds.BlockMeanReversionInBear.
     public int FailedMeanReversionRegimeFilter { get; set; }
@@ -57,7 +58,7 @@ public sealed class FilterDiagnostics
         $"Vol. spike: {FailedVolumeSpike} | Dist. resist.: {FailedResistanceDistance} | " +
         $"Direção: {FailedDirection} | Níveis inválidos: {FailedInvalidLevels} | R/R baixo: {FailedRiskReward} | Stop mín.: {FailedStopDistance} | " +
         $"Stop máx.: {FailedStopDistanceTooHigh} | RR teto: {FailedRiskRewardTooHigh} | Bull Trap: {FailedBullTrap} | " +
-        $"Tendência (EMA): {FailedTrendConfirmation} | Momentum: {FailedMomentumFilter} | Regime MeanRev: {FailedMeanReversionRegimeFilter} | ATR MeanRev: {FailedMeanReversionAtrFilter} | " +
+        $"Tendência (EMA): {FailedTrendConfirmation} | Momentum: {FailedMomentumFilter} | Short lateral: {FailedShortSideways} | Regime MeanRev: {FailedMeanReversionRegimeFilter} | ATR MeanRev: {FailedMeanReversionAtrFilter} | " +
         $"Duplicado hoje: {SkippedDuplicateToday} | Entrada rejeitada: {EntryRejected} | " +
         $"Passaram: {PassedAll}/{TotalAnalyzed}";
 }

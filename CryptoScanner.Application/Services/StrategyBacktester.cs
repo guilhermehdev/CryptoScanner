@@ -406,6 +406,7 @@ public sealed class StrategyBacktester
             if (eligibility.FailedBullTrap) diagnostics.FailedBullTrap++;
             if (eligibility.FailedTrendConfirmation) diagnostics.FailedTrendConfirmation++;
             if (eligibility.FailedMomentumFilter) diagnostics.FailedMomentumFilter++;
+            if (eligibility.FailedShortSideways) diagnostics.FailedShortSideways++;
             if (eligibility.FailedMeanReversionRegimeFilter) diagnostics.FailedMeanReversionRegimeFilter++;
             if (eligibility.FailedMeanReversionAtrFilter) diagnostics.FailedMeanReversionAtrFilter++;
 
@@ -457,9 +458,9 @@ public sealed class StrategyBacktester
                 ResistanceDistancePercent = direction == TradeDirection.Long ? entryRisk.TargetDistancePercent : (analysis.Risk.Resistance-entryPrice)/entryPrice*100,
                 SupportDistancePercent = direction == TradeDirection.Long ? entryRisk.StopDistancePercent : (entryPrice-analysis.Risk.Support)/entryPrice*100,
                 RiskRewardAtEntry = direction == TradeDirection.Long ? entryRisk.RiskReward : (entryPrice-analysis.Risk.Support)/(analysis.Risk.Resistance-entryPrice),
-                TargetZonePosition = analysis.Risk.TargetZone?.PositionOf(
-                    direction == TradeDirection.Long ? analysis.Risk.Resistance : analysis.Risk.Support)
-                    ?? "Sem zona registrada",
+                TargetZonePosition = direction == TradeDirection.Short
+                    ? "Não aplicável (Short)"
+                    : analysis.Risk.TargetZone?.PositionOf(analysis.Risk.Resistance) ?? "Sem zona registrada",
                 TargetZoneLower = analysis.Risk.TargetZone?.Lower,
                 TargetZoneUpper = analysis.Risk.TargetZone?.Upper,
                 TargetZoneScore = analysis.Risk.TargetZone?.Score,
@@ -563,6 +564,7 @@ public sealed class StrategyBacktester
         target.FailedBullTrap += source.FailedBullTrap;
         target.FailedTrendConfirmation += source.FailedTrendConfirmation;
         target.FailedMomentumFilter += source.FailedMomentumFilter;
+        target.FailedShortSideways += source.FailedShortSideways;
         target.FailedMeanReversionRegimeFilter += source.FailedMeanReversionRegimeFilter;
         target.FailedMeanReversionAtrFilter += source.FailedMeanReversionAtrFilter;
     }

@@ -23,6 +23,7 @@ public static class EligibilityEvaluator
 
         // Filtro experimental (12/2026) — ver EligibilityThresholds.RequireBearishMomentumConfirmed.
         public bool FailedMomentumFilter { get; init; }
+        public bool FailedShortSideways { get; init; }
 
         // Filtro experimental (22/08/2026) — ver EligibilityThresholds.BlockMeanReversionInBear.
         public bool FailedMeanReversionRegimeFilter { get; init; }
@@ -35,7 +36,7 @@ public static class EligibilityEvaluator
             !FailedVolumeSpike && !FailedResistanceDistance &&
             !FailedDirection && !FailedInvalidLevels && !FailedRiskReward && !FailedStopDistance &&
             !FailedStopDistanceTooHigh && !FailedRiskRewardTooHigh && !FailedBullTrap &&
-            !FailedTrendConfirmation && !FailedMomentumFilter && !FailedMeanReversionRegimeFilter &&
+            !FailedTrendConfirmation && !FailedMomentumFilter && !FailedShortSideways && !FailedMeanReversionRegimeFilter &&
             !FailedMeanReversionAtrFilter;
     }
 
@@ -65,6 +66,7 @@ public static class EligibilityEvaluator
         if(result.FailedBullTrap) reasons.Add("Armadilha de alta detectada.");
         if(result.FailedTrendConfirmation) reasons.Add("Confirmação de tendência ausente.");
         if(result.FailedMomentumFilter) reasons.Add("Momentum não confirmado.");
+        if(result.FailedShortSideways) reasons.Add("Regime lateral bloqueia venda Short.");
         if(result.FailedMeanReversionRegimeFilter) reasons.Add("Regime bloqueia reversão à média.");
         if(result.FailedMeanReversionAtrFilter) reasons.Add("ATR bloqueia reversão à média.");
         return reasons.Count==0 ? "Critérios de entrada atendidos no candle fechado analisado." : string.Join("\n",reasons);
@@ -197,8 +199,12 @@ public static class EligibilityEvaluator
         bool failedMomentumFilter =
             thresholds.RequireBearishMomentumConfirmed &&
             direction == TradeDirection.Short &&
-            asset.Risk.Mode == RiskCalculationMode.BollingerReversal &&
             !asset.Trend.IsBearishMomentumConfirmed;
+
+        bool failedShortSideways =
+            thresholds.BlockShortInSideways &&
+            direction == TradeDirection.Short &&
+            marketRegime == "LATERAL";
 
         // Filtro experimental (22/08/2026) — ver EligibilityThresholds.BlockMeanReversionInBear.
         bool failedMeanReversionRegimeFilter =
@@ -228,6 +234,7 @@ public static class EligibilityEvaluator
             FailedBullTrap = failedBullTrap,
             FailedTrendConfirmation = failedTrendConfirmation,
             FailedMomentumFilter = failedMomentumFilter,
+            FailedShortSideways = failedShortSideways,
             FailedMeanReversionRegimeFilter = failedMeanReversionRegimeFilter,
             FailedMeanReversionAtrFilter = failedMeanReversionAtrFilter
         };

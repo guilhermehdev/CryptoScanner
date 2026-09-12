@@ -108,6 +108,8 @@
                     <CheckBox x:Name="chkBlockMeanReversionInBear" Content="Bloquear Reversão à Média em BEAR (experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
                     <CheckBox x:Name="chkLimitAtrForMeanReversion" Content="Limitar ATR% no Reversão à Média (experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
                     <CheckBox x:Name="chkEnableBollingerReversal" Content="Reversão de Bollinger (Venda, experimental)" VerticalAlignment="Center"/>
+                    <CheckBox x:Name="chkRequireBearishMomentum" Content="Exigir momentum baixista (Short, experimental)" VerticalAlignment="Center" Margin="20,0,20,0"/>
+                    <CheckBox x:Name="chkBlockShortInSideways" Content="Bloquear Short em lateral (experimental)" VerticalAlignment="Center"/>
                 </WrapPanel>
             </StackPanel>
         </GroupBox>

@@ -96,6 +96,26 @@ var shortPullbackFixture = new AssetAnalysis
 };
 Check(EligibilityEvaluator.Evaluate(shortPullbackFixture, "BEAR", ScannerProfiles.For(ScanProfile.Swing), TradeDirection.Short).IsEligible,
     "Short pullback uses its own directional trigger");
+var shortMomentumThresholds = new EligibilityThresholds
+{
+    EntryStrategy = EntryStrategy.Pullback, BuyOpportunityScore = 60, BearRegimePenalty = 10, SidewaysRegimePenalty = 8,
+    MinVolumeSpike = 1.3m, DefensiveMinVolumeSpike = 1.1m, MinResistanceDistance = 8, EnableMultiTimeframe = false,
+    MinResistanceDistanceAtrMode = 10, MinRiskReward = 2, MinRelativeStrengthPercent = 0, MinStopDistancePercent = 0,
+    MaxStopDistancePercent = 25, MaxRiskReward = 999, EnablePullbackBounce = true, EnableBollingerScoring = true,
+    EnableVolatilityScoringPhaseB = false, MinResistanceDistancePartialExits = 4, RequireBearishMomentumConfirmed = true
+};
+Check(EligibilityEvaluator.Evaluate(shortPullbackFixture, "BEAR", shortMomentumThresholds, TradeDirection.Short).FailedMomentumFilter,
+    "Short momentum filter blocks unconfirmed setup");
+var lateralThresholds = new EligibilityThresholds
+{
+    EntryStrategy = EntryStrategy.Pullback, BuyOpportunityScore = 60, BearRegimePenalty = 10, SidewaysRegimePenalty = 8,
+    MinVolumeSpike = 1.3m, DefensiveMinVolumeSpike = 1.1m, MinResistanceDistance = 8, EnableMultiTimeframe = false,
+    MinResistanceDistanceAtrMode = 10, MinRiskReward = 2, MinRelativeStrengthPercent = 0, MinStopDistancePercent = 0,
+    MaxStopDistancePercent = 25, MaxRiskReward = 999, EnablePullbackBounce = true, EnableBollingerScoring = true,
+    EnableVolatilityScoringPhaseB = false, MinResistanceDistancePartialExits = 4, BlockShortInSideways = true
+};
+var lateralBlocked = EligibilityEvaluator.Evaluate(shortPullbackFixture, "LATERAL", lateralThresholds, TradeDirection.Short);
+Check(lateralBlocked.FailedShortSideways && !lateralBlocked.IsEligible, "Short lateral regime filter blocks setup");
 var shortAsset = new AssetScore { Symbol = "SHORT", Score = 90, BuyingPressureScore = 100, Support = 80, Resistance = 110 };
 var shortTrade = LabSimulation.TryOpen(new("SHORT", "Swing", 1800000, 1800000, 100, 24, shortAsset, ""), new(0, "", "", 0, 1), 10000, 0, false, TradeDirection.Short).Trade!;
 Check(shortTrade.Direction == TradeDirection.Short && shortTrade.Stop > shortTrade.EntryFill && shortTrade.Tp2 < shortTrade.EntryFill,"Short execution inverts stop and target");

@@ -47,13 +47,17 @@ public sealed class EligibilityThresholds
     // Reversão de Bollinger (Fase A do lado de venda) — mesmo padrão não-obrigatório acima.
     public bool EnableBollingerReversal { get; init; } = false;
 
-    // Filtro experimental (12/2026) — exige TrendAnalysis.IsBearishMomentumConfirmed como
-    // portão de elegibilidade, só afeta BollingerReversal + Short (ver EligibilityEvaluator).
+    // Filtro experimental — exige TrendAnalysis.IsBearishMomentumConfirmed como portão de
+    // elegibilidade para estratégias Short (ver EligibilityEvaluator).
     // Investigação: no teste agregado (101 trades), o subconjunto com Momentum confirmado
     // teve PF 1,38 vs 1,06 no subconjunto sem confirmação — sinal de que pode ser um filtro
     // de qualidade real. Default false, mesmo padrão não-obrigatório dos outros experimentais
     // acima — não altera nenhum resultado já validado até ser explicitamente habilitado.
     public bool RequireBearishMomentumConfirmed { get; init; } = false;
+
+    // Filtro experimental para Short: evita vender em regime LATERAL, onde o teste do
+    // repique apresentou maior concentração de stops. Desligado por padrão.
+    public bool BlockShortInSideways { get; init; } = false;
 
     // Caminho de RSI baixo (Fase 3, 16/08/2026) — ver comentário completo em
     // SetupAnalysis.IsLowRsiSetup. Mesmo padrão não-obrigatório dos outros experimentais
