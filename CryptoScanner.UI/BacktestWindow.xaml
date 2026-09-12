@@ -38,7 +38,7 @@
                     <RadioButton x:Name="rbBacktestScalp" Content="Scalp (15min / 6h, não validado)" GroupName="BacktestProfile" VerticalAlignment="Center" Margin="0,0,24,0"/>
                     <TextBlock Text="Direção:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <RadioButton x:Name="rbDirectionLong" Content="Compra (Long)" GroupName="TradeDirection" IsChecked="True" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                    <RadioButton x:Name="rbDirectionShort" Content="Venda (Short, Fase 1 — só &quot;Rodar Backtest&quot;)" GroupName="TradeDirection" VerticalAlignment="Center"/>
+                    <RadioButton x:Name="rbDirectionShort" Content="Venda (Short)" GroupName="TradeDirection" VerticalAlignment="Center"/>
                 </WrapPanel>
             </StackPanel>
         </GroupBox>

@@ -177,7 +177,7 @@ public sealed class ScannerService
                 TrendStrengthScore = asset.Trend.TrendStrengthScore,
                 PatternName = asset.Candle.PatternName,
                 SmartMoneyLabel = asset.Structure.SmartMoneyLabel,
-                BreakoutSource = asset.EntryStrategy!=EntryStrategy.Legacy ? asset.EntryStrategy.ToString() : asset.Setup.IsBreakout ? "Clássico" : asset.Setup.IsShortTermBreakout ? "Curto Prazo" : asset.Setup.RelativeStrength >= ScannerSettings.MinRelativeStrengthPercent ? "Força Rel." : "",
+                BreakoutSource = AssetScoreFactory.DetermineBreakoutSource(asset),
                 IsBullTrap = asset.Structure.IsBullTrap,
                 IsBearTrap = asset.Structure.IsBearTrap,
                 Direction = direction

@@ -11,7 +11,7 @@ public sealed record SetupAnalysis
     public decimal EmaDistanceAtr { get; init; }
     public decimal SwingUsageAtr { get; init; }
 
-    // Caminho A — repique dentro de tendência de alta já estabelecida.
+    // Caminho A — repique dentro de tendência estabelecida; o sentido acompanha Direction.
     public bool IsPullbackBounce { get; init; }
 
     // Reversão à média (Scalp) — preço esticado abaixo da EMA21 dentro de tendência de

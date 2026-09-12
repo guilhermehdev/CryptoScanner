@@ -105,9 +105,8 @@ public static class EligibilityEvaluator
                 || asset.Setup.RelativeStrength >= thresholds.MinRelativeStrengthPercent)
             : asset.Setup.IsBreakout;
 
-        // Caminho A e Reversão à Média são Long-only na Fase 1 do lado de venda — IsPullbackBounce
-        // e IsMeanReversionSetup já vêm sempre false quando a direção é Short (ver AssetAnalyzer),
-        // então essas duas linhas já ficam naturalmente neutralizadas pra Short, sem checar aqui.
+        // O repique é direcional: o AssetAnalyzer calcula a versão de alta ou de baixa
+        // conforme o lado selecionado. Reversão à média continua disponível apenas para Long.
         bool passesPullbackBounce = thresholds.EnablePullbackBounce && asset.Setup.IsPullbackBounce;
         bool passesMeanReversionSetup = thresholds.EnableMeanReversionScalp && asset.Setup.IsMeanReversionSetup;
         bool passesBollingerReversal = thresholds.EnableBollingerReversal && asset.Setup.IsBollingerReversalSetup;
@@ -120,11 +119,17 @@ public static class EligibilityEvaluator
         bool failedBreakout = !(passesClassicPaths || passesPullbackBounce || passesMeanReversionSetup || passesBollingerReversal || passesLowRsiPath);
 
         bool failedConsolidation = defensiveMode ? false : !asset.Setup.IsConsolidating;
-        if(thresholds.EntryStrategy != EntryStrategy.Legacy && direction==TradeDirection.Long)
+        if(thresholds.EntryStrategy != EntryStrategy.Legacy)
         {
             var strategy=thresholds.EntryStrategy==EntryStrategy.Auto?asset.EntryStrategy:thresholds.EntryStrategy;
-            failedBreakout=strategy==EntryStrategy.Breakout?!asset.Setup.IsBreakout:!asset.Setup.IsPullbackBounce;
-            failedConsolidation=strategy==EntryStrategy.Breakout && !asset.Setup.IsConsolidating;
+            // Analyses carregadas de histórico/fixtures antigos não têm uma estratégia
+            // explícita (Legacy). Nesse caso, preserve os caminhos clássicos calculados
+            // acima; só force um único caminho quando a análise realmente o identificou.
+            if (strategy != EntryStrategy.Legacy)
+            {
+                failedBreakout=strategy==EntryStrategy.Breakout?!asset.Setup.IsBreakout:!asset.Setup.IsPullbackBounce;
+                failedConsolidation=strategy==EntryStrategy.Breakout && !asset.Setup.IsConsolidating;
+            }
         }
 
         decimal volumeSpikeThreshold = defensiveMode

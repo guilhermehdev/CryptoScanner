@@ -237,9 +237,7 @@ public partial class BacktestWindow : Window
         return RiskCalculationMode.SwingWithPartialExits;
     }
 
-    // Fase 1 do lado de venda — hoje só conectado no botão "Rodar Backtest" (BtnRun_Click).
-    // Os comparadores continuam Long-only por enquanto; se a Venda mostrar sinal de vida,
-    // isso se estende pros comparadores relevantes depois, não em bloco de uma vez.
+    // O lado selecionado é usado tanto no backtest direto quanto na validação por períodos.
     private TradeDirection GetSelectedDirection()
     {
         return rbDirectionShort.IsChecked == true ? TradeDirection.Short : TradeDirection.Long;
@@ -486,7 +484,7 @@ public partial class BacktestWindow : Window
         var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
         var direction = GetSelectedDirection();
         if(cmbStructureExperiment.SelectedIndex > 0 && cmbEntryStrategy.SelectedIndex==0){MessageBox.Show("Selecione Rompimento, Repique ou Automática (experimental) para testar a estrutura.");return;}
-        if(cmbEntryStrategy.SelectedIndex>0 && direction!=TradeDirection.Long){MessageBox.Show("As novas estratégias são de compra. Use Legado para os experimentos de venda.");return;}
+        if(cmbEntryStrategy.SelectedIndex>0 && direction==TradeDirection.Short && cmbEntryStrategy.SelectedIndex>=3){MessageBox.Show("A estratégia automática experimental ainda é exclusiva de compra. Use Rompimento ou Repique para testar venda.");return;}
         if(cmbEntryStrategy.SelectedIndex==3)
         {
             if(chkTargetAtr.IsChecked == true || cmbStructureExperiment.SelectedIndex > 0){MessageBox.Show("Selecione Automática (experimental) para testar distância em ATR. Automática (scanner) reproduz os parâmetros ao vivo.");return;}
@@ -579,7 +577,7 @@ public partial class BacktestWindow : Window
 
             _exportDiagnostics=summary.Diagnostics;
             txtSummaryResult.Text =
-                $"Modo: {SelectedTestModeLabel} | Direção: {(direction == TradeDirection.Short ? "VENDA (Fase 1)" : "Compra")} | " +
+                $"Modo: {SelectedTestModeLabel} | Direção: {(direction == TradeDirection.Short ? "VENDA (Short)" : "Compra")} | " +
                 $"Score≥{thresholds.BuyOpportunityScore:F0} | RR mín.={thresholds.MinRiskReward:F1} | Stop mín.={thresholds.MinStopDistancePercent:F0}% | Stop máx.={maxStopText}" +
                 (disableTimeout ? " | Timeout=DESATIVADO (só TP/SL)" : "") + "\n\n" +
                 $"Operações: {summary.TotalTrades}   |   " +
@@ -867,6 +865,7 @@ public partial class BacktestWindow : Window
 
         var anchorEnd = dpEnd.SelectedDate ?? DateTime.Today;
         var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
+        var direction = GetSelectedDirection();
 
         // Scalp ainda não foi validado (ver ScannerService.cs: "NÃO VALIDADO — não expor no
         // app ao vivo") — esse botão promete reproduzir a config real, então não faz sentido
@@ -929,6 +928,7 @@ public partial class BacktestWindow : Window
                     profile,
                     liveThresholds,
                     riskMode: RiskCalculationMode.SwingWithPartialExits,
+                    direction: direction,
                     onProgress: (message, percent) => Dispatcher.Invoke(() =>
                     {
                         double overallPercent = ((periodStepIndex - 1) * 100.0 + percent) / periodCount;
@@ -937,7 +937,7 @@ public partial class BacktestWindow : Window
                     }),
                     cancellationToken: _cts.Token);
 
-                await SaveRunResultAsync(label, symbols, periodStart, periodEnd, profile, liveThresholds, RiskCalculationMode.SwingWithPartialExits, null, summary);
+                await SaveRunResultAsync(label, symbols, periodStart, periodEnd, profile, liveThresholds, RiskCalculationMode.SwingWithPartialExits, null, summary, direction: direction);
 
                 results.Add(new ScenarioResult
                 {
@@ -961,7 +961,7 @@ public partial class BacktestWindow : Window
             var pooledSummary = StrategyBacktester.BuildSummary(allTrades, aggregatedDiagnostics, new List<string>());
             _exportDiagnostics=aggregatedDiagnostics;
             var spanStart = DateTime.SpecifyKind(anchorEnd.AddYears(-periodCount * periodYears), DateTimeKind.Utc);
-            await SaveRunResultAsync("TOTAL (todos os períodos juntos)", symbols, spanStart, anchorEnd, profile, liveThresholds, RiskCalculationMode.SwingWithPartialExits, null, pooledSummary);
+            await SaveRunResultAsync("TOTAL (todos os períodos juntos)", symbols, spanStart, anchorEnd, profile, liveThresholds, RiskCalculationMode.SwingWithPartialExits, null, pooledSummary, direction: direction);
 
             results.Add(new ScenarioResult
             {
@@ -985,7 +985,7 @@ public partial class BacktestWindow : Window
 
             _exportDiagnostics=aggregatedDiagnostics;
             txtSummaryResult.Text =
-                $"Padrão Scanner: configuração VALIDADA REAL do perfil {profile.Name} (a mesma que roda ao vivo hoje — " +
+                $"Padrão Scanner: configuração VALIDADA REAL do perfil {profile.Name}, direção {(direction == TradeDirection.Short ? "VENDA" : "COMPRA")} (a mesma que roda ao vivo hoje — " +
                 $"ScannerService.cs) — RR≥{liveThresholds.MinRiskReward:F1}, Dist. Resist. Pontuada≥{liveThresholds.MinResistanceDistancePartialExits:F0}%, " +
                 $"Caminho A={(liveThresholds.EnablePullbackBounce ? "ligado" : "desligado")}, Stop máx.={liveThresholds.MaxStopDistancePercent:F0}%, " +
                 $"modo Swing+Resistência Pontuada forçado (independente do rádio selecionado) — testada em {periodCount} período(s) " +

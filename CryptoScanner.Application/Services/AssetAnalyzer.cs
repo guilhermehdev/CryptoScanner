@@ -38,19 +38,42 @@ public sealed class AssetAnalyzer
             experimental=StructuralEntryExperiment.Evaluate(candles,trend.Atr,structure.IsUptrend);
             setup=setup with {IsBreakout=experimental.Breakout,IsConsolidating=experimental.Consolidating,IsPullbackBounce=experimental.Pullback};
         }
-        if(entryStrategy != EntryStrategy.Legacy && direction == TradeDirection.Long)
+        if(entryStrategy != EntryStrategy.Legacy)
         {
             entryStrategy=entryStrategy==EntryStrategy.Auto
                 ?(setup.IsBreakout?EntryStrategy.Breakout:EntryStrategy.Pullback):entryStrategy;
             if(entryStrategy==EntryStrategy.Pullback || experimental is not null || (isolatedEntryExperiment==1 && entryStrategy==EntryStrategy.Breakout))
             {
-                decimal support=experimental is not null ? (entryStrategy==EntryStrategy.Breakout?experimental.BreakoutStop:experimental.PullbackStop) : candles.TakeLast(5).Min(c=>c.Low)-trend.Atr*ScannerSettings.AtrBufferMultiplier;
-                if(isolatedEntryExperiment==1 && entryStrategy==EntryStrategy.Breakout)
-                    support=candles.Take(candles.Count-1).TakeLast(20).Min(c=>c.Low)-trend.Atr*ScannerSettings.AtrBufferMultiplier;
-                decimal distance=(trend.Close-support)/trend.Close*100m;
-                risk=new RiskAnalysis{Mode=risk.Mode,Support=support,Resistance=risk.Resistance,TargetZone=risk.TargetZone,
-                    SupportDistancePercent=distance,ResistanceDistancePercent=risk.ResistanceDistancePercent,
-                    RiskReward=distance>0?risk.ResistanceDistancePercent/distance:0,TakeProfit1=risk.TakeProfit1,TakeProfit3=risk.TakeProfit3};
+                if (direction == TradeDirection.Short)
+                {
+                    // Repique vendido: a invalidação fica acima do topo recente do recuo,
+                    // com uma folga de ATR. O alvo estrutural inferior calculado pelo modo
+                    // de risco é preservado; só a distância do stop muda.
+                    decimal resistance = candles.TakeLast(5).Max(c=>c.High) + trend.Atr * ScannerSettings.AtrBufferMultiplier;
+                    decimal stopDistance = trend.Close > 0 ? (resistance-trend.Close)/trend.Close*100m : 0;
+                    risk=new RiskAnalysis
+                    {
+                        Mode=risk.Mode,
+                        Support=risk.Support,
+                        Resistance=resistance,
+                        TargetZone=risk.TargetZone,
+                        SupportDistancePercent=risk.SupportDistancePercent,
+                        ResistanceDistancePercent=stopDistance,
+                        RiskReward=stopDistance>0 ? risk.SupportDistancePercent/stopDistance : 0,
+                        TakeProfit1=risk.TakeProfit1,
+                        TakeProfit3=risk.TakeProfit3
+                    };
+                }
+                else
+                {
+                    decimal support=experimental is not null ? (entryStrategy==EntryStrategy.Breakout?experimental.BreakoutStop:experimental.PullbackStop) : candles.TakeLast(5).Min(c=>c.Low)-trend.Atr*ScannerSettings.AtrBufferMultiplier;
+                    if(isolatedEntryExperiment==1 && entryStrategy==EntryStrategy.Breakout)
+                        support=candles.Take(candles.Count-1).TakeLast(20).Min(c=>c.Low)-trend.Atr*ScannerSettings.AtrBufferMultiplier;
+                    decimal distance=(trend.Close-support)/trend.Close*100m;
+                    risk=new RiskAnalysis{Mode=risk.Mode,Support=support,Resistance=risk.Resistance,TargetZone=risk.TargetZone,
+                        SupportDistancePercent=distance,ResistanceDistancePercent=risk.ResistanceDistancePercent,
+                        RiskReward=distance>0?risk.ResistanceDistancePercent/distance:0,TakeProfit1=risk.TakeProfit1,TakeProfit3=risk.TakeProfit3};
+                }
             }
         }
         var analysis = new AssetAnalysis
@@ -287,13 +310,16 @@ public sealed class AssetAnalyzer
             : BreakoutIndicator.IsBearishBreakout(candles, shortTermSupport)
                 && (structure.HasBearishBreakOfStructure || structure.HasBearishChangeOfCharacter);
 
-        // Caminho A — repique: tendência de alta já estabelecida, com sinal de virada no candle atual.
-        // Long apenas — caminho adicional construído e validado só pro lado de compra;
-        // estender pra venda fica pra uma fase futura, se a venda clássica validar bem.
-        bool isPullbackBounce =
-            direction == TradeDirection.Long &&
-            structure.IsUptrend &&
-            (candle.IsBullishEngulfing || candle.IsHammer || structure.LiquiditySweepLow);
+        // Caminho A — repique: reação na direção da tendência depois de um reteste.
+        // Na venda, o candle atual precisa rejeitar a EMA21 (engolfo de baixa, estrela
+        // cadente, rejeição de vendedor ou sweep de liquidez) depois de um reteste recente
+        // da média. Isso separa o repique de uma continuação já esticada do rompimento.
+        bool isPullbackBounce = direction == TradeDirection.Long
+            ? structure.IsUptrend &&
+              (candle.IsBullishEngulfing || candle.IsHammer || structure.LiquiditySweepLow)
+            : structure.IsDowntrend && trend.Ema21 > 0 && trend.Close < trend.Ema21 &&
+              candles.SkipLast(1).TakeLast(3).Any(c => c.High >= trend.Ema21) &&
+              (candle.IsBearishEngulfing || candle.IsShootingStar || candle.HasSellerRejection || structure.LiquiditySweepHigh);
 
         // Reversão à média (Scalp) — Long apenas, mesma justificativa do Caminho A acima.
         bool isMeanReversionSetup =
@@ -475,10 +501,9 @@ public sealed class AssetAnalyzer
             decimal resistanceDistance = (resistance - close) / close * 100m;
             decimal supportDistance = (close - bufferedSupport) / close * 100m;
 
-            // Escada de saída parcial (TP1/TP2/TP3) pressupõe alvo ACIMA do preço — só faz
-            // sentido pra Long. Pra Short, fica de fora (Fase 1 do lado de venda não estende
-            // a saída parcial ainda) — TakeProfit1/3 ficam null, e o motor cai sozinho no
-            // fechamento único de sempre, usando Resistance/Support normalmente.
+            // Escada de saída parcial (TP1/TP2/TP3) continua disponível para Long. Para
+            // Short, o repique/rompimento usa por enquanto fechamento único no suporte;
+            // TP1/TP3 ficam nulos até calibrarmos parciais específicas para venda.
             decimal? takeProfit1 = null;
             decimal? takeProfit3 = null;
 

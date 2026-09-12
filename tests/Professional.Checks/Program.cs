@@ -87,6 +87,15 @@ var historical=EligibilityEvaluator.Evaluate(fixture,"BULL",ScannerProfiles.For(
 Check(live.IsEligible&&historical.IsEligible,"Shared scanner preset accepts controlled strategy fixture");
 var shortEligibility = EligibilityEvaluator.Evaluate(shortFixture, "BEAR", ScannerProfiles.For(ScanProfile.Swing), TradeDirection.Short);
 Check(shortEligibility.IsEligible,"Short uses bearish trend and target/stop distances");
+var shortPullbackFixture = new AssetAnalysis
+{
+    Direction = TradeDirection.Short, EntryStrategy = EntryStrategy.Pullback, Symbol = "SHORTPULLBACK", OpportunityScore = 90,
+    Trend = new() { Close = 100, Direction = "BAIXA" }, Volume = new() { Spike = 2 },
+    Structure = new(), Candle = new(), Setup = new() { IsPullbackBounce = true },
+    Risk = new() { Mode = RiskCalculationMode.SwingWithPartialExits, Support = 79, Resistance = 108, SupportDistancePercent = 21, ResistanceDistancePercent = 8, RiskReward = 2.625m }
+};
+Check(EligibilityEvaluator.Evaluate(shortPullbackFixture, "BEAR", ScannerProfiles.For(ScanProfile.Swing), TradeDirection.Short).IsEligible,
+    "Short pullback uses its own directional trigger");
 var shortAsset = new AssetScore { Symbol = "SHORT", Score = 90, BuyingPressureScore = 100, Support = 80, Resistance = 110 };
 var shortTrade = LabSimulation.TryOpen(new("SHORT", "Swing", 1800000, 1800000, 100, 24, shortAsset, ""), new(0, "", "", 0, 1), 10000, 0, false, TradeDirection.Short).Trade!;
 Check(shortTrade.Direction == TradeDirection.Short && shortTrade.Stop > shortTrade.EntryFill && shortTrade.Tp2 < shortTrade.EntryFill,"Short execution inverts stop and target");
