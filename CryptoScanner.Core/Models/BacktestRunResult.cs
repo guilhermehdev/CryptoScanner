@@ -35,5 +35,6 @@ public sealed class BacktestRunResult
     public decimal? Tp1Fraction { get; set; }
     public decimal? Tp2Fraction { get; set; }
     public decimal? MaxStopDistancePercent { get; set; }
+    public decimal MaxShortOpportunityScore { get; set; } = 100m;
     public bool DisableTimeout { get; set; }
 }

@@ -24,6 +24,7 @@ public static class EligibilityEvaluator
         // Filtro experimental (12/2026) — ver EligibilityThresholds.RequireBearishMomentumConfirmed.
         public bool FailedMomentumFilter { get; init; }
         public bool FailedShortSideways { get; init; }
+        public bool FailedShortScoreCeiling { get; init; }
 
         // Filtro experimental (22/08/2026) — ver EligibilityThresholds.BlockMeanReversionInBear.
         public bool FailedMeanReversionRegimeFilter { get; init; }
@@ -36,7 +37,7 @@ public static class EligibilityEvaluator
             !FailedVolumeSpike && !FailedResistanceDistance &&
             !FailedDirection && !FailedInvalidLevels && !FailedRiskReward && !FailedStopDistance &&
             !FailedStopDistanceTooHigh && !FailedRiskRewardTooHigh && !FailedBullTrap &&
-            !FailedTrendConfirmation && !FailedMomentumFilter && !FailedShortSideways && !FailedMeanReversionRegimeFilter &&
+            !FailedTrendConfirmation && !FailedMomentumFilter && !FailedShortSideways && !FailedShortScoreCeiling && !FailedMeanReversionRegimeFilter &&
             !FailedMeanReversionAtrFilter;
     }
 
@@ -67,6 +68,7 @@ public static class EligibilityEvaluator
         if(result.FailedTrendConfirmation) reasons.Add("Confirmação de tendência ausente.");
         if(result.FailedMomentumFilter) reasons.Add("Momentum não confirmado.");
         if(result.FailedShortSideways) reasons.Add("Regime lateral bloqueia venda Short.");
+        if(result.FailedShortScoreCeiling) reasons.Add($"Score Short acima do teto {t.MaxShortOpportunityScore:F0}.");
         if(result.FailedMeanReversionRegimeFilter) reasons.Add("Regime bloqueia reversão à média.");
         if(result.FailedMeanReversionAtrFilter) reasons.Add("ATR bloqueia reversão à média.");
         return reasons.Count==0 ? "Critérios de entrada atendidos no candle fechado analisado." : string.Join("\n",reasons);
@@ -206,6 +208,12 @@ public static class EligibilityEvaluator
             direction == TradeDirection.Short &&
             marketRegime == "LATERAL";
 
+        // O teto usa o Score bruto exibido/exportado no ranking. O piso continua
+        // usando o Score efetivo após a penalidade de regime, como antes.
+        bool failedShortScoreCeiling =
+            direction == TradeDirection.Short &&
+            asset.OpportunityScore > thresholds.MaxShortOpportunityScore;
+
         // Filtro experimental (22/08/2026) — ver EligibilityThresholds.BlockMeanReversionInBear.
         bool failedMeanReversionRegimeFilter =
             thresholds.BlockMeanReversionInBear &&
@@ -235,6 +243,7 @@ public static class EligibilityEvaluator
             FailedTrendConfirmation = failedTrendConfirmation,
             FailedMomentumFilter = failedMomentumFilter,
             FailedShortSideways = failedShortSideways,
+            FailedShortScoreCeiling = failedShortScoreCeiling,
             FailedMeanReversionRegimeFilter = failedMeanReversionRegimeFilter,
             FailedMeanReversionAtrFilter = failedMeanReversionAtrFilter
         };

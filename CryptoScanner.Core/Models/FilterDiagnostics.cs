@@ -3,7 +3,7 @@
 public sealed class FilterDiagnostics
 {
     public string RunId { get; set; } = Guid.NewGuid().ToString("N");
-    public string Version { get; set; } = "scan-funnel-v4";
+    public string Version { get; set; } = "scan-funnel-v5";
     public DateTime StartedUtc { get; set; }
     public DateTime CompletedUtc { get; set; }
     public int Requested { get; set; }
@@ -44,6 +44,7 @@ public sealed class FilterDiagnostics
     // Filtro experimental (12/2026) — ver EligibilityThresholds.RequireBearishMomentumConfirmed.
     public int FailedMomentumFilter { get; set; }
     public int FailedShortSideways { get; set; }
+    public int FailedShortScoreCeiling { get; set; }
 
     // Filtro experimental (22/08/2026) — ver EligibilityThresholds.BlockMeanReversionInBear.
     public int FailedMeanReversionRegimeFilter { get; set; }
@@ -58,7 +59,7 @@ public sealed class FilterDiagnostics
         $"Vol. spike: {FailedVolumeSpike} | Dist. resist.: {FailedResistanceDistance} | " +
         $"Direção: {FailedDirection} | Níveis inválidos: {FailedInvalidLevels} | R/R baixo: {FailedRiskReward} | Stop mín.: {FailedStopDistance} | " +
         $"Stop máx.: {FailedStopDistanceTooHigh} | RR teto: {FailedRiskRewardTooHigh} | Bull Trap: {FailedBullTrap} | " +
-        $"Tendência (EMA): {FailedTrendConfirmation} | Momentum: {FailedMomentumFilter} | Short lateral: {FailedShortSideways} | Regime MeanRev: {FailedMeanReversionRegimeFilter} | ATR MeanRev: {FailedMeanReversionAtrFilter} | " +
+        $"Tendência (EMA): {FailedTrendConfirmation} | Momentum: {FailedMomentumFilter} | Short lateral: {FailedShortSideways} | Score Short máx.: {FailedShortScoreCeiling} | Regime MeanRev: {FailedMeanReversionRegimeFilter} | ATR MeanRev: {FailedMeanReversionAtrFilter} | " +
         $"Duplicado hoje: {SkippedDuplicateToday} | Entrada rejeitada: {EntryRejected} | " +
         $"Passaram: {PassedAll}/{TotalAnalyzed}";
 }

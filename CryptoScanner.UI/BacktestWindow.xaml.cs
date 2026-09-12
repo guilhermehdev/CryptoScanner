@@ -45,6 +45,7 @@ public partial class BacktestWindow : Window
         dpStart.SelectedDate = DateTime.Today.AddYears(-6);
 
         txtMinScore.Text = ScannerSettings.BuyOpportunityScore.ToString("F0");
+        txtMaxShortScore.Text = "100";
         txtMinResistDistance.Text = ScannerSettings.MinResistanceDistance.ToString("F0");
         txtMinResistDistanceAtr.Text = "10"; // provisório — a comparar empiricamente
         txtMinResistDistancePartialExits.Text = "4"; // provisório — a comparar empiricamente
@@ -133,6 +134,7 @@ public partial class BacktestWindow : Window
         sb.Append(end.ToString("O")).Append('|');
         sb.Append(string.Join(",", symbols.OrderBy(s => s, StringComparer.Ordinal))).Append('|');
         sb.Append(thresholds.BuyOpportunityScore).Append('|');
+        sb.Append(thresholds.MaxShortOpportunityScore).Append('|');
         sb.Append(thresholds.MinResistanceDistance).Append('|');
         sb.Append(thresholds.MinResistanceDistanceAtrMode).Append('|');
         sb.Append(thresholds.MinResistanceDistancePartialExits).Append('|');
@@ -185,8 +187,8 @@ public partial class BacktestWindow : Window
             {
                 SignatureHash = signature,
                 SavedAt = DateTime.UtcNow,
-                Label = label + (thresholds.StructuralEntryExperiment ? " | Estrutura experimental v1" :  $" | Experimento isolado {thresholds.IsolatedEntryExperiment}") + $" | {thresholds.EntryStrategy} | Alvo mín.: " + (thresholds.MinimumTargetAtr is decimal atrFloor ? $"{atrFloor:G} ATR" : $"{thresholds.MinResistanceDistancePartialExits:G}% (parciais)") +
-                    $" | Short momentum={(thresholds.RequireBearishMomentumConfirmed ? "sim" : "não")}, lateral={(thresholds.BlockShortInSideways ? "bloqueado" : "aceito")}",
+                    Label = label + (thresholds.StructuralEntryExperiment ? " | Estrutura experimental v1" :  $" | Experimento isolado {thresholds.IsolatedEntryExperiment}") + $" | {thresholds.EntryStrategy} | Alvo mín.: " + (thresholds.MinimumTargetAtr is decimal atrFloor ? $"{atrFloor:G} ATR" : $"{thresholds.MinResistanceDistancePartialExits:G}% (parciais)") +
+                    $" | Short momentum={(thresholds.RequireBearishMomentumConfirmed ? "sim" : "não")}, lateral={(thresholds.BlockShortInSideways ? "bloqueado" : "aceito")}, score máx.={thresholds.MaxShortOpportunityScore:F0}",
                 Profile = profile.Name,
                 RiskMode = riskMode.ToString(),
                 StartDate = start,
@@ -194,6 +196,7 @@ public partial class BacktestWindow : Window
                 Symbols = string.Join(",", symbols),
                 SymbolCount = symbols.Count,
                 MinScore = thresholds.BuyOpportunityScore,
+                MaxShortOpportunityScore = thresholds.MaxShortOpportunityScore,
                 MinResistanceDistanceSwing = thresholds.MinResistanceDistance,
                 MinResistanceDistanceAtr = thresholds.MinResistanceDistanceAtrMode,
                 MinVolumeSpike = thresholds.MinVolumeSpike,
@@ -339,6 +342,7 @@ public partial class BacktestWindow : Window
     {
         cmbEntryStrategy.SelectedIndex = 3;
         txtMinScore.Text = t.BuyOpportunityScore.ToString();
+        txtMaxShortScore.Text = t.MaxShortOpportunityScore.ToString();
         txtMinResistDistance.Text = t.MinResistanceDistance.ToString();
         txtMinResistDistanceAtr.Text = t.MinResistanceDistanceAtrMode.ToString();
         txtMinResistDistancePartialExits.Text = t.MinResistanceDistancePartialExits.ToString();
@@ -364,6 +368,7 @@ public partial class BacktestWindow : Window
     {
         cmbEntryStrategy.SelectedIndex = 4;
         txtMinScore.Text = "55";
+        txtMaxShortScore.Text = "100";
         txtMinResistDistance.Text = "4";
         txtMinResistDistanceAtr.Text = "5";
         txtMinResistDistancePartialExits.Text = "2";
@@ -389,6 +394,7 @@ public partial class BacktestWindow : Window
     {
         cmbEntryStrategy.SelectedIndex = 4;
         txtMinScore.Text = "0";
+        txtMaxShortScore.Text = "100";
         txtMinResistDistance.Text = "0";
         txtMinResistDistanceAtr.Text = "0";
         txtMinResistDistancePartialExits.Text = "0";
@@ -422,6 +428,7 @@ public partial class BacktestWindow : Window
         thresholds = EligibilityThresholds.Default;
 
         if (!decimal.TryParse(txtMinScore.Text, out decimal minScore) ||
+            !decimal.TryParse(txtMaxShortScore.Text, out decimal maxShortScore) ||
             !decimal.TryParse(txtMinResistDistance.Text, out decimal minResistDistance) ||
             !decimal.TryParse(txtMinResistDistanceAtr.Text, out decimal minResistDistanceAtr) ||
             !decimal.TryParse(txtMinResistDistancePartialExits.Text, out decimal minResistDistancePartialExits) ||
@@ -447,6 +454,7 @@ public partial class BacktestWindow : Window
             TargetZoneExperiment=cmbStructureExperiment.SelectedIndex is >= 4 and <= 6 ? cmbStructureExperiment.SelectedIndex - 3 : 0,
             MinimumTargetAtr=chkTargetAtr.IsChecked == true ? targetAtr : null,
             BuyOpportunityScore = minScore,
+            MaxShortOpportunityScore = maxShortScore,
             BearRegimePenalty = ScannerSettings.BearRegimePenalty,
             SidewaysRegimePenalty = ScannerSettings.SidewaysRegimePenalty,
             MinVolumeSpike = minVolumeSpike,

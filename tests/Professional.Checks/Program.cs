@@ -106,6 +106,19 @@ var shortMomentumThresholds = new EligibilityThresholds
 };
 Check(EligibilityEvaluator.Evaluate(shortPullbackFixture, "BEAR", shortMomentumThresholds, TradeDirection.Short).FailedMomentumFilter,
     "Short momentum filter blocks unconfirmed setup");
+var shortScoreCeilingThresholds = new EligibilityThresholds
+{
+    EntryStrategy = EntryStrategy.Pullback, BuyOpportunityScore = 60, BearRegimePenalty = 10, SidewaysRegimePenalty = 8,
+    MinVolumeSpike = 1.3m, DefensiveMinVolumeSpike = 1.1m, MinResistanceDistance = 8, EnableMultiTimeframe = false,
+    MinResistanceDistanceAtrMode = 10, MinRiskReward = 2, MinRelativeStrengthPercent = 0, MinStopDistancePercent = 0,
+    MaxStopDistancePercent = 25, MaxRiskReward = 999, EnablePullbackBounce = true, EnableBollingerScoring = true,
+    EnableVolatilityScoringPhaseB = false, MinResistanceDistancePartialExits = 4, MaxShortOpportunityScore = 80
+};
+var shortScoreCapped = EligibilityEvaluator.Evaluate(shortPullbackFixture, "BEAR", shortScoreCeilingThresholds, TradeDirection.Short);
+Check(shortScoreCapped.FailedShortScoreCeiling && !shortScoreCapped.IsEligible,
+    "Short score ceiling blocks scores above the experimental maximum");
+Check(!EligibilityEvaluator.Evaluate(fixture, "BULL", shortScoreCeilingThresholds, TradeDirection.Long).FailedShortScoreCeiling,
+    "Short score ceiling does not affect Long");
 var lateralThresholds = new EligibilityThresholds
 {
     EntryStrategy = EntryStrategy.Pullback, BuyOpportunityScore = 60, BearRegimePenalty = 10, SidewaysRegimePenalty = 8,

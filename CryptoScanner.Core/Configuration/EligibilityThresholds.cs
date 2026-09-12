@@ -33,6 +33,10 @@ public sealed class EligibilityThresholds
     // RR parecia razoável mesmo os valores absolutos sendo um absurdo.
     public decimal MaxStopDistancePercent { get; init; } = decimal.MaxValue;
 
+    // Teto experimental de Score bruto para Short. O valor padrão 100 preserva
+    // o comportamento atual, pois o score é limitado a 100.
+    public decimal MaxShortOpportunityScore { get; init; } = 100m;
+
     public required decimal MaxRiskReward { get; init; }
     public required bool EnablePullbackBounce { get; init; }
     public required bool EnableBollingerScoring { get; init; }

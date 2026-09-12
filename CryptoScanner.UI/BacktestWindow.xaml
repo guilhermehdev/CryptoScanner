@@ -73,6 +73,8 @@
                     </ComboBox>
                     <TextBlock Text="Score mín.:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox x:Name="txtMinScore" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                    <TextBlock Text="Score máx. Short:" VerticalAlignment="Center" Margin="0,0,4,0" ToolTip="Experimento: bloqueia Shorts cujo Score efetivo fique acima deste valor. Não afeta Compras."/>
+                    <TextBox x:Name="txtMaxShortScore" Width="45" Text="100" VerticalAlignment="Center" Margin="0,0,14,0" ToolTip="Use 80 para testar o teto experimental de Score nos Shorts."/>
                     <TextBlock Text="Dist. Resist. mín. Swing %:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox x:Name="txtMinResistDistance" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
                     <TextBlock Text="Dist. Resist. mín. ATR %:" VerticalAlignment="Center" Margin="0,0,4,0"/>

@@ -90,7 +90,7 @@ public partial class BacktestHistoryWindow : Window
         sb.AppendLine($"Moedas ({r.SymbolCount}): {r.Symbols}");
         sb.AppendLine($"Limiares: Score>={r.MinScore:F0} | RR min={r.MinRiskReward:F1} | RR max={r.MaxRiskReward:F0} | " +
                        $"Dist.Resist.Swing={r.MinResistanceDistanceSwing:F0}% | Dist.Resist.ATR={r.MinResistanceDistanceAtr:F0}% | " +
-                       $"Vol.Spike={r.MinVolumeSpike:F2} | Stop min={r.MinStopDistancePercent:F0}% | " +
+                       $"Vol.Spike={r.MinVolumeSpike:F2} | Stop min={r.MinStopDistancePercent:F0}% | Score máx. Short={r.MaxShortOpportunityScore:F0} | " +
                        (r.MaxStopDistancePercent.HasValue ? $"Stop máx={r.MaxStopDistancePercent:F0}% | " : "") +
                        $"Caminho A={(r.EnablePullbackBounce ? "sim" : "não")} | Bollinger Scoring={(r.EnableBollingerScoring ? "sim" : "não")} | " +
                        $"Volatility Fase B={(r.EnableVolatilityScoringPhaseB ? "sim" : "não")} | " +

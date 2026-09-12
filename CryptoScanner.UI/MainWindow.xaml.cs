@@ -1381,7 +1381,7 @@ public partial class MainWindow : Window
         ("Score insuficiente",d.FailedScore),("Stop distante demais",d.FailedStopDistanceTooHigh),
         ("Stop próximo demais",d.FailedStopDistance),("R/R acima do teto",d.FailedRiskRewardTooHigh),
         ("Armadilha de alta",d.FailedBullTrap),("Confirmação EMA",d.FailedTrendConfirmation),
-        ("Momentum",d.FailedMomentumFilter),("Regime de reversão à média",d.FailedMeanReversionRegimeFilter),
+        ("Momentum",d.FailedMomentumFilter),("Score Short máx.",d.FailedShortScoreCeiling),("Regime de reversão à média",d.FailedMeanReversionRegimeFilter),
         ("ATR de reversão à média",d.FailedMeanReversionAtrFilter)
     }.OrderByDescending(x=>x.Item2).ToArray();
 
