@@ -16,7 +16,7 @@ AssetAnalysis Asset(string symbol,decimal volume=2)=>new(){Symbol=symbol,EntrySt
 var shortFixture = new AssetAnalysis
 {
     Direction = TradeDirection.Short, Symbol = "SHORTSCAN", OpportunityScore = 90,
-    Trend = new() { Close = 100, Direction = "BAIXA" }, Volume = new() { Spike = 2 },
+    Trend = new() { Close = 100, Direction = "BAIXA", Adx = 35 }, Volume = new() { Spike = 2 },
     Structure = new(), Candle = new(), Setup = new() { IsBreakout = true, IsConsolidating = true },
     Risk = new() { Mode = RiskCalculationMode.SwingWithPartialExits, Support = 79, Resistance = 110, SupportDistancePercent = 21, ResistanceDistancePercent = 10, RiskReward = 2.1m }
 };
@@ -90,7 +90,7 @@ Check(shortEligibility.IsEligible,"Short uses bearish trend and target/stop dist
 var shortPullbackFixture = new AssetAnalysis
 {
     Direction = TradeDirection.Short, EntryStrategy = EntryStrategy.Pullback, Symbol = "SHORTPULLBACK", OpportunityScore = 90,
-    Trend = new() { Close = 100, Direction = "BAIXA" }, Volume = new() { Spike = 2 },
+    Trend = new() { Close = 100, Direction = "BAIXA", Adx = 35 }, Volume = new() { Spike = 2 },
     Structure = new(), Candle = new(), Setup = new() { IsPullbackBounce = true },
     Risk = new() { Mode = RiskCalculationMode.SwingWithPartialExits, Support = 79, Resistance = 108, SupportDistancePercent = 21, ResistanceDistancePercent = 8, RiskReward = 2.625m }
 };
@@ -119,6 +119,19 @@ Check(shortScoreCapped.FailedShortScoreCeiling && !shortScoreCapped.IsEligible,
     "Short score ceiling blocks scores above the experimental maximum");
 Check(!EligibilityEvaluator.Evaluate(fixture, "BULL", shortScoreCeilingThresholds, TradeDirection.Long).FailedShortScoreCeiling,
     "Short score ceiling does not affect Long");
+var shortAdxThresholds = new EligibilityThresholds
+{
+    EntryStrategy = EntryStrategy.Pullback, BuyOpportunityScore = 60, BearRegimePenalty = 10, SidewaysRegimePenalty = 8,
+    MinVolumeSpike = 1.3m, DefensiveMinVolumeSpike = 1.1m, MinResistanceDistance = 8, EnableMultiTimeframe = false,
+    MinResistanceDistanceAtrMode = 10, MinRiskReward = 2, MinRelativeStrengthPercent = 0, MinStopDistancePercent = 0,
+    MaxStopDistancePercent = 25, MaxRiskReward = 999, EnablePullbackBounce = true, EnableBollingerScoring = true,
+    EnableVolatilityScoringPhaseB = false, MinResistanceDistancePartialExits = 4, MaxShortAdxInBear = 30
+};
+var shortAdxCapped = EligibilityEvaluator.Evaluate(shortPullbackFixture, "BEAR", shortAdxThresholds, TradeDirection.Short);
+Check(shortAdxCapped.FailedShortAdxInBear && !shortAdxCapped.IsEligible,
+    "Short ADX ceiling blocks strong BEAR setups above the experimental maximum");
+Check(!EligibilityEvaluator.Evaluate(shortPullbackFixture, "BULL", shortAdxThresholds, TradeDirection.Short).FailedShortAdxInBear,
+    "Short ADX ceiling applies only in BEAR");
 var lateralThresholds = new EligibilityThresholds
 {
     EntryStrategy = EntryStrategy.Pullback, BuyOpportunityScore = 60, BearRegimePenalty = 10, SidewaysRegimePenalty = 8,

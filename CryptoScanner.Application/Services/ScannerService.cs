@@ -115,6 +115,7 @@ public sealed class ScannerService
             if (eligibility.FailedMomentumFilter) diagnostics.FailedMomentumFilter++;
             if (eligibility.FailedShortSideways) diagnostics.FailedShortSideways++;
             if (eligibility.FailedShortScoreCeiling) diagnostics.FailedShortScoreCeiling++;
+            if (eligibility.FailedShortAdxInBear) diagnostics.FailedShortAdxInBear++;
 
             string type=asset.Setup.IsBreakout?"Rompimento":asset.Setup.IsPullbackBounce?"Repique":"Outros";
             diagnostics.CandidateTypes[type]=diagnostics.CandidateTypes.GetValueOrDefault(type)+1;

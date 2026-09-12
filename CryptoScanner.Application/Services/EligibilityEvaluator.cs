@@ -25,6 +25,7 @@ public static class EligibilityEvaluator
         public bool FailedMomentumFilter { get; init; }
         public bool FailedShortSideways { get; init; }
         public bool FailedShortScoreCeiling { get; init; }
+        public bool FailedShortAdxInBear { get; init; }
 
         // Filtro experimental (22/08/2026) — ver EligibilityThresholds.BlockMeanReversionInBear.
         public bool FailedMeanReversionRegimeFilter { get; init; }
@@ -37,7 +38,7 @@ public static class EligibilityEvaluator
             !FailedVolumeSpike && !FailedResistanceDistance &&
             !FailedDirection && !FailedInvalidLevels && !FailedRiskReward && !FailedStopDistance &&
             !FailedStopDistanceTooHigh && !FailedRiskRewardTooHigh && !FailedBullTrap &&
-            !FailedTrendConfirmation && !FailedMomentumFilter && !FailedShortSideways && !FailedShortScoreCeiling && !FailedMeanReversionRegimeFilter &&
+            !FailedTrendConfirmation && !FailedMomentumFilter && !FailedShortSideways && !FailedShortScoreCeiling && !FailedShortAdxInBear && !FailedMeanReversionRegimeFilter &&
             !FailedMeanReversionAtrFilter;
     }
 
@@ -69,6 +70,7 @@ public static class EligibilityEvaluator
         if(result.FailedMomentumFilter) reasons.Add("Momentum não confirmado.");
         if(result.FailedShortSideways) reasons.Add("Regime lateral bloqueia venda Short.");
         if(result.FailedShortScoreCeiling) reasons.Add($"Score Short acima do teto {t.MaxShortOpportunityScore:F0}.");
+        if(result.FailedShortAdxInBear) reasons.Add($"ADX Short em BEAR acima do teto {t.MaxShortAdxInBear:F0}.");
         if(result.FailedMeanReversionRegimeFilter) reasons.Add("Regime bloqueia reversão à média.");
         if(result.FailedMeanReversionAtrFilter) reasons.Add("ATR bloqueia reversão à média.");
         return reasons.Count==0 ? "Critérios de entrada atendidos no candle fechado analisado." : string.Join("\n",reasons);
@@ -214,6 +216,11 @@ public static class EligibilityEvaluator
             direction == TradeDirection.Short &&
             asset.OpportunityScore > thresholds.MaxShortOpportunityScore;
 
+        bool failedShortAdxInBear =
+            direction == TradeDirection.Short &&
+            marketRegime == "BEAR" &&
+            asset.Trend.Adx > thresholds.MaxShortAdxInBear;
+
         // Filtro experimental (22/08/2026) — ver EligibilityThresholds.BlockMeanReversionInBear.
         bool failedMeanReversionRegimeFilter =
             thresholds.BlockMeanReversionInBear &&
@@ -244,6 +251,7 @@ public static class EligibilityEvaluator
             FailedMomentumFilter = failedMomentumFilter,
             FailedShortSideways = failedShortSideways,
             FailedShortScoreCeiling = failedShortScoreCeiling,
+            FailedShortAdxInBear = failedShortAdxInBear,
             FailedMeanReversionRegimeFilter = failedMeanReversionRegimeFilter,
             FailedMeanReversionAtrFilter = failedMeanReversionAtrFilter
         };

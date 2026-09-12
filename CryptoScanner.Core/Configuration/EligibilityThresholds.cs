@@ -37,6 +37,10 @@ public sealed class EligibilityThresholds
     // o comportamento atual, pois o score é limitado a 100.
     public decimal MaxShortOpportunityScore { get; init; } = 100m;
 
+    // Teto experimental de ADX para Short em regime BEAR. O padrão alto preserva
+    // o comportamento atual até que o filtro seja explicitamente testado.
+    public decimal MaxShortAdxInBear { get; init; } = 999m;
+
     public required decimal MaxRiskReward { get; init; }
     public required bool EnablePullbackBounce { get; init; }
     public required bool EnableBollingerScoring { get; init; }
