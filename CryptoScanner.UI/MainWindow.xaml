@@ -17,7 +17,6 @@
         <SolidColorBrush x:Key="DarkBorder" Color="#444444"/>
         <Style TargetType="RadioButton"><Setter Property="Foreground" Value="White"/></Style>
         <Style TargetType="TabControl"><Setter Property="Background" Value="#1E1E1E"/><Setter Property="BorderBrush" Value="{StaticResource DarkBorder}"/></Style>
-        <Style TargetType="TabItem"><Setter Property="Background" Value="{StaticResource DarkPanelBackground}"/><Setter Property="Foreground" Value="White"/><Style.Triggers><Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="#333333"/><Setter Property="Foreground" Value="White"/></Trigger></Style.Triggers></Style>
         <Style TargetType="DataGrid"><Setter Property="Background" Value="#404040"/><Setter Property="Foreground" Value="Black"/><Setter Property="RowBackground" Value="White"/><Setter Property="AlternatingRowBackground" Value="White"/><Setter Property="FontSize" Value="13"/></Style>
         <Style TargetType="DataGridColumnHeader"><Setter Property="Background" Value="#282828"/><Setter Property="Foreground" Value="#00FFFF"/><Setter Property="FontSize" Value="14"/></Style>
     </Window.Resources>

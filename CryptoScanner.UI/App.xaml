@@ -164,7 +164,26 @@
             <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
             <Setter Property="BorderBrush" Value="#363636"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Background" Value="{StaticResource AppDarkBackground}"/>
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="GroupBox">
+                        <Grid SnapsToDevicePixels="True">
+                            <Border Margin="0,8,0,0" Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="2" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter/>
+                            </Border>
+                            <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8,0,0,0"
+                                    Padding="4,0" Background="{TemplateBinding Background}">
+                                <ContentPresenter ContentSource="Header" RecognizesAccessKey="True"
+                                                  TextElement.Foreground="{TemplateBinding Foreground}"/>
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style TargetType="TabControl">
             <Setter Property="Background" Value="{StaticResource AppDarkBackground}"/>
@@ -173,6 +192,34 @@
         <Style TargetType="TabItem">
             <Setter Property="Background" Value="{StaticResource AppDarkPanel}"/>
             <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AppDarkBorder}"/>
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="TabBorder" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1,1,1,0"
+                                CornerRadius="2,2,0,0" Padding="10,4" Margin="0,0,2,0">
+                            <ContentPresenter ContentSource="Header" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="TabBorder" Property="Background" Value="#333333"/>
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="#555555"/>
+                                <Setter TargetName="TabBorder" Property="Panel.ZIndex" Value="1"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="TabBorder" Property="Background" Value="#383838"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="TabBorder" Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
             <Style.Triggers>
                 <Trigger Property="IsSelected" Value="True">
                     <Setter Property="Background" Value="#333333"/>
