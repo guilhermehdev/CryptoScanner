@@ -1,4 +1,5 @@
 using CryptoScanner.Application.Services;
+using CryptoScanner.Application.Models;
 using CryptoScanner.Core.Configuration;
 using CryptoScanner.Core.Contracts;
 using CryptoScanner.Core.Models;
@@ -173,9 +174,11 @@ public partial class MainWindow : Window
 
         try
         {
-            var direction = GetSelectedScannerDirection();
+            var directions = GetSelectedScannerDirections();
             var shortExperimental = GetUseShortExperimentalProfile();
-            var result = await _scanner.RunAsync(profile, direction, shortExperimental: shortExperimental);
+            var results = await Task.WhenAll(directions.Select(direction =>
+                _scanner.RunAsync(profile, direction, shortExperimental: direction == TradeDirection.Short && shortExperimental)));
+            var result = results.Length == 1 ? results[0] : MergeScannerResults(results);
 
             _lastHistory = result.History; // já é global (Signals não filtra por Profile)
             _rankingsByProfile[profile.Name] = result.Ranking;
@@ -225,6 +228,66 @@ public partial class MainWindow : Window
     private void UpdateAtualizarButtonState()
     {
         btAtualizar.IsEnabled = !_isScanningByProfile.Values.Any(scanning => scanning);
+    }
+
+    private static ScannerRunResult MergeScannerResults(IReadOnlyList<ScannerRunResult> results)
+    {
+        var first = results[0];
+        var last = results[^1];
+        var diagnostics = first.Diagnostics;
+
+        foreach (var other in results.Skip(1))
+        {
+            foreach (var property in typeof(FilterDiagnostics).GetProperties()
+                         .Where(p => p.PropertyType == typeof(int) && p.CanRead && p.CanWrite))
+            {
+                int total = (int)property.GetValue(diagnostics)! + (int)property.GetValue(other.Diagnostics)!;
+                property.SetValue(diagnostics, total);
+            }
+
+            foreach (var pair in other.Diagnostics.CandidateTypes)
+                diagnostics.CandidateTypes[pair.Key] = diagnostics.CandidateTypes.GetValueOrDefault(pair.Key) + pair.Value;
+            foreach (var pair in other.Diagnostics.Errors)
+                diagnostics.Errors[$"Short: {pair.Key}"] = pair.Value;
+            foreach (var pair in other.Diagnostics.OnlyBlockedBy)
+            {
+                if (!diagnostics.OnlyBlockedBy.TryGetValue(pair.Key, out var symbols))
+                    diagnostics.OnlyBlockedBy[pair.Key] = symbols = new();
+                symbols.AddRange(pair.Value);
+            }
+            foreach (var pair in other.Diagnostics.Strategies)
+            {
+                if (diagnostics.Strategies.TryGetValue(pair.Key, out var existing))
+                    existing.Merge(pair.Value);
+                else
+                    diagnostics.Strategies[pair.Key] = pair.Value;
+            }
+        }
+
+        diagnostics.Analyses = results.SelectMany(r => r.Diagnostics.Analyses).ToList();
+        diagnostics.Thresholds = null; // Long and Short can have different thresholds.
+        diagnostics.Profile = $"{first.Diagnostics.Profile} · Ambos";
+        diagnostics.StartedUtc = results.Min(r => r.Diagnostics.StartedUtc);
+        diagnostics.CompletedUtc = results.Max(r => r.Diagnostics.CompletedUtc);
+
+        return new ScannerRunResult
+        {
+            MarketRegime = first.MarketRegime,
+            Ranking = results.SelectMany(r => r.Ranking)
+                .GroupBy(a => $"{a.Symbol}|{a.Direction}", StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.OrderByDescending(a => a.Score).First())
+                .OrderByDescending(a => a.Score)
+                .ThenBy(a => a.Symbol)
+                .ToList(),
+            History = last.History,
+            WinRate = last.WinRate,
+            AverageReturn = last.AverageReturn,
+            Diagnostics = diagnostics,
+            NewSignals = results.SelectMany(r => r.NewSignals)
+                .GroupBy(s => $"{s.Symbol}|{s.Signal}|{s.Profile}", StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.First())
+                .ToList()
+        };
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -319,8 +382,15 @@ public partial class MainWindow : Window
     private TradeDirection GetSelectedScannerDirection() =>
         rbScanShort?.IsChecked == true ? TradeDirection.Short : TradeDirection.Long;
 
+    private bool IsBothDirectionsSelected() => rbScanBoth?.IsChecked == true;
+
+    private IReadOnlyList<TradeDirection> GetSelectedScannerDirections() =>
+        IsBothDirectionsSelected()
+            ? new[] { TradeDirection.Long, TradeDirection.Short }
+            : new[] { GetSelectedScannerDirection() };
+
     private bool GetUseShortExperimentalProfile() =>
-        GetSelectedScannerDirection() == TradeDirection.Short && chkShortExperimental?.IsChecked == true;
+        (GetSelectedScannerDirection() == TradeDirection.Short || IsBothDirectionsSelected()) && chkShortExperimental?.IsChecked == true;
 
     private void ScanDirectionChanged(object sender, RoutedEventArgs e)
     {
@@ -712,13 +782,16 @@ public partial class MainWindow : Window
         btnSearch.IsEnabled = false;
         try
         {
-            // Busca sempre no perfil que está sendo exibido agora.
-            var result = await _scanner.LookupSymbolAsync(
-                input,
-                _viewedProfile,
-                direction: GetSelectedScannerDirection(),
-                shortExperimental: GetUseShortExperimentalProfile());
-            if (result == null)
+            // Busca no lado selecionado; no modo Ambos, mostra as duas leituras
+            // do mesmo ativo no ranking.
+            var lookupResults = await Task.WhenAll(GetSelectedScannerDirections().Select(direction =>
+                _scanner.LookupSymbolAsync(
+                    input,
+                    _viewedProfile,
+                    direction: direction,
+                    shortExperimental: direction == TradeDirection.Short && GetUseShortExperimentalProfile())));
+            var foundResults = lookupResults.Where(result => result != null).Cast<AssetScore>().ToList();
+            if (foundResults.Count == 0)
             {
                 MessageBox.Show(
                     $"Não foi possível encontrar dados para \"{input}\".\nVerifique o símbolo (ex.: DOGEUSDT).",
@@ -726,24 +799,24 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // Remove uma entrada antiga do mesmo símbolo (se existir) e insere a nova no topo,
+            // Remove as leituras antigas do mesmo símbolo e insere as novas no topo,
             // dentro do ranking do perfil exibido.
             var currentRanking = _rankingsByProfile.GetValueOrDefault(_viewedProfile.Name, Array.Empty<AssetScore>());
             var updated = currentRanking
-                .Where(a => !string.Equals(a.Symbol, result.Symbol, StringComparison.OrdinalIgnoreCase))
+                .Where(a => !string.Equals(a.Symbol, input, StringComparison.OrdinalIgnoreCase))
                 .ToList();
-            updated.Insert(0, result);
+            updated.InsertRange(0, foundResults);
             _rankingsByProfile[_viewedProfile.Name] = updated;
 
             // Se o filtro "só favoritos" estiver ativo e a moeda buscada não for favorita,
             // desativa o filtro pra garantir que o resultado apareça — senão o clique em
             // "Buscar" pareceria não ter feito nada.
-            if (chkFavoritesOnly.IsChecked == true && !result.IsFavorite)
+            if (chkFavoritesOnly.IsChecked == true && foundResults.All(result => !result.IsFavorite))
                 chkFavoritesOnly.IsChecked = false;
 
             ApplyRankingFilter();
-            dgRanking.SelectedItem = result;
-            dgRanking.ScrollIntoView(result);
+            dgRanking.SelectedItem = foundResults[0];
+            dgRanking.ScrollIntoView(foundResults[0]);
             _=RecordLabGridAsync(_viewedProfile);
         }
         catch (Exception ex)
@@ -1412,7 +1485,7 @@ public partial class MainWindow : Window
         var ranking=_rankingsByProfile.GetValueOrDefault(profile,Array.Empty<AssetScore>());
         var diag=_diagnosticsByProfile.GetValueOrDefault(profile);
         string updated=_scanCompletedAt.TryGetValue(profile,out var at)?at.ToString("dd/MM HH:mm:ss"):"aguardando";
-        string side = GetSelectedScannerDirection() == TradeDirection.Short ? "Venda" : "Compra";
+        string side = IsBothDirectionsSelected() ? "Ambos" : GetSelectedScannerDirection() == TradeDirection.Short ? "Venda" : "Compra";
         string experiment = GetUseShortExperimentalProfile() ? " · Short experimental" : "";
         txtScanSummary.Text=$"{profile} · {side}{experiment} · Analisados: {diag?.TotalAnalyzed ?? 0} · Elegíveis no universo: {diag?.PassedAll ?? 0} · Em observação: {ranking.Count(a=>a.DisplaySignal=="MONITORAR")} · Atualizado: {updated}";
         txtScanSummary.ToolTip="Resumo do perfil completo, antes do filtro de favoritos. A busca manual não muda o horário da última varredura.";
@@ -1466,6 +1539,7 @@ public partial class MainWindow : Window
     private void RefreshTitle()
     {
         string experiment = GetUseShortExperimentalProfile() ? " | Short experimental" : "";
-        Title = $"Scanner [{_lastMarketRegime}] | { (GetSelectedScannerDirection() == TradeDirection.Short ? "Venda" : "Compra") }{experiment} | Exibindo: {_viewedProfile.Name}";
+        string side = IsBothDirectionsSelected() ? "Ambos" : GetSelectedScannerDirection() == TradeDirection.Short ? "Venda" : "Compra";
+        Title = $"Scanner [{_lastMarketRegime}] | {side}{experiment} | Exibindo: {_viewedProfile.Name}";
     }
 }

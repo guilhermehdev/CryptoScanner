@@ -5,6 +5,7 @@ namespace CryptoScanner.Core.Models;
 public sealed class AssetScore : ObservableModel
 {
     public TradeDirection Direction { get; init; } = TradeDirection.Long;
+    public string DirectionText => Direction == TradeDirection.Short ? "Venda" : "Compra";
     public string Symbol { get; init; } = "";
 
     private decimal _close;
