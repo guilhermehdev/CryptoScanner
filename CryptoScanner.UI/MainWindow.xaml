@@ -95,6 +95,7 @@
                 <Style TargetType="DataGridRow">
                     <Setter Property="Background" Value="#111111"/>
                     <Setter Property="Foreground" Value="#F5F5F5"/>
+                    <EventSetter Event="MouseLeave" Handler="DgRankingRow_MouseLeave"/>
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding Signal}" Value="MONITORAR"><Setter Property="Background" Value="#383838"/></DataTrigger>
                         <DataTrigger Binding="{Binding Signal}" Value="COMPRA"><Setter Property="Background" Value="#E6C96A"/><Setter Property="Foreground" Value="#171717"/></DataTrigger>

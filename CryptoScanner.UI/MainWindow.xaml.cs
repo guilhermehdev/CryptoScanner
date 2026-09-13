@@ -58,6 +58,7 @@ public partial class MainWindow : Window
     private bool _isWindowLoaded;
     private IReadOnlyList<SignalHistory> _lastHistory = Array.Empty<SignalHistory>();
     private Forms.NotifyIcon? _trayIcon;
+    private readonly HashSet<Window> _detachedChildWindows = new();
 
     // --- Scan Duplo (Swing + Intraday simultâneo) ---------------------------
     // Os 2 perfis escaneiam sempre, em paralelo. _viewedProfile controla só o
@@ -126,6 +127,24 @@ public partial class MainWindow : Window
         if (WindowState != WindowState.Minimized)
             return;
 
+        // WPF normally minimizes owned windows together with their owner. Detach
+        // open child windows first so Backtest, Análise and Chart remain usable.
+        foreach (var child in OwnedWindows.Cast<Window>().ToArray())
+        {
+            try
+            {
+                child.Owner = null;
+                if (child.WindowState == WindowState.Minimized)
+                    child.WindowState = WindowState.Normal;
+                _detachedChildWindows.Add(child);
+            }
+            catch
+            {
+                // A child that is closing or modal can disappear between the
+                // snapshot and the detach; it needs no further handling.
+            }
+        }
+
         Hide();
         ShowInTaskbar = false;
         if (_trayIcon != null)
@@ -151,6 +170,11 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _labTimer.Stop();_labClosed.Cancel();
+        foreach (var child in _detachedChildWindows.ToArray())
+        {
+            try { child.Close(); } catch { }
+        }
+        _detachedChildWindows.Clear();
         _trayIcon?.Dispose();
         _ = _webSocketService.DisposeAsync().AsTask(); // fire-and-forget — app já está fechando
         base.OnClosed(e);
@@ -1395,6 +1419,12 @@ public partial class MainWindow : Window
         popupBreakdown.PlacementTarget = (UIElement?)row ?? dgRanking;
         popupBreakdown.Placement = PlacementMode.Bottom;
         popupBreakdown.IsOpen = true;
+    }
+
+    private void DgRankingRow_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (sender is DataGridRow row && ReferenceEquals(popupBreakdown.DataContext, row.Item))
+            popupBreakdown.IsOpen = false;
     }
 
     private static void CopyAssetQualityToClipboard(AssetScore asset)
