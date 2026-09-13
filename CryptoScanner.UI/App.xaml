@@ -162,7 +162,9 @@
         </Style>
         <Style TargetType="GroupBox">
             <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource AppDarkBorder}"/>
+            <Setter Property="BorderBrush" Value="#363636"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="Transparent"/>
         </Style>
         <Style TargetType="TabControl">
             <Setter Property="Background" Value="{StaticResource AppDarkBackground}"/>
@@ -171,6 +173,12 @@
         <Style TargetType="TabItem">
             <Setter Property="Background" Value="{StaticResource AppDarkPanel}"/>
             <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#333333"/>
+                    <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
+                </Trigger>
+            </Style.Triggers>
         </Style>
         <Style TargetType="DataGrid">
             <Setter Property="Background" Value="{StaticResource AppDarkPanel}"/>
