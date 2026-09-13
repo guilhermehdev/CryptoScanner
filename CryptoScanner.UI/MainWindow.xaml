@@ -63,7 +63,7 @@
                 <RadioButton x:Name="rbScanBoth" Content="Ambos" GroupName="ScanDirection" IsChecked="True" Margin="0,3,8,3" VerticalAlignment="Center" Checked="ScanDirectionChanged"/>
                 <RadioButton x:Name="rbScanLong" Content="Compra" GroupName="ScanDirection" Margin="0,3,8,3" VerticalAlignment="Center" Checked="ScanDirectionChanged"/>
                 <RadioButton x:Name="rbScanShort" Content="Venda" GroupName="ScanDirection" Margin="0,3,16,3" VerticalAlignment="Center" Checked="ScanDirectionChanged"/>
-                <CheckBox x:Name="chkShortExperimental" Content="Short experimental" Margin="0,3,16,3" VerticalAlignment="Center" Checked="ShortExperimentalChanged" Unchecked="ShortExperimentalChanged" ToolTip="Ativa Score máx. 80, ADX máx. 30 em BEAR, momentum baixista confirmado e bloqueio de regime lateral. Só se aplica a Venda."/>
+                <CheckBox x:Name="chkShortExperimental" Content="Short balanceado" IsChecked="True" Margin="0,3,16,3" VerticalAlignment="Center" Checked="ShortExperimentalChanged" Unchecked="ShortExperimentalChanged" ToolTip="Venda balanceada: score máx. 80, ADX máx. 30 em BEAR, momentum baixista confirmado, lateral bloqueado, volume mínimo 1,10x e alvo mínimo 3% no Swing."/>
                 <CheckBox x:Name="chkFavoritesOnly" Content="★ Só favoritos" Margin="0,3,16,3" VerticalAlignment="Center" Checked="ChkFavoritesOnly_Changed" Unchecked="ChkFavoritesOnly_Changed"/>
                 <TextBlock Text="Ativo:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                 <TextBox x:Name="txtSearchSymbol" Width="100" Margin="0,3,6,3" VerticalAlignment="Center" KeyDown="TxtSearchSymbol_KeyDown"/>

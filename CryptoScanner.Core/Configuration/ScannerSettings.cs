@@ -32,11 +32,19 @@ public static class ScannerSettings
     public const decimal MinRelativeVolume = 1.5m;
     public const decimal MinVolumeSpike = 1.30m;
 
+    // Short balanceado: a validação cronológica (2022–2024 e 2024–2026) mostrou que
+    // reduzir moderadamente o volume exigido aumenta a frequência sem remover os
+    // portões de score, R/R, momentum, lateral e ADX.
+    public const decimal ShortBalancedMinVolumeSpike = 1.10m;
+
     // Risco
     public const decimal MinRiskReward = 3m;
 
     // Espaço até resistência
     public const decimal MinResistanceDistance = 8m;
+
+    // Distância mínima do alvo estrutural para parciais no Short balanceado.
+    public const decimal ShortBalancedMinResistanceDistancePartialExits = 3m;
 
     // Histórico
     public const int EvaluationHours = 24;

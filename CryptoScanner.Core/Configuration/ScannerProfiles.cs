@@ -93,7 +93,9 @@ public static class ScannerProfiles
             BuyOpportunityScore = baseThresholds.BuyOpportunityScore,
             BearRegimePenalty = baseThresholds.BearRegimePenalty,
             SidewaysRegimePenalty = baseThresholds.SidewaysRegimePenalty,
-            MinVolumeSpike = baseThresholds.MinVolumeSpike,
+            MinVolumeSpike = profile.Name == ScanProfile.Swing.Name
+                ? ScannerSettings.ShortBalancedMinVolumeSpike
+                : baseThresholds.MinVolumeSpike,
             DefensiveMinVolumeSpike = baseThresholds.DefensiveMinVolumeSpike,
             MinResistanceDistance = baseThresholds.MinResistanceDistance,
             EnableMultiTimeframe = baseThresholds.EnableMultiTimeframe,
@@ -108,7 +110,9 @@ public static class ScannerProfiles
             EnablePullbackBounce = baseThresholds.EnablePullbackBounce,
             EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
             EnableVolatilityScoringPhaseB = baseThresholds.EnableVolatilityScoringPhaseB,
-            MinResistanceDistancePartialExits = baseThresholds.MinResistanceDistancePartialExits,
+            MinResistanceDistancePartialExits = profile.Name == ScanProfile.Swing.Name
+                ? ScannerSettings.ShortBalancedMinResistanceDistancePartialExits
+                : baseThresholds.MinResistanceDistancePartialExits,
             EnableMeanReversionScalp = baseThresholds.EnableMeanReversionScalp,
             EnableBollingerReversal = baseThresholds.EnableBollingerReversal,
             RequireBearishMomentumConfirmed = true,
