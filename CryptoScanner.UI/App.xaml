@@ -46,6 +46,11 @@
             <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
             <Setter Property="BorderBrush" Value="{StaticResource AppDarkBorder}"/>
         </Style>
+        <Style TargetType="{x:Type DatePickerTextBox}">
+            <Setter Property="Background" Value="{StaticResource AppDarkPanel}"/>
+            <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AppDarkBorder}"/>
+        </Style>
         <Style TargetType="CheckBox">
             <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
         </Style>
