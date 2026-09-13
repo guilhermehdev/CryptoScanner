@@ -36,6 +36,51 @@
             <Setter Property="Background" Value="{StaticResource AppDarkPanel}"/>
             <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
             <Setter Property="BorderBrush" Value="{StaticResource AppDarkBorder}"/>
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="ToggleButton" Focusable="False" ClickMode="Press"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                          Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="1" CornerRadius="2">
+                                            <ContentPresenter/>
+                                        </Border>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                                <Grid>
+                                    <ContentPresenter Content="{TemplateBinding SelectionBoxItem}"
+                                                      ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                      ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
+                                                      HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                      Margin="6,0,28,0" TextElement.Foreground="{TemplateBinding Foreground}"/>
+                                    <Path Data="M 0 0 L 8 0 L 4 4 Z" Fill="{TemplateBinding Foreground}"
+                                          HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,9,0"/>
+                                </Grid>
+                            </ToggleButton>
+                            <Popup x:Name="PART_Popup" AllowsTransparency="True" Focusable="False"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom"
+                                   PopupAnimation="Fade">
+                                <Border Background="{StaticResource AppDarkPanel}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1">
+                                    <ScrollViewer CanContentScroll="True">
+                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ToggleButton" Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style TargetType="ComboBoxItem">
             <Setter Property="Background" Value="{StaticResource AppDarkPanel}"/>

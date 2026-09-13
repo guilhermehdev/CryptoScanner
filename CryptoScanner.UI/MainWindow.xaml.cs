@@ -127,28 +127,36 @@ public partial class MainWindow : Window
         if (WindowState != WindowState.Minimized)
             return;
 
-        // WPF normally minimizes owned windows together with their owner. Detach
-        // open child windows first so Backtest, Análise and Chart remain usable.
-        foreach (var child in OwnedWindows.Cast<Window>().ToArray())
-        {
-            try
-            {
-                child.Owner = null;
-                if (child.WindowState == WindowState.Minimized)
-                    child.WindowState = WindowState.Normal;
-                _detachedChildWindows.Add(child);
-            }
-            catch
-            {
-                // A child that is closing or modal can disappear between the
-                // snapshot and the detach; it needs no further handling.
-            }
-        }
-
+        // WPF normally minimizes owned windows together with their owner. The
+        // state transition can minimize them after this event, so detach and
+        // restore them on the dispatcher after WPF finishes processing it.
+        var children = OwnedWindows.Cast<Window>().ToArray();
         Hide();
         ShowInTaskbar = false;
         if (_trayIcon != null)
             _trayIcon.Visible = true;
+
+        Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(() =>
+        {
+            foreach (var child in children)
+            {
+                try
+                {
+                    child.Owner = null;
+                    child.ShowInTaskbar = true;
+                    if (!child.IsVisible)
+                        child.Show();
+                    if (child.WindowState == WindowState.Minimized)
+                        child.WindowState = WindowState.Normal;
+                    _detachedChildWindows.Add(child);
+                }
+                catch
+                {
+                    // A child that is closing or modal can disappear between the
+                    // snapshot and the deferred detach; it needs no handling.
+                }
+            }
+        }));
     }
 
     private void RestoreFromTray()
