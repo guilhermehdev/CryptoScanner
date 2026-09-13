@@ -19,10 +19,17 @@
         <Style TargetType="TabControl"><Setter Property="Background" Value="#1E1E1E"/><Setter Property="BorderBrush" Value="{StaticResource DarkBorder}"/></Style>
         <Style TargetType="DataGrid"><Setter Property="Background" Value="#404040"/><Setter Property="Foreground" Value="Black"/><Setter Property="RowBackground" Value="White"/><Setter Property="AlternatingRowBackground" Value="White"/><Setter Property="FontSize" Value="13"/></Style>
         <Style TargetType="DataGridColumnHeader"><Setter Property="Background" Value="#282828"/><Setter Property="Foreground" Value="#00FFFF"/><Setter Property="FontSize" Value="14"/></Style>
+        <Style x:Key="LightTradeGridCell" TargetType="DataGridCell">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#171717"/>
+            <Setter Property="BorderBrush" Value="#686868"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="Padding" Value="3,1"/>
+        </Style>
     </Window.Resources>
 
     <Grid>
-        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="1.6*"/><RowDefinition Height="1*"/></Grid.RowDefinitions>
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="2*"/><RowDefinition Height="1*"/></Grid.RowDefinitions>
 
         <Border Grid.Row="0" Background="#F5F5F5" BorderBrush="LightGray" BorderThickness="0,0,0,1" Padding="14,8">
             <StackPanel Orientation="Horizontal">
@@ -75,10 +82,10 @@
                 <Button Content="Histórico LLM" Click="BtnLlmHistory_Click" Padding="8,2" Margin="0,3,6,0"/>
                 <Button Content="Analisar com LLM" ToolTip="Analisa a moeda selecionada usando os dados estruturados do scanner" Click="BtnAnalyzeWithLlm_Click" Padding="8,2" Margin="0,3,6,0"/>
             </WrapPanel>
-            <Border Background="#252525" BorderBrush="#444444" BorderThickness="1" Padding="6" Margin="0,5,0,0">
+            <Border Background="#252525" BorderBrush="#444444" BorderThickness="1" Padding="4" Margin="0,3,0,0">
                 <DockPanel>
                     <Button DockPanel.Dock="Right" Content="Copiar análise" ToolTip="Copiar todo o retorno da LLM" Click="BtnCopyLlmOpinion_Click" Padding="8,2" Margin="8,0,0,0" VerticalAlignment="Top"/>
-                    <TextBox x:Name="txtLlmOpinion" Text="LLM consultiva: selecione uma moeda e use 'Analisar com LLM'." IsReadOnly="True" BorderThickness="0" Background="Transparent" Foreground="#D0D0D0" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" MaxHeight="90"/>
+                    <TextBox x:Name="txtLlmOpinion" Text="LLM consultiva: selecione uma moeda e use 'Analisar com LLM'." IsReadOnly="True" BorderThickness="0" Background="Transparent" Foreground="#D0D0D0" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" MaxHeight="55"/>
                 </DockPanel>
             </Border>
         </StackPanel>
@@ -156,7 +163,7 @@
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                     <TextBlock x:Name="txtSimulatedSummary" Grid.Row="0" Margin="4" FontWeight="Bold" Foreground="White"/>
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="4,0,4,4"><Button Content="Atualizar Diário" Click="BtnRefreshSimulatedTrades_Click" Padding="8,3"/><Button x:Name="btnToggleClosedTrades" Content="Mostrar Concluídos" Click="BtnToggleClosedTrades_Click" Padding="8,3" Margin="8,0,0,0"/></StackPanel>
-                    <DataGrid x:Name="dgSimulatedTrades" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="False" RowEditEnding="DgSimulatedTrades_RowEditEnding" PreviewMouseRightButtonDown="DgSimulatedTrades_PreviewMouseRightButtonDown">
+                    <DataGrid x:Name="dgSimulatedTrades" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="False" RowEditEnding="DgSimulatedTrades_RowEditEnding" PreviewMouseRightButtonDown="DgSimulatedTrades_PreviewMouseRightButtonDown" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#686868" VerticalGridLinesBrush="#686868" CellStyle="{StaticResource LightTradeGridCell}">
                         <DataGrid.ContextMenu><ContextMenu><MenuItem Header="Copiar linha" Click="BtnCopySimulatedTradeRow_Click"/></ContextMenu></DataGrid.ContextMenu>
                         <DataGrid.RowStyle><Style TargetType="DataGridRow"><Style.Triggers><DataTrigger Binding="{Binding ExitReason}" Value="TP"><Setter Property="Background" Value="LightGreen"/></DataTrigger><DataTrigger Binding="{Binding ExitReason}" Value="SL"><Setter Property="Background" Value="LightSalmon"/></DataTrigger><DataTrigger Binding="{Binding ExitReason}" Value="Manual"><Setter Property="Background" Value="LightGray"/></DataTrigger><DataTrigger Binding="{Binding Closed}" Value="False"><Setter Property="Background" Value="LightYellow"/></DataTrigger></Style.Triggers></Style></DataGrid.RowStyle>
                         <DataGrid.Columns>
@@ -181,7 +188,7 @@
                 </Grid>
             </TabItem>
             <TabItem Header="Histórico de Sinais">
-                <DataGrid x:Name="dgHistory" AutoGenerateColumns="False" IsReadOnly="True">
+                <DataGrid x:Name="dgHistory" AutoGenerateColumns="False" IsReadOnly="True" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#686868" VerticalGridLinesBrush="#686868" CellStyle="{StaticResource LightTradeGridCell}">
                     <DataGrid.RowStyle><Style TargetType="DataGridRow"><Style.Triggers><DataTrigger Binding="{Binding ExitReason}" Value="TP"><Setter Property="Background" Value="LightGreen"/></DataTrigger><DataTrigger Binding="{Binding ExitReason}" Value="SL"><Setter Property="Background" Value="LightSalmon"/></DataTrigger><DataTrigger Binding="{Binding ExitReason}" Value="TIMEOUT"><Setter Property="Background" Value="LightGray"/></DataTrigger></Style.Triggers></Style></DataGrid.RowStyle>
                     <DataGrid.Columns><DataGridTextColumn Header="Data" Binding="{Binding Timestamp, StringFormat=dd/MM HH:mm}"/><DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}"/><DataGridTextColumn Header="Lado" Binding="{Binding Direction}"/><DataGridTextColumn Header="Entrada" Binding="{Binding Price}"/><DataGridTextColumn Header="Score" Binding="{Binding FinalScore}"/><DataGridTextColumn Header="Resultado %" Binding="{Binding OutcomePercent, StringFormat=F2}"/><DataGridTextColumn Header="Motivo" Binding="{Binding ExitReason}"/><DataGridCheckBoxColumn Header="Avaliado" Binding="{Binding Evaluated}"/></DataGrid.Columns>
                 </DataGrid>
