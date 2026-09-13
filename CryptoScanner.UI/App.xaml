@@ -4,6 +4,97 @@
              xmlns:local="clr-namespace:CryptoScanner.UI"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-         
+        <SolidColorBrush x:Key="AppDarkBackground" Color="#1E1E1E"/>
+        <SolidColorBrush x:Key="AppDarkPanel" Color="#2A2A2A"/>
+        <SolidColorBrush x:Key="AppDarkAltRow" Color="#252525"/>
+        <SolidColorBrush x:Key="AppDarkBorder" Color="#444444"/>
+        <SolidColorBrush x:Key="AppDarkText" Color="#F2F2F2"/>
+        <SolidColorBrush x:Key="AppMutedText" Color="#B8B8B8"/>
+
+        <Style TargetType="Window">
+            <Setter Property="Background" Value="{StaticResource AppDarkBackground}"/>
+            <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
+        </Style>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
+        </Style>
+        <Style TargetType="Label">
+            <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource AppDarkPanel}"/>
+            <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AppDarkBorder}"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="{StaticResource AppDarkPanel}"/>
+            <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AppDarkBorder}"/>
+            <Setter Property="CaretBrush" Value="{StaticResource AppDarkText}"/>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="{StaticResource AppDarkPanel}"/>
+            <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AppDarkBorder}"/>
+        </Style>
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Background" Value="{StaticResource AppDarkPanel}"/>
+            <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
+        </Style>
+        <Style TargetType="DatePicker">
+            <Setter Property="Background" Value="{StaticResource AppDarkPanel}"/>
+            <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AppDarkBorder}"/>
+        </Style>
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
+        </Style>
+        <Style TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
+        </Style>
+        <Style TargetType="GroupBox">
+            <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AppDarkBorder}"/>
+        </Style>
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="{StaticResource AppDarkBackground}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AppDarkBorder}"/>
+        </Style>
+        <Style TargetType="TabItem">
+            <Setter Property="Background" Value="{StaticResource AppDarkPanel}"/>
+            <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
+        </Style>
+        <Style TargetType="DataGrid">
+            <Setter Property="Background" Value="{StaticResource AppDarkPanel}"/>
+            <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
+            <Setter Property="RowBackground" Value="{StaticResource AppDarkPanel}"/>
+            <Setter Property="AlternatingRowBackground" Value="{StaticResource AppDarkAltRow}"/>
+            <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource AppDarkBorder}"/>
+            <Setter Property="VerticalGridLinesBrush" Value="{StaticResource AppDarkBorder}"/>
+        </Style>
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#333333"/>
+            <Setter Property="Foreground" Value="#00D9FF"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AppDarkBorder}"/>
+            <Setter Property="Padding" Value="5,3"/>
+        </Style>
+        <Style TargetType="DataGridRow">
+            <Setter Property="Background" Value="{StaticResource AppDarkPanel}"/>
+            <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
+        </Style>
+        <Style TargetType="DataGridCell">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AppDarkBorder}"/>
+        </Style>
+        <Style TargetType="ContextMenu">
+            <Setter Property="Background" Value="{StaticResource AppDarkPanel}"/>
+            <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
+        </Style>
+        <Style TargetType="MenuItem">
+            <Setter Property="Background" Value="{StaticResource AppDarkPanel}"/>
+            <Setter Property="Foreground" Value="{StaticResource AppDarkText}"/>
+        </Style>
     </Application.Resources>
 </Application>

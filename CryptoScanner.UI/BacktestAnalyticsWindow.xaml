@@ -12,7 +12,7 @@
 
         <!-- Estilo compartilhado por todos os DataGrids de bucket abaixo — mesmas 4
              colunas (Faixa/Categoria, N, Win Rate %, Retorno Médio %) em todo lugar. -->
-        <Style x:Key="BucketGrid" TargetType="DataGrid">
+        <Style x:Key="BucketGrid" TargetType="DataGrid" BasedOn="{StaticResource {x:Type DataGrid}}">
             <Setter Property="AutoGenerateColumns" Value="False"/>
             <Setter Property="IsReadOnly" Value="True"/>
             <Setter Property="MaxHeight" Value="230"/>
