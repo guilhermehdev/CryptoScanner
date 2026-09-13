@@ -331,6 +331,12 @@ public partial class MainWindow : Window
         try { await _llmOpinionRepository.InitializeAsync(); }
         catch (Exception ex) { txtLlmOpinion.Text = $"Histórico da LLM indisponível: {ex.Message}"; }
 
+        // O WebSocket reage ao fechamento dos candles, mas o timer é a rede de
+        // segurança para manter o scanner ativo quando a conexão não estiver disponível.
+        // O intervalo já foi carregado acima, então a primeira varredura periódica usa a
+        // configuração persistida pelo usuário.
+        _timer.Start();
+
         try
         {
             await _webSocketService.ConnectAsync();
