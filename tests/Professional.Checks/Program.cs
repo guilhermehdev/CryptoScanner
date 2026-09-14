@@ -217,6 +217,23 @@ Check(ScannerProfiles.For(ScanProfile.Swing, TradeDirection.Short, false).MaxSho
 Check(ScannerProfiles.For(ScanProfile.Swing, TradeDirection.Long, true).MaxShortOpportunityScore == 100 &&
       !ScannerProfiles.For(ScanProfile.Swing, TradeDirection.Long, true).BlockShortInSideways,
     "Short experimental profile does not alter Long thresholds");
+var atrCandles = Enumerable.Range(0, 300).Select(i => new Candle
+{
+    OpenTime = day.AddHours(i),
+    Open = 100m + i * 0.02m,
+    Close = 100m + i * 0.02m,
+    High = 100.5m + i * 0.02m,
+    Low = 99.5m + i * 0.02m,
+    Volume = 100m
+}).ToList();
+var atrLong = new AssetAnalyzer().Analyze("ATRLONG", atrCandles, atrCandles, ScanProfile.Intraday,
+    RiskCalculationMode.AtrBased, direction: TradeDirection.Long);
+var atrShort = new AssetAnalyzer().Analyze("ATRSHORT", atrCandles, atrCandles, ScanProfile.Intraday,
+    RiskCalculationMode.AtrBased, direction: TradeDirection.Short);
+Check(atrLong.Risk.RiskReward > 3m && atrLong.Risk.Support < atrLong.Trend.Close && atrLong.Risk.Resistance > atrLong.Trend.Close,
+    "ATR Long mantém stop abaixo e alvo acima com R/R positivo");
+Check(atrShort.Risk.RiskReward > 3m && atrShort.Risk.Resistance > atrShort.Trend.Close && atrShort.Risk.Support < atrShort.Trend.Close,
+    "ATR Short espelha stop e alvo e mantém R/R positivo");
 var isolatedCandles=Enumerable.Range(0,60).Select(i=>new Candle{OpenTime=day.AddHours(i*4),Open=101,Close=101,High=102,Low=100}).ToList();
 isolatedCandles[20]=new Candle{Open=80,Close=80,High=81,Low=70};
 isolatedCandles[^1]=new Candle{Open=102,Close=103,High=104,Low=101};

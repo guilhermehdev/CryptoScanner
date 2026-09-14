@@ -466,8 +466,16 @@ public sealed class AssetAnalyzer
 
         if (mode == RiskCalculationMode.AtrBased)
         {
-            decimal resistance = close + (atr * ScannerSettings.AtrTargetMultiplier);
-            decimal support = close - (atr * ScannerSettings.AtrStopMultiplier);
+            // Os campos continuam representando os níveis geométricos do ativo:
+            // Resistance fica acima do preço (stop do Short) e Support fica abaixo
+            // (stop do Long / alvo do Short). O múltiplo aplicado a cada lado,
+            // porém, precisa respeitar a direção da operação. Antes desta correção
+            // o Short recebia o alvo de 5×ATR como stop e o stop de 1,5×ATR como
+            // alvo, produzindo R/R≈0,30 e bloqueando todas as vendas.
+            decimal stopDistanceAtr = atr * ScannerSettings.AtrStopMultiplier;
+            decimal targetDistanceAtr = atr * ScannerSettings.AtrTargetMultiplier;
+            decimal resistance = close + (direction == TradeDirection.Short ? stopDistanceAtr : targetDistanceAtr);
+            decimal support = close - (direction == TradeDirection.Short ? targetDistanceAtr : stopDistanceAtr);
             decimal resistanceDistance = (resistance - close) / close * 100m;
             decimal supportDistance = (close - support) / close * 100m;
 
