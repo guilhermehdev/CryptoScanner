@@ -7,6 +7,7 @@ using CryptoScanner.Core.Contracts;
 using CryptoScanner.Application.Services;
 using CryptoScanner.Application.Models;
 using CryptoScanner.Infrastructure.Sqlite;
+using CryptoScanner.Indicators.Indicators;
 using Microsoft.Data.Sqlite;
 int count=0;
 void Check(bool value,string name){if(!value)throw new Exception(name);count++;}
@@ -234,6 +235,22 @@ Check(atrLong.Risk.RiskReward > 3m && atrLong.Risk.Support < atrLong.Trend.Close
     "ATR Long mantém stop abaixo e alvo acima com R/R positivo");
 Check(atrShort.Risk.RiskReward > 3m && atrShort.Risk.Resistance > atrShort.Trend.Close && atrShort.Risk.Support < atrShort.Trend.Close,
     "ATR Short espelha stop e alvo e mantém R/R positivo");
+var intradaySetupCandles = Enumerable.Range(0, 22).Select(i => new Candle
+{
+    OpenTime = day.AddHours(i), Open = 95m, Close = 95m, High = 100m, Low = 90m, Volume = 100m
+}).ToList();
+intradaySetupCandles[^2] = new Candle { Open = 100m, Close = 102m, High = 103m, Low = 99m, Volume = 150m };
+intradaySetupCandles[^1] = new Candle { Open = 100.5m, Close = 101m, High = 102m, Low = 100m, Volume = 120m };
+Check(IntradayBreakoutRetestIndicator.IsConfirmed(intradaySetupCandles, 2m, TradeDirection.Long),
+    "Intraday Long exige rompimento fechado e reteste confirmado");
+intradaySetupCandles = Enumerable.Range(0, 22).Select(i => new Candle
+{
+    OpenTime = day.AddHours(i), Open = 105m, Close = 105m, High = 110m, Low = 100m, Volume = 100m
+}).ToList();
+intradaySetupCandles[^2] = new Candle { Open = 100m, Close = 98m, High = 101m, Low = 97m, Volume = 150m };
+intradaySetupCandles[^1] = new Candle { Open = 99.5m, Close = 99m, High = 100m, Low = 97m, Volume = 120m };
+Check(IntradayBreakoutRetestIndicator.IsConfirmed(intradaySetupCandles, 2m, TradeDirection.Short),
+    "Intraday Short espelha rompimento fechado e reteste confirmado");
 var isolatedCandles=Enumerable.Range(0,60).Select(i=>new Candle{OpenTime=day.AddHours(i*4),Open=101,Close=101,High=102,Low=100}).ToList();
 isolatedCandles[20]=new Candle{Open=80,Close=80,High=81,Low=70};
 isolatedCandles[^1]=new Candle{Open=102,Close=103,High=104,Low=101};

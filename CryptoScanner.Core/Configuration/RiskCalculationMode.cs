@@ -4,6 +4,9 @@ public enum RiskCalculationMode
 {
     SwingBased,
     AtrBased,
+    // Estratégia experimental exclusiva do Intraday: rompimento confirmado,
+    // reteste no candle seguinte e stop baseado na invalidação local.
+    IntradayLocal,
     SwingWithAtrBuffer,
     SwingWithPartialExits, // etapa 4.1: TP escolhido via ResistanceScanner com pontuação;
                            // saída ainda é "tudo ou nada" — o motor de saída parcial de

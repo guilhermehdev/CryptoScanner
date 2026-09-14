@@ -18,7 +18,7 @@ public sealed class StrategyBacktester
     /// configuração de tela idêntica gera a mesma assinatura de sempre, e o sistema recusa
     /// salvar o resultado novo mesmo que o motor por trás tenha mudado completamente.
     /// </summary>
-    public const int EngineVersion = 13; // Fixes directional ATR stop/target geometry for Short.
+    public const int EngineVersion = 14; // Adds the dedicated Intraday local-invalidation mode.
 
     private const int LookbackCandles = 300;
     private readonly IMarketDataService _marketData;

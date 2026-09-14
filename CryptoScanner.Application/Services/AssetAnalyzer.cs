@@ -305,6 +305,8 @@ public sealed class AssetAnalyzer
             ? BreakoutIndicator.IsBullishBreakout(candles, breakoutResistance)
             : BreakoutIndicator.IsBearishBreakout(candles, breakoutSupport)
                 && (structure.HasBearishBreakOfStructure || structure.HasBearishChangeOfCharacter);
+        if (mode == RiskCalculationMode.IntradayLocal)
+            isBreakout = IntradayBreakoutRetestIndicator.IsConfirmed(candles, trend.Atr, direction);
         bool isShortTermBreakout = direction == TradeDirection.Long
             ? BreakoutIndicator.IsBullishBreakout(candles, shortTermResistance)
             : BreakoutIndicator.IsBearishBreakout(candles, shortTermSupport)
@@ -489,6 +491,40 @@ public sealed class AssetAnalyzer
                     ? (supportDistance > 0 ? resistanceDistance / supportDistance : 0)
                     : (resistanceDistance > 0 ? supportDistance / resistanceDistance : 0),
                 Mode = RiskCalculationMode.AtrBased
+            };
+        }
+
+        if (mode == RiskCalculationMode.IntradayLocal)
+        {
+            // Invalidação local: o stop fica além do extremo do reteste recente,
+            // com uma folga pequena de ATR. O alvo é 2R, igual para Long e Short,
+            // para que o filtro de R/R e a execução tenham a mesma geometria.
+            const decimal localStopBufferAtr = 0.25m;
+            const decimal localTargetRiskMultiple = 2.0m;
+            decimal recentLow = candles.TakeLast(3).Min(c => c.Low);
+            decimal recentHigh = candles.TakeLast(3).Max(c => c.High);
+            decimal stop = direction == TradeDirection.Short
+                ? recentHigh + atr * localStopBufferAtr
+                : recentLow - atr * localStopBufferAtr;
+            decimal riskDistance = direction == TradeDirection.Short ? stop - close : close - stop;
+            if (riskDistance <= 0)
+                riskDistance = atr * ScannerSettings.AtrStopMultiplier;
+            decimal target = direction == TradeDirection.Short
+                ? close - riskDistance * localTargetRiskMultiple
+                : close + riskDistance * localTargetRiskMultiple;
+            decimal resistanceDistance = (direction == TradeDirection.Short ? stop : target) - close;
+            decimal supportDistance = close - (direction == TradeDirection.Short ? target : stop);
+
+            return new RiskAnalysis
+            {
+                Resistance = direction == TradeDirection.Short ? stop : target,
+                Support = direction == TradeDirection.Short ? target : stop,
+                ResistanceDistancePercent = resistanceDistance / close * 100m,
+                SupportDistancePercent = supportDistance / close * 100m,
+                RiskReward = direction == TradeDirection.Long
+                    ? (supportDistance > 0 ? resistanceDistance / supportDistance : 0)
+                    : (resistanceDistance > 0 ? supportDistance / resistanceDistance : 0),
+                Mode = RiskCalculationMode.IntradayLocal
             };
         }
 

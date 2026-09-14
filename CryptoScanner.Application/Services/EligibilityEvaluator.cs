@@ -82,7 +82,7 @@ public static class EligibilityEvaluator
         return asset.Risk.Mode switch
         {
             RiskCalculationMode.SwingWithPartialExits => t.MinResistanceDistancePartialExits,
-            RiskCalculationMode.AtrBased => t.MinResistanceDistanceAtrMode,
+            RiskCalculationMode.AtrBased or RiskCalculationMode.IntradayLocal => t.MinResistanceDistanceAtrMode,
             _ => t.MinResistanceDistance
         };
     }
