@@ -525,6 +525,7 @@ public partial class BacktestWindow : Window
             thresholds=ScannerProfiles.For(profile);
         }
 
+        txtStatus.Text = "Preparando backtest...";
         List<string>? symbols;
         try
         {

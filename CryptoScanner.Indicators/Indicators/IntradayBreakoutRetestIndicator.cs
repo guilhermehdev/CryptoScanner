@@ -15,13 +15,16 @@ public static class IntradayBreakoutRetestIndicator
         if (atr <= 0 || candles.Count < lookback + 2)
             return false;
 
-        var baseCandles = candles.SkipLast(2).TakeLast(lookback).ToList();
         var breakout = candles[^2];
         var retest = candles[^1];
+        int baseEnd = candles.Count - 2;
+        int baseStart = Math.Max(0, baseEnd - lookback);
 
         if (direction == TradeDirection.Long)
         {
-            decimal resistance = baseCandles.Max(c => c.High);
+            decimal resistance = decimal.MinValue;
+            for (int i = baseStart; i < baseEnd; i++)
+                resistance = Math.Max(resistance, candles[i].High);
             decimal retestUpperBound = resistance + atr * 0.50m;
             return breakout.Close > resistance &&
                    retest.Close > resistance &&
@@ -29,7 +32,9 @@ public static class IntradayBreakoutRetestIndicator
                    retest.Low <= retestUpperBound;
         }
 
-        decimal support = baseCandles.Min(c => c.Low);
+        decimal support = decimal.MaxValue;
+        for (int i = baseStart; i < baseEnd; i++)
+            support = Math.Min(support, candles[i].Low);
         decimal retestLowerBound = support - atr * 0.50m;
         return breakout.Close < support &&
                retest.Close < support &&
