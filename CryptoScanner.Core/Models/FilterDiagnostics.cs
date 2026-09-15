@@ -9,6 +9,10 @@ public sealed class FilterDiagnostics
     public int Requested { get; set; }
     public int SignalsSaved { get; set; }
     public int EntryRejected { get; set; }
+    // Rejeições que só aparecem depois de a elegibilidade passar (preço de entrada,
+    // slippage ou R/R recalculado). Mantém o total acima para compatibilidade e abre
+    // o funil da última etapa no relatório do backtest.
+    public Dictionary<string,int> EntryRejectionReasons { get; set; } = new();
     public DateTime? BacktestStartUtc { get; set; }
     public DateTime? BacktestEndUtc { get; set; }
     public string Profile { get; set; } = "";
@@ -55,12 +59,16 @@ public sealed class FilterDiagnostics
 
     public int SkippedDuplicateToday { get; set; }
 
+    public string EntryRejectionSummary => EntryRejectionReasons.Count == 0
+        ? "sem detalhe"
+        : string.Join(", ", EntryRejectionReasons.OrderByDescending(x => x.Value).ThenBy(x => x.Key).Select(x => $"{x.Key}={x.Value}"));
+
     public string Summary =>
         $"Score: {FailedScore} | Sem breakout: {FailedBreakout} | Sem consol.: {FailedConsolidation} | " +
         $"Vol. spike: {FailedVolumeSpike} | Dist. resist.: {FailedResistanceDistance} | " +
         $"Direção: {FailedDirection} | Níveis inválidos: {FailedInvalidLevels} | R/R baixo: {FailedRiskReward} | Stop mín.: {FailedStopDistance} | " +
         $"Stop máx.: {FailedStopDistanceTooHigh} | RR teto: {FailedRiskRewardTooHigh} | Bull Trap: {FailedBullTrap} | " +
         $"Tendência (EMA): {FailedTrendConfirmation} | Momentum: {FailedMomentumFilter} | Short lateral: {FailedShortSideways} | Score Short máx.: {FailedShortScoreCeiling} | ADX Short BEAR máx.: {FailedShortAdxInBear} | Regime MeanRev: {FailedMeanReversionRegimeFilter} | ATR MeanRev: {FailedMeanReversionAtrFilter} | " +
-        $"Duplicado hoje: {SkippedDuplicateToday} | Entrada rejeitada: {EntryRejected} | " +
+        $"Duplicado hoje: {SkippedDuplicateToday} | Entrada rejeitada: {EntryRejected} ({EntryRejectionSummary}) | " +
         $"Passaram: {PassedAll}/{TotalAnalyzed}";
 }

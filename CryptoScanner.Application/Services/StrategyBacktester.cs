@@ -59,7 +59,15 @@ public sealed class StrategyBacktester
         var btcDailyCandles = await _marketData.GetHistoricalCandlesAsync("BTCUSDT", "1d", dailyFetchStart, endUtc, cancellationToken);
 
         var allTrades = new List<BacktestTradeResult>();
-        var diagnostics = new FilterDiagnostics { BacktestStartUtc=startUtc, BacktestEndUtc=endUtc, Profile=profile.Name, Thresholds=thresholds ?? EligibilityThresholds.Default };
+        var diagnostics = new FilterDiagnostics
+        {
+            StartedUtc = DateTime.UtcNow,
+            Requested = symbols.Count,
+            BacktestStartUtc = startUtc,
+            BacktestEndUtc = endUtc,
+            Profile = profile.Name,
+            Thresholds = thresholds ?? EligibilityThresholds.Default
+        };
         var skippedSymbols = new List<string>();
         var tradesLock = new object();
         var diagnosticsLock = new object();
@@ -129,6 +137,8 @@ public sealed class StrategyBacktester
 
         await Task.WhenAll(tasks);
 
+        diagnostics.CompletedUtc = DateTime.UtcNow;
+        diagnostics.SignalsSaved = allTrades.Count;
         onProgress?.Invoke("Calculando resumo...", 100);
         return BuildSummary(allTrades, diagnostics, skippedSymbols);
     }
@@ -426,21 +436,25 @@ public sealed class StrategyBacktester
 
             if(i+1>=candles.Count)continue;
             decimal entryPrice=candles[i+1].Open;
-            if(entryPrice<=analysis.Risk.Support || entryPrice>=analysis.Risk.Resistance || entryPrice<=0){diagnostics.EntryRejected++;continue;}
+            if(entryPrice<=analysis.Risk.Support || entryPrice>=analysis.Risk.Resistance || entryPrice<=0)
+            {
+                RecordEntryRejection(diagnostics, "Preço fora dos níveis");
+                continue;
+            }
             decimal fill = direction == TradeDirection.Long
                 ? entryPrice * (1 + LabParameters.Slippage)
                 : entryPrice * (1 - LabParameters.Slippage);
             if (direction == TradeDirection.Long && (fill >= analysis.Risk.Resistance || (analysis.Risk.TakeProfit1 is decimal longTp1 && fill >= longTp1)))
-            { diagnostics.EntryRejected++; continue; }
+            { RecordEntryRejection(diagnostics, "Slippage cruza alvo (Long)"); continue; }
             if (direction == TradeDirection.Short && (fill <= analysis.Risk.Support || (analysis.Risk.TakeProfit1 is decimal shortTp1 && fill <= shortTp1)))
-            { diagnostics.EntryRejected++; continue; }
+            { RecordEntryRejection(diagnostics, "Slippage cruza alvo (Short)"); continue; }
             var entryRisk = EntryRiskMetrics.CalculateDirectional(
                 fill,
                 direction == TradeDirection.Long ? analysis.Risk.Support : analysis.Risk.Resistance,
                 direction == TradeDirection.Long ? analysis.Risk.Resistance : analysis.Risk.Support,
                 direction);
             if(entryRisk.RiskReward < (thresholds ?? EligibilityThresholds.Default).MinRiskReward)
-            { diagnostics.EntryRejected++; continue; }
+            { RecordEntryRejection(diagnostics, "R/R após slippage abaixo do mínimo"); continue; }
             lastSignalTimeByKey[key] = decisionTime;
             diagnostics.PassedAll++;
 
@@ -539,8 +553,31 @@ public sealed class StrategyBacktester
         return (trades, diagnostics);
     }
 
+    private static void RecordEntryRejection(FilterDiagnostics diagnostics, string reason)
+    {
+        diagnostics.EntryRejected++;
+        diagnostics.EntryRejectionReasons.TryGetValue(reason, out int count);
+        diagnostics.EntryRejectionReasons[reason] = count + 1;
+    }
+
     public static void MergeDiagnostics(FilterDiagnostics target, FilterDiagnostics source)
     {
+        if (source.StartedUtc != default && (target.StartedUtc == default || source.StartedUtc < target.StartedUtc))
+            target.StartedUtc = source.StartedUtc;
+        if (source.CompletedUtc != default && source.CompletedUtc > target.CompletedUtc)
+            target.CompletedUtc = source.CompletedUtc;
+        target.Requested += source.Requested;
+        target.SignalsSaved += source.SignalsSaved;
+        if (source.BacktestStartUtc is DateTime sourceStart &&
+            (target.BacktestStartUtc is not DateTime targetStart || sourceStart < targetStart))
+            target.BacktestStartUtc = sourceStart;
+        if (source.BacktestEndUtc is DateTime sourceEnd &&
+            (target.BacktestEndUtc is not DateTime targetEnd || sourceEnd > targetEnd))
+            target.BacktestEndUtc = sourceEnd;
+        if (string.IsNullOrWhiteSpace(target.Profile))
+            target.Profile = source.Profile;
+        if (target.Thresholds is null)
+            target.Thresholds = source.Thresholds;
         target.TotalAnalyzed += source.TotalAnalyzed;
         target.PassedAll += source.PassedAll;
         target.FailedScore += source.FailedScore;
@@ -552,6 +589,11 @@ public sealed class StrategyBacktester
         target.FailedRiskReward += source.FailedRiskReward;
         target.FailedInvalidLevels += source.FailedInvalidLevels;
         target.EntryRejected += source.EntryRejected;
+        foreach (var pair in source.EntryRejectionReasons)
+        {
+            target.EntryRejectionReasons.TryGetValue(pair.Key, out int count);
+            target.EntryRejectionReasons[pair.Key] = count + pair.Value;
+        }
         target.BreakoutTriggers += source.BreakoutTriggers;
         target.PullbackTriggers += source.PullbackTriggers;
         foreach(var pair in source.Strategies)
