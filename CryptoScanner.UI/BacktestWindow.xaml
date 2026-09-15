@@ -103,6 +103,7 @@
                 <WrapPanel Orientation="Horizontal" Margin="6,0,6,6">
                     <TextBlock Text="Cálculo de Risco:" VerticalAlignment="Center" Margin="0,0,10,0"/>
                     <RadioButton x:Name="rbRiskPartialExits" Content="Swing + Resistência Pontuada (4.1)" GroupName="RiskMode" IsChecked="True" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <RadioButton x:Name="rbRiskIntradayLocal" Content="Intraday: rompimento + reteste (experimental)" GroupName="RiskMode" VerticalAlignment="Center" Margin="0,0,12,0" ToolTip="Exclusivo do perfil Intraday. Exige rompimento confirmado no candle anterior, reteste no candle atual, stop por invalidação local e alvo 2R. Ainda não validado para uso ao vivo."/>
                     <RadioButton x:Name="rbRiskMeanReversion" Content="Reversão à Média (Scalp, não validado)" GroupName="RiskMode" VerticalAlignment="Center" Margin="0,0,12,0"/>
                     <RadioButton x:Name="rbRiskBollingerReversal" Content="Reversão de Bollinger (Venda, não validado)" GroupName="RiskMode" VerticalAlignment="Center" Margin="0,0,24,0"/>
                     <CheckBox x:Name="chkEnableVolatilityScoringPhaseB" Content="Volatility Scoring — Fase B (experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>

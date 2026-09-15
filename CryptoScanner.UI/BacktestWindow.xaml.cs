@@ -235,6 +235,7 @@ public partial class BacktestWindow : Window
 
     private RiskCalculationMode GetSelectedRiskMode()
     {
+        if (rbRiskIntradayLocal.IsChecked == true) return RiskCalculationMode.IntradayLocal;
         if(cmbEntryStrategy.SelectedIndex>0)return RiskCalculationMode.SwingWithPartialExits;
         if (rbRiskMeanReversion.IsChecked == true) return RiskCalculationMode.MeanReversionScalp;
         if (rbRiskBollingerReversal.IsChecked == true) return RiskCalculationMode.BollingerReversal;
@@ -356,6 +357,8 @@ public partial class BacktestWindow : Window
         txtMaxStopDistance.Text = t.MaxStopDistancePercent.ToString();
         txtMaxRiskReward.Text = t.MaxRiskReward.ToString();
         chkTargetAtr.IsChecked = false;
+        rbRiskIntradayLocal.IsChecked = false;
+        rbRiskPartialExits.IsChecked = true;
         cmbStructureExperiment.SelectedIndex = 0;
         chkEnablePullbackBounce.IsChecked = t.EnablePullbackBounce;
         chkEnableMultiTimeframe.IsChecked = t.EnableMultiTimeframe;
@@ -383,6 +386,8 @@ public partial class BacktestWindow : Window
         txtMaxStopDistance.Text = "40";
         txtMaxRiskReward.Text = "999";
         chkTargetAtr.IsChecked = false;
+        rbRiskIntradayLocal.IsChecked = false;
+        rbRiskPartialExits.IsChecked = true;
         cmbStructureExperiment.SelectedIndex = 0;
         chkEnablePullbackBounce.IsChecked = true;
         chkEnableMultiTimeframe.IsChecked = false;
@@ -410,6 +415,8 @@ public partial class BacktestWindow : Window
         txtMaxStopDistance.Text = "100";
         txtMaxRiskReward.Text = "999";
         chkTargetAtr.IsChecked = false;
+        rbRiskIntradayLocal.IsChecked = false;
+        rbRiskPartialExits.IsChecked = true;
         cmbStructureExperiment.SelectedIndex = 0;
         chkEnablePullbackBounce.IsChecked = true;
         chkEnableMultiTimeframe.IsChecked = false;
@@ -504,9 +511,15 @@ public partial class BacktestWindow : Window
 
         var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
         var direction = GetSelectedDirection();
+        var selectedRiskMode = GetSelectedRiskMode();
+        if (selectedRiskMode == RiskCalculationMode.IntradayLocal && profile.Name != ScanProfile.Intraday.Name)
+        {
+            MessageBox.Show("O modo Intraday: rompimento + reteste só pode ser usado com o perfil Intraday (1h).", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
         if(cmbStructureExperiment.SelectedIndex > 0 && cmbEntryStrategy.SelectedIndex==0){MessageBox.Show("Selecione Rompimento, Repique ou Automática (experimental) para testar a estrutura.");return;}
-        if(cmbEntryStrategy.SelectedIndex>0 && direction==TradeDirection.Short && cmbEntryStrategy.SelectedIndex>=3){MessageBox.Show("A estratégia automática experimental ainda é exclusiva de compra. Use Rompimento ou Repique para testar venda.");return;}
-        if(cmbEntryStrategy.SelectedIndex==3)
+        if(cmbEntryStrategy.SelectedIndex>0 && direction==TradeDirection.Short && cmbEntryStrategy.SelectedIndex>=3 && selectedRiskMode != RiskCalculationMode.IntradayLocal){MessageBox.Show("A estratégia automática experimental ainda é exclusiva de compra. Use Rompimento ou Repique para testar venda.");return;}
+        if(cmbEntryStrategy.SelectedIndex==3 && selectedRiskMode != RiskCalculationMode.IntradayLocal)
         {
             if(chkTargetAtr.IsChecked == true || cmbStructureExperiment.SelectedIndex > 0){MessageBox.Show("Selecione Automática (experimental) para testar distância em ATR. Automática (scanner) reproduz os parâmetros ao vivo.");return;}
             thresholds=ScannerProfiles.For(profile);
@@ -598,7 +611,7 @@ public partial class BacktestWindow : Window
 
             _exportDiagnostics=summary.Diagnostics;
             txtSummaryResult.Text =
-                $"Modo: {SelectedTestModeLabel} | Direção: {(direction == TradeDirection.Short ? "VENDA (Short)" : "Compra")} | " +
+                $"Modo: {SelectedTestModeLabel} | Risco: {selectedRiskMode} | Direção: {(direction == TradeDirection.Short ? "VENDA (Short)" : "Compra")} | " +
                 $"Score≥{thresholds.BuyOpportunityScore:F0} | RR mín.={thresholds.MinRiskReward:F1} | Stop mín.={thresholds.MinStopDistancePercent:F0}% | Stop máx.={maxStopText}" +
                 (disableTimeout ? " | Timeout=DESATIVADO (só TP/SL)" : "") + "\n\n" +
                 $"Operações: {summary.TotalTrades}   |   " +
