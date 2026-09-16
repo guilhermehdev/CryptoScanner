@@ -123,5 +123,50 @@ public static class ScannerProfiles
         };
     }
 
+    /// <summary>
+    /// Configuração experimental que foi validada separadamente no backtest:
+    /// Short por rompimento, risco local do Intraday, R/R mínimo 1,8 e alvo mínimo
+    /// de 8% no modo ATR. Fica separada do Short balanceado para não alterar os
+    /// testes e o comportamento histórico desse perfil.
+    /// </summary>
+    public static EligibilityThresholds ForShortBreakoutExperimental(ScanProfile profile)
+    {
+        var baseThresholds = For(profile);
+        return new EligibilityThresholds
+        {
+            IsolatedEntryExperiment = baseThresholds.IsolatedEntryExperiment,
+            TargetZoneExperiment = baseThresholds.TargetZoneExperiment,
+            StructuralEntryExperiment = baseThresholds.StructuralEntryExperiment,
+            MinimumTargetAtr = baseThresholds.MinimumTargetAtr,
+            EntryStrategy = EntryStrategy.Breakout,
+            BuyOpportunityScore = baseThresholds.BuyOpportunityScore,
+            BearRegimePenalty = baseThresholds.BearRegimePenalty,
+            SidewaysRegimePenalty = baseThresholds.SidewaysRegimePenalty,
+            MinVolumeSpike = baseThresholds.MinVolumeSpike,
+            DefensiveMinVolumeSpike = baseThresholds.DefensiveMinVolumeSpike,
+            MinResistanceDistance = baseThresholds.MinResistanceDistance,
+            EnableMultiTimeframe = baseThresholds.EnableMultiTimeframe,
+            MinResistanceDistanceAtrMode = 8m,
+            MinRiskReward = 1.8m,
+            MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
+            MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
+            MaxStopDistancePercent = baseThresholds.MaxStopDistancePercent,
+            MaxShortOpportunityScore = 100m,
+            MaxShortAdxInBear = 999m,
+            MaxRiskReward = baseThresholds.MaxRiskReward,
+            EnablePullbackBounce = false,
+            EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
+            EnableVolatilityScoringPhaseB = baseThresholds.EnableVolatilityScoringPhaseB,
+            MinResistanceDistancePartialExits = baseThresholds.MinResistanceDistancePartialExits,
+            EnableMeanReversionScalp = baseThresholds.EnableMeanReversionScalp,
+            EnableBollingerReversal = baseThresholds.EnableBollingerReversal,
+            RequireBearishMomentumConfirmed = false,
+            BlockShortInSideways = false,
+            EnableLowRsiPath = baseThresholds.EnableLowRsiPath,
+            BlockMeanReversionInBear = baseThresholds.BlockMeanReversionInBear,
+            LimitAtrForMeanReversion = baseThresholds.LimitAtrForMeanReversion,
+        };
+    }
+
 
 }

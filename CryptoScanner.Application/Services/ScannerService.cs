@@ -31,7 +31,13 @@ public sealed class ScannerService
         _pressureHistory = pressureHistory;
     }
 
-    public async Task<ScannerRunResult> RunAsync(ScanProfile profile, TradeDirection direction = TradeDirection.Long, CancellationToken cancellationToken = default, bool shortExperimental = false)
+    public async Task<ScannerRunResult> RunAsync(
+        ScanProfile profile,
+        TradeDirection direction = TradeDirection.Long,
+        CancellationToken cancellationToken = default,
+        bool shortExperimental = false,
+        bool shortBreakoutOnly = false,
+        bool persistSignals = true)
     {
         var started = DateTime.UtcNow;
         var errors = new System.Collections.Concurrent.ConcurrentDictionary<string,string>();
@@ -52,7 +58,7 @@ public sealed class ScannerService
         var symbols = topSymbols.Union(favoriteSymbols, StringComparer.OrdinalIgnoreCase).ToList();
 
         using var throttle = new SemaphoreSlim(MaxConcurrentAnalyses);
-        var analyses = symbols.Select(symbol => AnalyzeSymbolAsync(symbol, btcCandles, profile, direction, throttle, errors, cancellationToken));
+        var analyses = symbols.Select(symbol => AnalyzeSymbolAsync(symbol, btcCandles, profile, direction, shortBreakoutOnly, throttle, errors, cancellationToken));
         var allAnalyzed = (await Task.WhenAll(analyses)).OfType<AssetAnalysis>().ToList();
 
         var top30 = allAnalyzed.OrderByDescending(a => a.OpportunityScore).Take(30).ToList();
@@ -61,7 +67,7 @@ public sealed class ScannerService
 
         try{await EvaluatePendingSignalsAsync(pendingSignals, profile, cancellationToken);}
         catch(Exception ex) when(!cancellationToken.IsCancellationRequested){errors["[avaliação de sinais]"]=ex.Message;}
-        var (diagnostics, newSignals) = await PersistEligibleSignalsForDirectionWithProfileAsync(allAnalyzed, marketRegime, profile, cancellationToken, direction, shortExperimental);
+        var (diagnostics, newSignals) = await PersistEligibleSignalsForDirectionWithProfileAsync(allAnalyzed, marketRegime, profile, cancellationToken, direction, shortExperimental, shortBreakoutOnly, persistSignals);
         diagnostics.StartedUtc=started; diagnostics.CompletedUtc=DateTime.UtcNow; diagnostics.Requested=symbols.Count; foreach(var error in errors)diagnostics.Errors[error.Key]=error.Value;
         await _signals.SaveScanRunAsync(profile.Name,diagnostics,cancellationToken);
         var history = await _signals.GetSignalsAsync(cancellationToken);
@@ -90,11 +96,22 @@ public sealed class ScannerService
         IReadOnlyList<AssetAnalysis> ranking, string marketRegime, ScanProfile profile, CancellationToken cancellationToken, TradeDirection direction) =>
         PersistEligibleSignalsForDirectionWithProfileAsync(ranking, marketRegime, profile, cancellationToken, direction, false);
 
-    private async Task<(FilterDiagnostics Diagnostics, List<NewSignalAlert> NewSignals)> PersistEligibleSignalsForDirectionWithProfileAsync(IReadOnlyList<AssetAnalysis> ranking, string marketRegime, ScanProfile profile, CancellationToken cancellationToken, TradeDirection direction, bool shortExperimental)
+    private async Task<(FilterDiagnostics Diagnostics, List<NewSignalAlert> NewSignals)> PersistEligibleSignalsForDirectionWithProfileAsync(
+        IReadOnlyList<AssetAnalysis> ranking,
+        string marketRegime,
+        ScanProfile profile,
+        CancellationToken cancellationToken,
+        TradeDirection direction,
+        bool shortExperimental,
+        bool shortBreakoutOnly = false,
+        bool persistSignals = true)
     {
         var diagnostics = new FilterDiagnostics { TotalAnalyzed = ranking.Count };
         var newSignals = new List<NewSignalAlert>();
-        var thresholds = ScannerProfiles.For(profile, direction, shortExperimental);
+        bool useShortBreakout = direction == TradeDirection.Short && shortBreakoutOnly && profile.Name == ScanProfile.Intraday.Name;
+        var thresholds = useShortBreakout
+            ? ScannerProfiles.ForShortBreakoutExperimental(profile)
+            : ScannerProfiles.For(profile, direction, shortExperimental);
         diagnostics.MarketRegime = marketRegime;
         diagnostics.Thresholds = thresholds;
         diagnostics.Analyses = ranking.ToList();
@@ -133,6 +150,7 @@ public sealed class ScannerService
             if (!eligibility.IsEligible) continue;
 
             diagnostics.PassedAll++;
+            if (!persistSignals) continue;
 
             LabTrade execution;
             EntryRiskMetrics executionRisk;
@@ -143,7 +161,8 @@ public sealed class ScannerService
                 // Eligibility was checked above. Recheck execution geometry using the fresh quote.
                 var entryAsset=new AssetScore{Symbol=asset.Symbol,Score=100,BuyingPressureScore=100,
                     Support=asset.Risk.Support,Resistance=asset.Risk.Resistance,TakeProfit1=asset.Risk.TakeProfit1,TakeProfit3=asset.Risk.TakeProfit3};
-                var opened=LabSimulation.TryOpen(new LabOpportunity(asset.Symbol,profile.Name,now,now,quote,profile.EvaluationHours,entryAsset,"" ){DecisionTimeMs=now},
+                int evaluationHours = useShortBreakout ? 48 : profile.EvaluationHours;
+                var opened=LabSimulation.TryOpen(new LabOpportunity(asset.Symbol,profile.Name,now,now,quote,evaluationHours,entryAsset,"" ){DecisionTimeMs=now},
                     new LabParameters(0,"Signal","execution-v1",0,1),LabParameters.Ticket,0,false,direction);
                 if(opened.Trade is null){diagnostics.Errors[asset.Symbol]="Entrada: "+opened.Reason;continue;}
                 execution=opened.Trade;
@@ -199,13 +218,16 @@ public sealed class ScannerService
         return (diagnostics, newSignals);
     }
 
-    private async Task<AssetAnalysis?> AnalyzeSymbolAsync(string symbol, List<Candle> btcCandles, ScanProfile profile, TradeDirection direction, SemaphoreSlim throttle, System.Collections.Concurrent.ConcurrentDictionary<string,string> errors, CancellationToken cancellationToken)
+    private async Task<AssetAnalysis?> AnalyzeSymbolAsync(string symbol, List<Candle> btcCandles, ScanProfile profile, TradeDirection direction, bool shortBreakoutOnly, SemaphoreSlim throttle, System.Collections.Concurrent.ConcurrentDictionary<string,string> errors, CancellationToken cancellationToken)
     {
         await throttle.WaitAsync(cancellationToken);
         try
         {
             var candles = await _marketData.GetCandlesAsync(symbol, profile.CandleInterval, 300, cancellationToken);
-            var analysis = _assetAnalyzer.Analyze(symbol, candles, btcCandles, profile, ValidatedRiskMode, direction: direction, entryStrategy:EntryStrategy.Auto);
+            bool useShortBreakout = direction == TradeDirection.Short && shortBreakoutOnly && profile.Name == ScanProfile.Intraday.Name;
+            var riskMode = useShortBreakout ? RiskCalculationMode.IntradayLocal : ValidatedRiskMode;
+            var entryStrategy = useShortBreakout ? EntryStrategy.Breakout : EntryStrategy.Auto;
+            var analysis = _assetAnalyzer.Analyze(symbol, candles, btcCandles, profile, riskMode, direction: direction, entryStrategy: entryStrategy);
 
             await UpdateMarketFlowAsync(symbol, analysis, cancellationToken);
 
@@ -299,7 +321,7 @@ public sealed class ScannerService
         }
     }
 
-    public async Task<AssetScore?> LookupSymbolAsync(string symbol, ScanProfile profile, CancellationToken cancellationToken = default, TradeDirection direction = TradeDirection.Long, bool shortExperimental = false)
+    public async Task<AssetScore?> LookupSymbolAsync(string symbol, ScanProfile profile, CancellationToken cancellationToken = default, TradeDirection direction = TradeDirection.Long, bool shortExperimental = false, bool shortBreakoutOnly = false)
     {
         await _watchlist.InitializeAsync(cancellationToken);
 
@@ -322,10 +344,16 @@ public sealed class ScannerService
         var favoriteSymbols = await _watchlist.GetAllAsync(cancellationToken);
         var favoriteSet = new HashSet<string>(favoriteSymbols, StringComparer.OrdinalIgnoreCase);
 
-        var analysis = _assetAnalyzer.Analyze(symbol, candles, btcCandles, profile, ValidatedRiskMode, direction: direction, entryStrategy:EntryStrategy.Auto);
+        bool useShortBreakout = direction == TradeDirection.Short && shortBreakoutOnly && profile.Name == ScanProfile.Intraday.Name;
+        var riskMode = useShortBreakout ? RiskCalculationMode.IntradayLocal : ValidatedRiskMode;
+        var entryStrategy = useShortBreakout ? EntryStrategy.Breakout : EntryStrategy.Auto;
+        var analysis = _assetAnalyzer.Analyze(symbol, candles, btcCandles, profile, riskMode, direction: direction, entryStrategy: entryStrategy);
         await UpdateMarketFlowAsync(symbol, analysis, cancellationToken);
 
-        return AssetScoreFactory.Create(analysis, marketRegime, favoriteSet, ScannerProfiles.For(profile, direction, shortExperimental));
+        var thresholds = useShortBreakout
+            ? ScannerProfiles.ForShortBreakoutExperimental(profile)
+            : ScannerProfiles.For(profile, direction, shortExperimental);
+        return AssetScoreFactory.Create(analysis, marketRegime, favoriteSet, thresholds);
     }
 
     private async Task UpdateMarketFlowAsync(string symbol, AssetAnalysis analysis, CancellationToken cancellationToken)
