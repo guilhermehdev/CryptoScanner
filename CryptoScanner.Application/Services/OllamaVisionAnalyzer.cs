@@ -14,19 +14,22 @@ public sealed class OllamaVisionAnalyzer(HttpClient httpClient)
 
     public async Task<LlmTradeOpinion> AnalyzeAsync(
         string? imagePath,
-        object indicators,
+        LlmAnalysisSnapshot snapshot,
         CancellationToken cancellationToken = default)
     {
         if (!string.IsNullOrWhiteSpace(imagePath) && !File.Exists(imagePath))
             throw new FileNotFoundException("Imagem do gráfico não encontrada.", imagePath);
 
         var prompt = "Você é um analista auxiliar de um scanner de criptomoedas.\n" +
-            "Analise Long e Short, mas não invente valores.\n" +
+            "O snapshot é a fonte única de fatos. Não invente, recalcule ou contradiga seus valores.\n" +
             "A decisão deve ser exclusivamente COMPRA, VENDA, AGUARDAR ou IGNORAR.\n" +
-            "Use os indicadores estruturados como fonte principal. Não suponha dados que não foram enviados.\n" +
-            "Se um valor não estiver disponível ou vier como faixa, use null. Cada entrada, stop, tp1 e tp2 deve ser um único número decimal, nunca um intervalo. Confiança é um inteiro de 0 a 100.\n" +
+            "Se canRecommendTrade for false, responda somente AGUARDAR ou IGNORAR e use null para todos os níveis.\n" +
+            "Para COMPRA ou VENDA, a direção deve ser igual a direction e você deve copiar exatamente expectedEntry, expectedStop, expectedTp1 e expectedTp2.\n" +
+            "VolumeStatus ABAIXO_DA_MEDIA ou ABAIXO_DO_MINIMO_DA_ESTRATEGIA nunca pode ser descrito como pressão compradora forte.\n" +
+            "Não afirme que o preço está simultaneamente acima da resistência e abaixo do suporte. Use apenas fatos disponíveis no snapshot.\n" +
+            "Se um valor não estiver disponível, use null. Cada entrada, stop, tp1 e tp2 deve ser um único número decimal, nunca um intervalo. Confiança é um inteiro de 0 a 100.\n" +
             "Responda somente JSON no contrato decisao, direcao, confianca, tendencia, entrada, stop, tp1, tp2, motivos e riscos.\n" +
-            "Indicadores do scanner:\n" + JsonSerializer.Serialize(indicators);
+            "Snapshot do scanner:\n" + JsonSerializer.Serialize(snapshot);
 
         object message;
         if (string.IsNullOrWhiteSpace(imagePath))

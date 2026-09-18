@@ -7,6 +7,7 @@ namespace CryptoScanner.Application.Services;
 
 public sealed class StrategyLabService(IStrategyLabRepository repository,IMarketDataService market)
 {
+    private const int EvaluationQuoteConcurrency = 12;
     private readonly SemaphoreSlim _observe=new(1,1),_evaluate=new(1,1);
     public async Task ObserveGridAsync(IReadOnlyList<AssetScore> assets,ScanProfile profile,CancellationToken token=default)
     {
@@ -44,14 +45,26 @@ public sealed class StrategyLabService(IStrategyLabRepository repository,IMarket
         if(!await _evaluate.WaitAsync(0,token))return;
         try
         {
-            var symbols=await repository.OpenSymbolsAsync(token);
-            // Persist each common quote promptly; all variants of that asset receive the same tick.
-            foreach(string symbol in symbols)
+            var symbols=(await repository.OpenSymbolsAsync(token))
+                .Where(symbol=>!string.IsNullOrWhiteSpace(symbol))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if(symbols.Length==0)return;
+
+            // Query open positions concurrently. A sequential pass through dozens of
+            // shadow trades can exceed the 90-second observation window by itself.
+            using var throttle=new SemaphoreSlim(EvaluationQuoteConcurrency);
+            var quotes=await Task.WhenAll(symbols.Select(async symbol=>
             {
-                decimal? price=await QuoteAsync(symbol,token);
-                if(price is >0)await repository.TickAsync(new Dictionary<string,decimal>{{symbol,price.Value}},
-                    DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),token);
-            }
+                await throttle.WaitAsync(token);
+                try{return (Symbol:symbol,Price:await QuoteAsync(symbol,token));}
+                finally{throttle.Release();}
+            }));
+            var prices=quotes.Where(quote=>quote.Price is >0).ToDictionary(
+                quote=>quote.Symbol,quote=>quote.Price!.Value,StringComparer.OrdinalIgnoreCase);
+            if(prices.Count>0)
+                // One timestamp and one transaction make the cycle a coherent price snapshot.
+                await repository.TickAsync(prices,DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),token);
         }
         finally{_evaluate.Release();}
     }

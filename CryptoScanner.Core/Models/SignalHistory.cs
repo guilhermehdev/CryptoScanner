@@ -6,7 +6,7 @@ using System.Text;
 namespace CryptoScanner.Core.Models
 {
 
-    public class SignalHistory
+    public class SignalHistory : ObservableModel
     {
         public TradeDirection Direction { get; set; } = TradeDirection.Long;
         public string ExecutionJson { get; init; } = "";
@@ -17,6 +17,41 @@ namespace CryptoScanner.Core.Models
         public decimal FinalScore { get; set; }
         public string Signal { get; set; } = "";
         public decimal? OutcomePrice { get; set; }
+        private decimal? _currentPrice;
+        public decimal? CurrentPrice
+        {
+            get => _currentPrice;
+            set
+            {
+                if (SetField(ref _currentPrice, value))
+                {
+                    OnPropertyChanged(nameof(CurrentPriceFormatted));
+                    OnPropertyChanged(nameof(DisplayedPrice));
+                    OnPropertyChanged(nameof(DisplayedPriceFormatted));
+                    OnPropertyChanged(nameof(LivePnLPercent));
+                    OnPropertyChanged(nameof(LivePnLPercentFormatted));
+                    OnPropertyChanged(nameof(DisplayedPnLPercent));
+                    OnPropertyChanged(nameof(DisplayedPnLPercentFormatted));
+                }
+            }
+        }
+        public string CurrentPriceFormatted => CurrentPrice is decimal price
+            ? (price >= 1 ? price.ToString("N2") : price.ToString("N8"))
+            : "—";
+        public decimal? DisplayedPrice => Evaluated ? OutcomePrice ?? CurrentPrice : CurrentPrice;
+        public string DisplayedPriceFormatted => DisplayedPrice is decimal price
+            ? (price >= 1 ? price.ToString("N2") : price.ToString("N8"))
+            : "Indisp.";
+        public decimal? LivePnLPercent => CurrentPrice is decimal currentPrice && Price > 0
+            ? (Direction == TradeDirection.Short ? Price - currentPrice : currentPrice - Price) / Price * 100m
+            : null;
+        public string LivePnLPercentFormatted => LivePnLPercent is decimal pnl
+            ? $"{pnl:+0.00;-0.00;0.00}%"
+            : "—";
+        public decimal? DisplayedPnLPercent => Evaluated ? OutcomePercent ?? LivePnLPercent : LivePnLPercent;
+        public string DisplayedPnLPercentFormatted => DisplayedPnLPercent is decimal pnl
+            ? $"{pnl:+0.00;-0.00;0.00}%"
+            : "Indisp.";
         public decimal? OutcomePercent { get; set; }
         public bool Evaluated { get; set; }
         public decimal OpportunityScore { get; set; }

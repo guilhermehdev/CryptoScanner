@@ -37,8 +37,11 @@ public sealed class SqliteLlmOpinionRepository : ILlmOpinionRepository
                 SimulatedTradeId INTEGER NULL,
                 OutcomeEvaluated INTEGER NOT NULL DEFAULT 0,
                 OutcomePercent REAL NULL,
-                OutcomeReason TEXT NOT NULL DEFAULT '',
-                OutcomeAt TEXT NULL
+            OutcomeReason TEXT NOT NULL DEFAULT '',
+            OutcomeAt TEXT NULL,
+            SnapshotJson TEXT NOT NULL DEFAULT '',
+            ValidationStatus TEXT NOT NULL DEFAULT '',
+            ValidationMessage TEXT NOT NULL DEFAULT ''
             );
             CREATE INDEX IF NOT EXISTS IX_LlmOpinions_CreatedAt ON LlmOpinions(CreatedAt DESC);
             """;
@@ -49,6 +52,9 @@ public sealed class SqliteLlmOpinionRepository : ILlmOpinionRepository
         await EnsureColumnAsync(connection, "OutcomePercent", "REAL NULL", cancellationToken);
         await EnsureColumnAsync(connection, "OutcomeReason", "TEXT NOT NULL DEFAULT ''", cancellationToken);
         await EnsureColumnAsync(connection, "OutcomeAt", "TEXT NULL", cancellationToken);
+        await EnsureColumnAsync(connection, "SnapshotJson", "TEXT NOT NULL DEFAULT ''", cancellationToken);
+        await EnsureColumnAsync(connection, "ValidationStatus", "TEXT NOT NULL DEFAULT ''", cancellationToken);
+        await EnsureColumnAsync(connection, "ValidationMessage", "TEXT NOT NULL DEFAULT ''", cancellationToken);
     }
 
     public async Task<long> AddAsync(LlmOpinionRecord opinion, CancellationToken cancellationToken = default)
@@ -58,10 +64,10 @@ public sealed class SqliteLlmOpinionRepository : ILlmOpinionRepository
         const string sql = """
             INSERT INTO LlmOpinions
             (CreatedAt, Symbol, Profile, ImagePath, AnalysisPrice, ScannerSignal, Decision, Direction,
-             Confidence, Trend, Entry, Stop, Tp1, Tp2, Reasons, Risks, SimulatedTradeId, OutcomeEvaluated, OutcomePercent, OutcomeReason, OutcomeAt)
+             Confidence, Trend, Entry, Stop, Tp1, Tp2, Reasons, Risks, SnapshotJson, ValidationStatus, ValidationMessage, SimulatedTradeId, OutcomeEvaluated, OutcomePercent, OutcomeReason, OutcomeAt)
             VALUES
             (@CreatedAt, @Symbol, @Profile, @ImagePath, @AnalysisPrice, @ScannerSignal, @Decision, @Direction,
-             @Confidence, @Trend, @Entry, @Stop, @Tp1, @Tp2, @Reasons, @Risks, @SimulatedTradeId, @OutcomeEvaluated, @OutcomePercent, @OutcomeReason, @OutcomeAt);
+             @Confidence, @Trend, @Entry, @Stop, @Tp1, @Tp2, @Reasons, @Risks, @SnapshotJson, @ValidationStatus, @ValidationMessage, @SimulatedTradeId, @OutcomeEvaluated, @OutcomePercent, @OutcomeReason, @OutcomeAt);
             SELECT last_insert_rowid();
             """;
         await using var command = new SqliteCommand(sql, connection);
@@ -81,6 +87,9 @@ public sealed class SqliteLlmOpinionRepository : ILlmOpinionRepository
         command.Parameters.AddWithValue("@Tp2", (object?)opinion.Tp2 ?? DBNull.Value);
         command.Parameters.AddWithValue("@Reasons", opinion.Reasons);
         command.Parameters.AddWithValue("@Risks", opinion.Risks);
+        command.Parameters.AddWithValue("@SnapshotJson", opinion.SnapshotJson);
+        command.Parameters.AddWithValue("@ValidationStatus", opinion.ValidationStatus);
+        command.Parameters.AddWithValue("@ValidationMessage", opinion.ValidationMessage);
         command.Parameters.AddWithValue("@SimulatedTradeId", (object?)opinion.SimulatedTradeId ?? DBNull.Value);
         command.Parameters.AddWithValue("@OutcomeEvaluated", opinion.OutcomeEvaluated ? 1 : 0);
         command.Parameters.AddWithValue("@OutcomePercent", (object?)opinion.OutcomePercent ?? DBNull.Value);
@@ -99,32 +108,28 @@ public sealed class SqliteLlmOpinionRepository : ILlmOpinionRepository
         var result = new List<LlmOpinionRecord>();
         while (await reader.ReadAsync(cancellationToken))
         {
-            result.Add(new LlmOpinionRecord
-            {
-                Id = reader.GetInt64(reader.GetOrdinal("Id")),
-                CreatedAt = DateTime.Parse(reader.GetString(reader.GetOrdinal("CreatedAt")), null, System.Globalization.DateTimeStyles.RoundtripKind).ToLocalTime(),
-                Symbol = reader.GetString(reader.GetOrdinal("Symbol")),
-                Profile = reader.GetString(reader.GetOrdinal("Profile")),
-                ImagePath = reader.GetString(reader.GetOrdinal("ImagePath")),
-                AnalysisPrice = reader.GetDecimal(reader.GetOrdinal("AnalysisPrice")),
-                ScannerSignal = reader.GetString(reader.GetOrdinal("ScannerSignal")),
-                Decision = reader.GetString(reader.GetOrdinal("Decision")),
-                Direction = reader.GetString(reader.GetOrdinal("Direction")),
-                Confidence = reader.GetInt32(reader.GetOrdinal("Confidence")),
-                Trend = reader.GetString(reader.GetOrdinal("Trend")),
-                Entry = ReadNullableDecimal(reader, "Entry"),
-                Stop = ReadNullableDecimal(reader, "Stop"),
-                Tp1 = ReadNullableDecimal(reader, "Tp1"),
-                Tp2 = ReadNullableDecimal(reader, "Tp2"),
-                Reasons = reader.GetString(reader.GetOrdinal("Reasons")),
-                Risks = reader.GetString(reader.GetOrdinal("Risks")),
-                SimulatedTradeId = ReadNullableInt(reader, "SimulatedTradeId"),
-                OutcomeEvaluated = reader.GetInt32(reader.GetOrdinal("OutcomeEvaluated")) == 1,
-                OutcomePercent = ReadNullableDecimal(reader, "OutcomePercent"),
-                OutcomeReason = reader.GetString(reader.GetOrdinal("OutcomeReason")),
-                OutcomeAt = ReadNullableDateTime(reader, "OutcomeAt")
-            });
+            result.Add(Map(reader));
         }
+        return result;
+    }
+
+    public async Task<IReadOnlyList<LlmOpinionRecord>> GetPendingRecommendationsAsync(CancellationToken cancellationToken = default)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        const string sql = """
+            SELECT * FROM LlmOpinions
+            WHERE OutcomeEvaluated = 0
+              AND SimulatedTradeId IS NULL
+              AND ValidationStatus = 'VALIDA'
+              AND Decision IN ('COMPRA', 'VENDA')
+            ORDER BY CreatedAt ASC
+            """;
+        await using var command = new SqliteCommand(sql, connection);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var result = new List<LlmOpinionRecord>();
+        while (await reader.ReadAsync(cancellationToken))
+            result.Add(Map(reader));
         return result;
     }
 
@@ -154,6 +159,20 @@ public sealed class SqliteLlmOpinionRepository : ILlmOpinionRepository
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    public async Task UpdateOpinionOutcomeAsync(long opinionId, decimal outcomePercent, string outcomeReason, DateTime outcomeAt, CancellationToken cancellationToken = default)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new SqliteCommand(
+            "UPDATE LlmOpinions SET OutcomeEvaluated = 1, OutcomePercent = @Percent, OutcomeReason = @Reason, OutcomeAt = @At WHERE Id = @Id AND OutcomeEvaluated = 0",
+            connection);
+        command.Parameters.AddWithValue("@Id", opinionId);
+        command.Parameters.AddWithValue("@Percent", (double)outcomePercent);
+        command.Parameters.AddWithValue("@Reason", outcomeReason);
+        command.Parameters.AddWithValue("@At", outcomeAt.ToUniversalTime().ToString("O"));
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     private static async Task EnsureColumnAsync(SqliteConnection connection, string column, string definition, CancellationToken cancellationToken)
     {
         await using var check = new SqliteCommand("SELECT COUNT(*) FROM pragma_table_info('LlmOpinions') WHERE name = @Name", connection);
@@ -165,10 +184,39 @@ public sealed class SqliteLlmOpinionRepository : ILlmOpinionRepository
         await using var alter = new SqliteCommand($"ALTER TABLE LlmOpinions ADD COLUMN {column} {definition}", connection);
         await alter.ExecuteNonQueryAsync(cancellationToken);
     }
+
+    private static LlmOpinionRecord Map(SqliteDataReader reader) => new()
+    {
+        Id = reader.GetInt64(reader.GetOrdinal("Id")),
+        CreatedAt = DateTime.Parse(reader.GetString(reader.GetOrdinal("CreatedAt")), null, System.Globalization.DateTimeStyles.RoundtripKind).ToLocalTime(),
+        Symbol = reader.GetString(reader.GetOrdinal("Symbol")),
+        Profile = reader.GetString(reader.GetOrdinal("Profile")),
+        ImagePath = reader.GetString(reader.GetOrdinal("ImagePath")),
+        AnalysisPrice = reader.GetDecimal(reader.GetOrdinal("AnalysisPrice")),
+        ScannerSignal = reader.GetString(reader.GetOrdinal("ScannerSignal")),
+        Decision = reader.GetString(reader.GetOrdinal("Decision")),
+        Direction = reader.GetString(reader.GetOrdinal("Direction")),
+        Confidence = reader.GetInt32(reader.GetOrdinal("Confidence")),
+        Trend = reader.GetString(reader.GetOrdinal("Trend")),
+        Entry = ReadNullableDecimal(reader, "Entry"), Stop = ReadNullableDecimal(reader, "Stop"),
+        Tp1 = ReadNullableDecimal(reader, "Tp1"), Tp2 = ReadNullableDecimal(reader, "Tp2"),
+        Reasons = reader.GetString(reader.GetOrdinal("Reasons")), Risks = reader.GetString(reader.GetOrdinal("Risks")),
+        SnapshotJson = ReadString(reader, "SnapshotJson"), ValidationStatus = ReadString(reader, "ValidationStatus"),
+        ValidationMessage = ReadString(reader, "ValidationMessage"), SimulatedTradeId = ReadNullableInt(reader, "SimulatedTradeId"),
+        OutcomeEvaluated = reader.GetInt32(reader.GetOrdinal("OutcomeEvaluated")) == 1,
+        OutcomePercent = ReadNullableDecimal(reader, "OutcomePercent"), OutcomeReason = reader.GetString(reader.GetOrdinal("OutcomeReason")),
+        OutcomeAt = ReadNullableDateTime(reader, "OutcomeAt")
+    };
     private static int? ReadNullableInt(SqliteDataReader reader, string column)
     {
         var ordinal = reader.GetOrdinal(column);
         return reader.IsDBNull(ordinal) ? null : reader.GetInt32(ordinal);
+    }
+
+    private static string ReadString(SqliteDataReader reader, string column)
+    {
+        var ordinal = reader.GetOrdinal(column);
+        return reader.IsDBNull(ordinal) ? "" : reader.GetString(ordinal);
     }
 
     private static DateTime? ReadNullableDateTime(SqliteDataReader reader, string column)

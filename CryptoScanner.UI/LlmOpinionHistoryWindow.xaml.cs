@@ -57,7 +57,18 @@ public partial class LlmOpinionHistoryWindow : Window
             _rows.Add(row);
 
         if (txtSummary != null)
-            txtSummary.Text = $"{filtered.Count} opinião(ões) exibida(s) de {_all.Count} registrada(s).";
+        {
+            var evaluated = filtered.Where(row => row.OutcomeEvaluated && row.OutcomePercent.HasValue).ToList();
+            double winRate = evaluated.Count == 0
+                ? 0
+                : evaluated.Count(row => row.OutcomePercent > 0) * 100d / evaluated.Count;
+            decimal averageReturn = evaluated.Count == 0
+                ? 0
+                : evaluated.Average(row => row.OutcomePercent!.Value);
+
+            txtSummary.Text = $"{filtered.Count} opinião(ões) exibida(s) de {_all.Count} registrada(s). " +
+                              $"Avaliadas: {evaluated.Count} | Acertos: {winRate:F1}% | Retorno médio: {averageReturn:F2}%";
+        }
     }
     private void FilterChanged(object sender, RoutedEventArgs e)
     {
@@ -85,12 +96,12 @@ public partial class LlmOpinionHistoryWindow : Window
             return;
 
         var csv = new StringBuilder();
-        csv.AppendLine("Data;Ativo;Perfil;Scanner;Decisao;Direcao;Confianca;ResultadoPercent;Saida;Preco;Entrada;Stop;TP1;TP2;Tendencia;Motivos;Riscos;Imagem");
+        csv.AppendLine("Data;Ativo;Perfil;Scanner;Decisao;Direcao;Confianca;Validacao;MensagemValidacao;ResultadoPercent;Saida;Preco;Entrada;Stop;TP1;TP2;Tendencia;Motivos;Riscos;Imagem");
         foreach (var row in _rows)
         {
             csv.AppendLine(string.Join(';',
                 Csv(row.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")), Csv(row.Symbol), Csv(row.Profile), Csv(row.ScannerSignal),
-                Csv(row.Decision), Csv(row.Direction), row.Confidence, Csv(row.OutcomePercent?.ToString("0.##") ?? ""), Csv(row.OutcomeReason), Csv(row.AnalysisPrice.ToString("0.########")),
+                Csv(row.Decision), Csv(row.Direction), row.Confidence, Csv(row.ValidationStatus), Csv(row.ValidationMessage), Csv(row.OutcomePercent?.ToString("0.##") ?? ""), Csv(row.OutcomeReason), Csv(row.AnalysisPrice.ToString("0.########")),
                 Csv(row.Entry?.ToString("0.########") ?? ""), Csv(row.Stop?.ToString("0.########") ?? ""),
                 Csv(row.Tp1?.ToString("0.########") ?? ""), Csv(row.Tp2?.ToString("0.########") ?? ""), Csv(row.Trend),
                 Csv(row.Reasons), Csv(row.Risks), Csv(row.ImagePath)));

@@ -8,10 +8,14 @@ using Microsoft.Data.Sqlite;
 
 int checks=0;
 void Check(bool ok,string name){if(!ok)throw new Exception(name);checks++;}
-AssetScore Asset(string symbol="BTCUSDT",decimal? pressure=70)=>new(){Symbol=symbol,Score=60,BuyingPressureScore=pressure,Close=100,Support=90,Resistance=120,TakeProfit1=110,TakeProfit3=130,Rsi=45,VolumeSpike=2,MarketRegime="BULL"};
+AssetScore Asset(string symbol="BTCUSDT",decimal? pressure=70)=>new(){Symbol=symbol,Score=60,BuyingPressureScore=pressure,Close=100,Support=91.4m,Resistance=120,TakeProfit1=110,TakeProfit3=130,Rsi=45,VolumeSpike=2,RiskReward=2.1m,ResistanceDistance=20,TrendDirection="ALTA",IsBreakout=true,IsConsolidating=true,MarketRegime="BULL"};
 LabOpportunity Opportunity(string symbol="BTCUSDT",long time=1800000,decimal? pressure=70)
 {var a=Asset(symbol,pressure);return new(symbol,"Swing",time,time+1000,100,240,a,JsonSerializer.Serialize(a)){DecisionTimeMs=time+1000};}
-LabTrade Open(int variant=1)=>LabSimulation.TryOpen(Opportunity(),LabParameters.Initial[variant-1],10000,0,false).Trade!;
+LabTrade Open(int variant=1)
+{
+    var result=LabSimulation.TryOpen(Opportunity(),LabParameters.Initial[variant-1],10000,0,false);
+    return result.Trade??throw new InvalidOperationException(result.Reason);
+}
 var t=Open();
 Check(t.EntryFill==100.05m && t.Quantity*t.EntryFill*(1+t.FeeRate)==1000,"Entry applies slippage and fee within ticket");
 Check(LabParameters.Initial.Select(p=>p.Id).Distinct().Count()==5,"Five stable variants");
@@ -24,7 +28,7 @@ Check(LabSimulation.TryOpen(Opportunity() with {DecisionTimeMs=1900000},LabParam
 Check(LabSimulation.TryOpen(Opportunity(pressure:45),LabParameters.Initial[0],10000,0,false).Trade is null && LabSimulation.TryOpen(Opportunity(pressure:45),LabParameters.Initial[1],10000,0,false).Trade is not null,"Pressure mutation explores different acceptance");
 long at=t.EntryMs;
 var exits=LabSimulation.Tick(t,110,at+30000);
-Check(exits.Count==1 && t.Tp1Hit && t.Stop==90 && t.Remaining==.6m,"TP1 partial preserves stop");
+Check(exits.Count==1 && t.Tp1Hit && t.Stop==91.4m && t.Remaining==.6m,"TP1 partial preserves stop");
 Check(LabSimulation.Tick(t,110,at+30000).Count==0,"Repeated timestamp cannot duplicate exits");
 LabSimulation.Tick(t,100,at+60000);Check(!t.Closed,"Return to entry after TP1 stays open");
 LabSimulation.Tick(t,120,at+90000);Check(t.Tp2Hit && t.Stop==t.EntryFill && t.Remaining==.2m,"TP2 moves stop to entry");
@@ -34,7 +38,10 @@ t=Open();exits=LabSimulation.Tick(t,140,t.EntryMs+30000);
 Check(exits.Count==3 && t.Closed && t.Remaining==0 && t.NetProfit>170 && t.NetProfit<180,"One tick crosses all targets with costs");
 t=Open();exits=LabSimulation.Tick(t,80,t.EntryMs+30000);Check(exits.Single().FillPrice==79.96m && t.NetProfit< -200,"Gap through stop fills at observed adverse price");
 t=Open();LabSimulation.Tick(t,100,t.DeadlineMs);Check(t.Closed&&t.ExitReason=="Prazo"&&t.HasObservationGap,"Timeout and observation gap recorded");
-var narrow=Open(4);var wide=Open(5);LabSimulation.Tick(narrow,91,narrow.EntryMs+30000);LabSimulation.Tick(wide,91,wide.EntryMs+30000);
+var narrow=Open(4);
+var wide=LabSimulation.TryOpen(Opportunity(),LabParameters.Initial[4] with { MinimumRiskReward=0 },10000,0,false).Trade
+    ?? throw new InvalidOperationException("Stop distante deveria abrir no cenário de geometria isolada");
+LabSimulation.Tick(narrow,91,narrow.EntryMs+30000);LabSimulation.Tick(wide,91,wide.EntryMs+30000);
 Check(narrow.Closed&&!wide.Closed,"Stop mutations produce different outcomes on same price");
 
 string path=Path.Combine(AppContext.BaseDirectory,$"lab-{Guid.NewGuid():N}.db");
@@ -124,7 +131,8 @@ try
     Check(memory.Records.Count==1&&memory.Records[0].Symbol=="GRIDUSDT"&&memory.Records[0].Asset.Close==100,"Only frozen visible grid candidates captured");
     Check(memory.Records[0].HoldingHours==24,"Profile holding horizon preserved");
     await service.ObserveGridAsync([selected],ScanProfile.Intraday);Check(memory.Records.Count==1&&market.Calls==1,"Repeated grid window avoids duplicate quote request");
-    await service.EvaluateAsync();Check(memory.Ticks.Count==1&&memory.Ticks[0].ContainsKey("GRIDUSDT"),"Open positions evaluated independently of current grid");
+    memory.OpenSymbols=["GRIDUSDT","BATCH1USDT","BATCH2USDT"];
+    await service.EvaluateAsync();Check(memory.Ticks.Count==1&&memory.Ticks[0].Count==3&&memory.Ticks[0].ContainsKey("GRIDUSDT"),"Open positions are quoted concurrently and persisted as one snapshot");
     Console.WriteLine($"PASS: {checks} strategy-lab checks");
 }
 finally{SqliteConnection.ClearAllPools();File.Delete(path);}
@@ -132,12 +140,15 @@ finally{SqliteConnection.ClearAllPools();File.Delete(path);}
 sealed class MemoryRepository:IStrategyLabRepository
 {
     public List<LabOpportunity> Records=[];public List<IReadOnlyDictionary<string,decimal>> Ticks=[];
+    public IReadOnlyList<string> OpenSymbols=["GRIDUSDT"];
     public Task<IReadOnlySet<string>> ObservedSymbolsAsync(string p,long b,CancellationToken t=default)=>Task.FromResult<IReadOnlySet<string>>(Records.Select(x=>x.Symbol).ToHashSet());
     public Task ObserveAsync(LabOpportunity o,CancellationToken t=default){Records.Add(o);return Task.CompletedTask;}
-    public Task<IReadOnlyList<string>> OpenSymbolsAsync(CancellationToken t=default)=>Task.FromResult<IReadOnlyList<string>>(["GRIDUSDT"]);
+    public Task<IReadOnlyList<string>> OpenSymbolsAsync(CancellationToken t=default)=>Task.FromResult(OpenSymbols);
     public Task TickAsync(IReadOnlyDictionary<string,decimal> p,long at,CancellationToken t=default){Ticks.Add(p);return Task.CompletedTask;}
     public Task<LabReport> ReportAsync(CancellationToken t=default)=>throw new NotSupportedException();
     public Task SetEnabledAsync(bool e,CancellationToken t=default)=>Task.CompletedTask;
+    public Task<IReadOnlyList<LabParameters>> GetParametersAsync(CancellationToken t=default)=>Task.FromResult<IReadOnlyList<LabParameters>>(LabParameters.Initial);
+    public Task UpdateParametersAsync(IReadOnlyList<LabParameters> parameters,CancellationToken t=default)=>Task.CompletedTask;
 }
 sealed class Market:IMarketDataService
 {

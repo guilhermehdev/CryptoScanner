@@ -19,6 +19,9 @@ public sealed class LlmOpinionRecord
     public decimal? Tp2 { get; set; }
     public string Reasons { get; set; } = "";
     public string Risks { get; set; } = "";
+    public string SnapshotJson { get; set; } = "";
+    public string ValidationStatus { get; set; } = "";
+    public string ValidationMessage { get; set; } = "";
     public int? SimulatedTradeId { get; set; }
     public bool OutcomeEvaluated { get; set; }
     public decimal? OutcomePercent { get; set; }

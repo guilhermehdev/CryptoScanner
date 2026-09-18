@@ -48,6 +48,7 @@ public partial class MainWindow : Window
     private readonly CoinGeckoService _coinGeckoService = new();
     private readonly OllamaVisionAnalyzer _llmAnalyzer = new(new HttpClient { Timeout = TimeSpan.FromMinutes(3) });
     private readonly ILlmOpinionRepository _llmOpinionRepository;
+    private readonly LlmOpinionOutcomeEvaluator _llmOutcomeEvaluator;
     private const int AutomaticLlmTopCount = 30;
     private readonly SemaphoreSlim _automaticLlmGate = new(1, 1);
     private readonly Dictionary<string, string> _automaticLlmLastSignature = new(StringComparer.OrdinalIgnoreCase);
@@ -85,6 +86,7 @@ public partial class MainWindow : Window
         _alertSettingsRepository = new SqliteAlertSettingsRepository(databasePath);
         _appSettingsRepository = new SqliteAppSettingsRepository(databasePath);
         _llmOpinionRepository = new SqliteLlmOpinionRepository(databasePath);
+        _llmOutcomeEvaluator = new LlmOpinionOutcomeEvaluator(_llmOpinionRepository, _priceCheckService);
         _pressureHistory = new BuyingPressureHistoryService(new SqliteBuyingPressureRepository(databasePath), _priceCheckService);
         _labRepository=new SqliteStrategyLabRepository(databasePath);
         _lab=new StrategyLabService(_labRepository,_priceCheckService);
@@ -221,6 +223,7 @@ public partial class MainWindow : Window
             var result = results.Length == 1 ? results[0] : MergeScannerResults(results);
 
             _lastHistory = result.History; // já é global (Signals não filtra por Profile)
+            await RefreshOpenSignalPricesAsync(result.History);
             _rankingsByProfile[profile.Name] = result.Ranking;
             _diagnosticsByProfile[profile.Name] = result.Diagnostics;
             _ = AnalyzeTopRankingWithLlmAsync(profile, result.Ranking);
@@ -237,6 +240,7 @@ public partial class MainWindow : Window
 
             await DispatchAlertsAsync(result.NewSignals);
             await EvaluateSimulatedTradesAsync();
+            await _llmOutcomeEvaluator.EvaluateDueAsync(_labClosed.Token);
             await LoadSimulatedTradesAsync(); // mantém o resumo do Diário (e o espelho no Dashboard) sempre fresco
             try { await _pressureHistory.CompleteDueAsync(DateTimeOffset.UtcNow); }
             catch (Exception ex) { ReportPressureHistoryError($"Preços posteriores: {ex.Message}"); }
@@ -520,7 +524,10 @@ public partial class MainWindow : Window
         txtLlmOpinion.Text = $"LLM consultiva: analisando {asset.Symbol}…";
         try
         {
-            var opinion = await _llmAnalyzer.AnalyzeAsync(null, BuildLlmIndicators(asset));
+            var snapshot = BuildLlmSnapshot(asset, _viewedProfile);
+            var rawOpinion = await _llmAnalyzer.AnalyzeAsync(null, snapshot);
+            var validation = LlmOpinionValidator.Validate(snapshot, rawOpinion);
+            var opinion = ApplyLlmValidation(snapshot, rawOpinion, validation);
             txtLlmOpinion.Text = FormatLlmOpinion(asset, opinion);
 
             try
@@ -542,7 +549,10 @@ public partial class MainWindow : Window
                     Tp1 = opinion.Tp1,
                     Tp2 = opinion.Tp2,
                     Reasons = opinion.Motivos.Length == 0 ? "" : string.Join("; ", opinion.Motivos),
-                    Risks = opinion.Riscos.Length == 0 ? "" : string.Join("; ", opinion.Riscos)
+                    Risks = opinion.Riscos.Length == 0 ? "" : string.Join("; ", opinion.Riscos),
+                    SnapshotJson = System.Text.Json.JsonSerializer.Serialize(snapshot),
+                    ValidationStatus = validation.IsValid ? "VALIDA" : "REJEITADA",
+                    ValidationMessage = validation.Message
                 });
                 txtLlmOpinion.ToolTip = "Análise exibida e salva no histórico local.";
             }
@@ -557,32 +567,31 @@ public partial class MainWindow : Window
         }
     }
 
-    private object BuildLlmIndicators(AssetScore asset) => new
+    private static LlmAnalysisSnapshot BuildLlmSnapshot(AssetScore asset, ScanProfile profile) =>
+        LlmSnapshotFactory.Create(
+            asset,
+            profile,
+            ScannerProfiles.For(profile, asset.Direction, shortExperimental: false),
+            DateTime.UtcNow);
+
+    private static LlmTradeOpinion ApplyLlmValidation(
+        LlmAnalysisSnapshot snapshot,
+        LlmTradeOpinion opinion,
+        LlmOpinionValidationResult validation)
     {
-        ativo = asset.Symbol,
-        direcao = asset.Direction == TradeDirection.Short ? "VENDA" : "COMPRA",
-        sinalScanner = asset.DisplaySignal,
-        score = asset.Score,
-        precoFechamento = asset.Close,
-        precoAtual = asset.LivePrice,
-        tendencia = asset.TrendDirection,
-        regime = asset.MarketRegime,
-        rsi = asset.Rsi,
-        adx = asset.Adx,
-        atrPercentual = asset.AtrPercent,
-        volumeSpike = asset.VolumeSpike,
-        pressaoCompradora = asset.BuyingPressureScore,
-        fluxoVarejo = asset.RetailFlowScore,
-        forcaRelativa = asset.RelativeStrength,
-        suporte = asset.Support,
-        resistencia = asset.Resistance,
-        distanciaAlvoPercentual = asset.ResistanceDistance,
-        distanciaStopPercentual = asset.SupportDistance,
-        riscoRetorno = asset.RiskReward,
-        padrao = asset.PatternName,
-        armadilhaAlta = asset.IsBullTrap,
-        armadilhaBaixa = asset.IsBearTrap
-    };
+        if (validation.IsValid)
+            return opinion;
+
+        return new LlmTradeOpinion
+        {
+            Decisao = "IGNORAR",
+            Direcao = "NEUTRA",
+            Confianca = 0,
+            Tendencia = snapshot.Trend,
+            Motivos = ["Resposta da LLM rejeitada pelo validador."],
+            Riscos = validation.Errors.ToArray()
+        };
+    }
 
     private static string FormatLlmOpinion(AssetScore asset, LlmTradeOpinion opinion)
     {
@@ -689,10 +698,13 @@ public partial class MainWindow : Window
                     await _automaticLlmGate.WaitAsync(_labClosed.Token);
                     try
                     {
-                        var opinion = await _llmAnalyzer.AnalyzeAsync(
+                        var snapshot = BuildLlmSnapshot(asset, profile);
+                        var rawOpinion = await _llmAnalyzer.AnalyzeAsync(
                             null,
-                            BuildLlmIndicators(asset),
+                            snapshot,
                             _labClosed.Token);
+                        var validation = LlmOpinionValidator.Validate(snapshot, rawOpinion);
+                        var opinion = ApplyLlmValidation(snapshot, rawOpinion, validation);
 
                         await _llmOpinionRepository.AddAsync(new LlmOpinionRecord
                         {
@@ -711,7 +723,10 @@ public partial class MainWindow : Window
                             Tp1 = opinion.Tp1,
                             Tp2 = opinion.Tp2,
                             Reasons = opinion.Motivos.Length == 0 ? "" : string.Join("; ", opinion.Motivos),
-                            Risks = opinion.Riscos.Length == 0 ? "" : string.Join("; ", opinion.Riscos)
+                            Risks = opinion.Riscos.Length == 0 ? "" : string.Join("; ", opinion.Riscos),
+                            SnapshotJson = System.Text.Json.JsonSerializer.Serialize(snapshot),
+                            ValidationStatus = validation.IsValid ? "VALIDA" : "REJEITADA",
+                            ValidationMessage = validation.Message
                         });
 
                         _automaticLlmLastSignature[key] = signature;
@@ -962,6 +977,9 @@ public partial class MainWindow : Window
         foreach (var trade in _lastSimulatedTrades.Where(t => t.IsOpen))
             desired.Add(trade.Symbol);
 
+        foreach (var signal in _lastHistory)
+            desired.Add(signal.Symbol);
+
         try
         {
             await _webSocketService.SyncSubscriptionsAsync(desired);
@@ -971,6 +989,40 @@ public partial class MainWindow : Window
             // Falha ao sincronizar inscrições não deve travar o app — tenta de novo
             // automaticamente na próxima vez que o Diário for recarregado.
         }
+    }
+
+    private async Task RefreshOpenSignalPricesAsync(IReadOnlyList<SignalHistory> history)
+    {
+        var openSignals = history
+            .Where(signal => !signal.Evaluated)
+            .GroupBy(signal => signal.Symbol, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToList();
+
+        using var throttle = new SemaphoreSlim(8);
+        var tasks = openSignals.Select(async signal =>
+        {
+            await throttle.WaitAsync();
+            try
+            {
+                decimal price = await _priceCheckService.GetCurrentPriceAsync(signal.Symbol);
+                foreach (var matchingSignal in history.Where(item =>
+                             string.Equals(item.Symbol, signal.Symbol, StringComparison.OrdinalIgnoreCase)))
+                {
+                    matchingSignal.CurrentPrice = price;
+                }
+            }
+            catch
+            {
+                // Par indisponível/delistado: o grid informa "Indisp." sem interromper o scanner.
+            }
+            finally
+            {
+                throttle.Release();
+            }
+        });
+
+        await Task.WhenAll(tasks);
     }
 
     /// <summary>
@@ -1165,6 +1217,12 @@ public partial class MainWindow : Window
                 trade.CurrentPrice = price;
                 trade.UnrealizedPnLPercent = (trade.Direction == TradeDirection.Short ? trade.EntryPrice - price : price - trade.EntryPrice) / trade.EntryPrice * 100m;
                 matchingTrades.Add(trade);
+            }
+
+            foreach (var signal in _lastHistory.Where(signal =>
+                         string.Equals(signal.Symbol, symbol, StringComparison.OrdinalIgnoreCase)))
+            {
+                signal.CurrentPrice = price;
             }
         });
 
@@ -1487,8 +1545,28 @@ public partial class MainWindow : Window
         chartWindow.Show();
     }
 
+    private void DgHistory_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        var row = FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject);
+        if (row?.Item is not SignalHistory signal)
+            return;
+
+        row.IsSelected = true;
+        string interval = ToTradingViewInterval(GetHistoryCandleInterval(signal.Profile));
+        var chartWindow = new ChartWindow(signal.Symbol, interval) { Owner = this };
+        chartWindow.Show();
+    }
+
+    private static string GetHistoryCandleInterval(string profile) => profile switch
+    {
+        var name when name == ScanProfile.Intraday.Name => ScanProfile.Intraday.CandleInterval,
+        var name when name == ScanProfile.Scalp.Name => ScanProfile.Scalp.CandleInterval,
+        _ => ScanProfile.Swing.CandleInterval
+    };
+
     private static string ToTradingViewInterval(string candleInterval) => candleInterval switch
     {
+        "15m" => "15",
         "1h" => "60",
         "4h" => "240",
         "1d" => "D",

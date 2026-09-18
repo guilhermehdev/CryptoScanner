@@ -29,7 +29,7 @@
     </Window.Resources>
 
     <Grid>
-        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="2*"/><RowDefinition Height="1*"/></Grid.RowDefinitions>
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
 
         <Border Grid.Row="0" Background="#F5F5F5" BorderBrush="LightGray" BorderThickness="0,0,0,1" Padding="14,8">
             <StackPanel Orientation="Horizontal">
@@ -89,7 +89,9 @@
                 </DockPanel>
             </Border>
         </StackPanel>
-        <DockPanel Grid.Row="2">
+        <TabControl Grid.Row="2" SelectedIndex="0">
+            <TabItem Header="Scanner">
+                <DockPanel>
             <TextBlock DockPanel.Dock="Top" Margin="5,2" FontSize="11" ToolTip="Verde: todos os filtros atendidos. Nos demais, score ≥70 azul; 55–69,99 amarelo; 40–54,99 cinza; abaixo de 40 preto. Armadilha de alta tem prioridade em laranja. As cores não representam probabilidade de lucro.">
                 <Run Foreground="#75D39B" Text="● Verde: elegível  "/><Run Foreground="#79B6EB" Text="● Azul: candidato  "/><Run Foreground="#E6C96A" Text="● Amarelo: observar  "/><Run Foreground="#BBBBBB" Text="● Cinza: baixa prioridade  "/><Run Foreground="#BBBBBB" Text="■ Preto: ignorar  "/><Run Foreground="#F5A34E" Text="● Laranja: armadilha"/>
             </TextBlock>
@@ -155,10 +157,9 @@
                 <DataGridTextColumn Binding="{Binding SmartMoneyLabel}" ElementStyle="{StaticResource CompactRankingText}" Header="SM" Width="65"><DataGridTextColumn.HeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="ToolTip" Value="Smart Money"/><Setter Property="FontSize" Value="12"/><Setter Property="Padding" Value="2,0"/></Style></DataGridTextColumn.HeaderStyle></DataGridTextColumn>
             </DataGrid.Columns>
         </DataGrid>
-        </DockPanel>
-
-        <TabControl Grid.Row="3">
-            <TabItem Header="Diário de Trades Simulados" IsSelected="True">
+                </DockPanel>
+            </TabItem>
+            <TabItem Header="Diário de Trades Simulados">
                 <Grid>
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                     <TextBlock x:Name="txtSimulatedSummary" Grid.Row="0" Margin="4" FontWeight="Bold" Foreground="White"/>
@@ -188,9 +189,9 @@
                 </Grid>
             </TabItem>
             <TabItem Header="Histórico de Sinais">
-                <DataGrid x:Name="dgHistory" AutoGenerateColumns="False" IsReadOnly="True" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#686868" VerticalGridLinesBrush="#686868" CellStyle="{StaticResource LightTradeGridCell}">
+                <DataGrid x:Name="dgHistory" AutoGenerateColumns="False" IsReadOnly="True" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#686868" VerticalGridLinesBrush="#686868" CellStyle="{StaticResource LightTradeGridCell}" MouseRightButtonUp="DgHistory_MouseRightButtonUp">
                     <DataGrid.RowStyle><Style TargetType="DataGridRow"><Style.Triggers><DataTrigger Binding="{Binding ExitReason}" Value="TP"><Setter Property="Background" Value="LightGreen"/></DataTrigger><DataTrigger Binding="{Binding ExitReason}" Value="SL"><Setter Property="Background" Value="LightSalmon"/></DataTrigger><DataTrigger Binding="{Binding ExitReason}" Value="TIMEOUT"><Setter Property="Background" Value="LightGray"/></DataTrigger></Style.Triggers></Style></DataGrid.RowStyle>
-                    <DataGrid.Columns><DataGridTextColumn Header="Data" Width="100" Binding="{Binding Timestamp, StringFormat=dd/MM HH:mm}"/><DataGridTextColumn Header="Moeda" Width="105" Binding="{Binding Symbol}"/><DataGridTextColumn Header="Lado" Width="65" Binding="{Binding Direction}"/><DataGridTextColumn Header="Entrada" Width="110" Binding="{Binding Price}"/><DataGridTextColumn Header="Score" Width="80" Binding="{Binding FinalScore}"/><DataGridTextColumn Header="Resultado %" Width="110" Binding="{Binding OutcomePercent, StringFormat=F2}"/><DataGridTextColumn Header="Motivo" Width="*" Binding="{Binding ExitReason}"/><DataGridCheckBoxColumn Header="Avaliado" Width="85" Binding="{Binding Evaluated}"/></DataGrid.Columns>
+                    <DataGrid.Columns><DataGridTextColumn Header="Data" Width="100" Binding="{Binding Timestamp, StringFormat=dd/MM HH:mm}"/><DataGridTextColumn Header="Moeda" Width="105" Binding="{Binding Symbol}"/><DataGridTextColumn Header="Lado" Width="65" Binding="{Binding Direction}"/><DataGridTextColumn Header="Entrada" Width="110" Binding="{Binding Price}"/><DataGridTextColumn Header="Atual" Width="110" Binding="{Binding DisplayedPriceFormatted}"/><DataGridTextColumn Header="L/P" Width="80" Binding="{Binding DisplayedPnLPercentFormatted}"><DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{Binding DisplayedPnLPercent, Converter={StaticResource PnLColorConverter}}"/><Setter Property="FontWeight" Value="Bold"/></Style></DataGridTextColumn.ElementStyle></DataGridTextColumn><DataGridTextColumn Header="Score" Width="80" Binding="{Binding FinalScore}"/><DataGridTextColumn Header="Resultado %" Width="110" Binding="{Binding OutcomePercent, StringFormat=F2}"/><DataGridTextColumn Header="Motivo" Width="*" Binding="{Binding ExitReason}"/><DataGridCheckBoxColumn Header="Avaliado" Width="85" Binding="{Binding Evaluated}"/></DataGrid.Columns>
                 </DataGrid>
             </TabItem>
         </TabControl>
