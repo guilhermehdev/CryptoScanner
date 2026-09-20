@@ -10,4 +10,6 @@ public interface IStrategyLabRepository
     Task SetEnabledAsync(bool enabled,CancellationToken token=default);
     Task<IReadOnlyList<LabParameters>> GetParametersAsync(CancellationToken token=default);
     Task UpdateParametersAsync(IReadOnlyList<LabParameters> parameters,CancellationToken token=default);
+    Task<LabExperimentStatus> GetExperimentStatusAsync(CancellationToken token=default);
+    Task StartControlledExperimentAsync(CancellationToken token=default);
 }

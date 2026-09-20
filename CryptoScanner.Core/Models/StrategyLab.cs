@@ -16,7 +16,8 @@ public sealed record LabParameters(
     string Mode = "Mutação",
     bool RequireBreakout = false,
     bool RequireConsolidation = false,
-    bool RequireTrendUp = false)
+    bool RequireTrendUp = false,
+    bool IsEnabled = true)
 {
     public const decimal InitialCapital=10000m, Ticket=1000m, Fee=.001m, Slippage=.0005m;
     public const int MaxPositions=5;
@@ -156,7 +157,7 @@ public static class LabSimulation
 }
 
 public sealed record LabVariantReport(string Name,string Mutation,decimal Cash,decimal Equity,decimal Drawdown,
-    long Open,long Closed,long Wins,long Rejected,long Gaps)
+    long Open,long Closed,long Wins,long Rejected,long Gaps,bool IsEnabled)
 {
     public decimal NetReturnPercent => (Equity/LabParameters.InitialCapital-1)*100;
     public decimal? WinPercent => Closed==0 ? null : Wins*100m/Closed;
@@ -168,3 +169,8 @@ public sealed record LabDecisionRow(string Symbol,string Profile,int VariantId,l
 }
 public sealed record LabReport(bool Enabled,IReadOnlyList<LabVariantReport> Variants,IReadOnlyList<LabTrade> Trades,long Opportunities,IReadOnlyList<LabDecisionRow> Decisions)
 { public IReadOnlyList<LabTrade> ShadowTrades { get; init; } = []; public long ShadowCount { get; init; } }
+public sealed record LabExperimentStatus(string? Name,long? StartedAtMs,IReadOnlyList<int> VariantIds)
+{
+    public bool IsActive => StartedAtMs.HasValue;
+    public DateTime? StartedAtLocal => StartedAtMs.HasValue ? DateTimeOffset.FromUnixTimeMilliseconds(StartedAtMs.Value).LocalDateTime : null;
+}

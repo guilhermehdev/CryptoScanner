@@ -13,6 +13,7 @@
             <Button x:Name="refresh" Content="Atualizar" Padding="14,5" Click="Refresh_Click"/>
             <Button x:Name="export" Content="Exportar para análise" Padding="14,5" Margin="10,0,0,0" Click="Export_Click"/>
             <Button x:Name="pause" Content="Pausar novas entradas" Padding="14,5" Margin="10,0,0,0" Click="Pause_Click"/>
+            <Button x:Name="startControlledExperiment" Content="Iniciar experimento V1 × V5" Padding="14,5" Margin="10,0,0,0" Click="StartControlledExperiment_Click"/>
         </StackPanel>
         <Border Grid.Row="2" BorderBrush="#D0D4DA" BorderThickness="1" Padding="8" Margin="0,0,0,8">
             <StackPanel>
@@ -41,6 +42,7 @@
             <DataGrid.RowStyle><Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}"><Setter Property="ToolTip" Value="{Binding Mutation}"/></Style></DataGrid.RowStyle>
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Variante" Binding="{Binding Name}" Width="210"/>
+                <DataGridCheckBoxColumn Header="Novas entradas" Binding="{Binding IsEnabled}" Width="105"/>
                 <DataGridTextColumn Header="Caixa USDT" Binding="{Binding Cash, StringFormat=F2}" Width="100"/>
                 <DataGridTextColumn Header="Patrimônio estimado" Binding="{Binding Equity, StringFormat=F2}" Width="140"/>
                 <DataGridTextColumn Header="Retorno líquido %" Binding="{Binding NetReturnPercent, StringFormat=F2}" Width="130"/>

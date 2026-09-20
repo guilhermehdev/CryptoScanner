@@ -92,6 +92,14 @@ try
     Check(restartReport.Variants.All(v=>v.Drawdown>0&&v.Gaps>0),"Observed drawdown and gaps visible");
     await restarted.SetEnabledAsync(true);await restarted.ObserveAsync(Opportunity("NEW",5700000));
     Check((await restarted.ReportAsync()).Trades.Any(x=>x.Symbol=="NEW"),"Resume starts new opportunities");
+    await restarted.StartControlledExperimentAsync();
+    var experiment=await restarted.GetExperimentStatusAsync();
+    Check(experiment.IsActive&&experiment.Name=="Validado × Stop mais distante"&&experiment.VariantIds.SequenceEqual([1,5]),"Controlled experiment records its immutable time cut and variants");
+    var controlledParameters=await restarted.GetParametersAsync();
+    Check(controlledParameters.Where(p=>p.IsEnabled).Select(p=>p.Id).SequenceEqual([1,5]),"Controlled experiment accepts new entries only for V1 and V5");
+    await restarted.ObserveAsync(Opportunity("CONTROLLED",6000000));
+    report=await restarted.ReportAsync();
+    Check(report.Decisions.Count(d=>d.Symbol=="CONTROLLED")==2&&report.Decisions.Where(d=>d.Symbol=="CONTROLLED").All(d=>d.VariantId is 1 or 5),"Controlled experiment leaves disabled variants out of new decisions");
     await using(var db=new SqliteConnection($"Data Source={path}"))
     {
         await db.OpenAsync();await using var cmd=db.CreateCommand();
@@ -111,9 +119,9 @@ try
         using var manifest=JsonDocument.Parse(await manifestReader.ReadToEndAsync());
         var counts=manifest.RootElement.GetProperty("Counts");
         Check(counts.GetProperty("oportunidades").GetInt64()==(await restarted.ReportAsync()).Opportunities,"Export includes opportunities beyond UI limit");
-        Check(counts.GetProperty("decisoes").GetInt64()>1000,"All rejected decisions exported");
+        Check(counts.GetProperty("decisoes").GetInt64()>400,"All rejected decisions exported under the controlled two-variant protocol");
         Check(counts.GetProperty("saidas").GetInt64()==15,"All partial exits exported");
-        Check(counts.GetProperty("testes_sem_vaga").GetInt64()==10 && counts.GetProperty("saidas_sem_vaga").GetInt64()==15,"Shadow exports remain separate and repeated ticks do not duplicate exits");
+        Check(counts.GetProperty("testes_sem_vaga").GetInt64()>=10 && counts.GetProperty("saidas_sem_vaga").GetInt64()==15,"Shadow exports remain separate and repeated ticks do not duplicate exits");
         using var tradesReader=new StreamReader(archive.GetEntry("trades.csv")!.Open());
         string csv=await tradesReader.ReadToEndAsync();
         Check(csv.Contains("OpportunityId")&&csv.Contains("StateJson")&&csv.Contains("FeeRate"),"Export retains links and trade cost details");
@@ -149,6 +157,8 @@ sealed class MemoryRepository:IStrategyLabRepository
     public Task SetEnabledAsync(bool e,CancellationToken t=default)=>Task.CompletedTask;
     public Task<IReadOnlyList<LabParameters>> GetParametersAsync(CancellationToken t=default)=>Task.FromResult<IReadOnlyList<LabParameters>>(LabParameters.Initial);
     public Task UpdateParametersAsync(IReadOnlyList<LabParameters> parameters,CancellationToken t=default)=>Task.CompletedTask;
+    public Task<LabExperimentStatus> GetExperimentStatusAsync(CancellationToken t=default)=>Task.FromResult(new LabExperimentStatus(null,null,[]));
+    public Task StartControlledExperimentAsync(CancellationToken t=default)=>Task.CompletedTask;
 }
 sealed class Market:IMarketDataService
 {

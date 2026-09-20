@@ -34,7 +34,7 @@ public sealed partial class SqliteStrategyLabRepository(string databasePath) : I
                     CREATE TABLE IF NOT EXISTS LabShadowExits(Id INTEGER PRIMARY KEY AUTOINCREMENT,
                         TradeId INTEGER NOT NULL,AtMs INTEGER NOT NULL,EventJson TEXT NOT NULL);
                     CREATE TABLE IF NOT EXISTS LabSettings(Id INTEGER PRIMARY KEY,Enabled INTEGER NOT NULL);
-                    INSERT OR IGNORE INTO LabSettings VALUES(1,1);
+                    INSERT OR IGNORE INTO LabSettings(Id,Enabled) VALUES(1,1);
                     CREATE TABLE IF NOT EXISTS LabVariants(Id INTEGER PRIMARY KEY,ParametersJson TEXT NOT NULL,
                         Cash REAL NOT NULL,PeakEquity REAL NOT NULL,MaxDrawdown REAL NOT NULL,EngineVersion TEXT NOT NULL);
                     CREATE TABLE IF NOT EXISTS LabOpportunities(Id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,6 +52,9 @@ public sealed partial class SqliteStrategyLabRepository(string databasePath) : I
                     CREATE TABLE IF NOT EXISTS LabExits(Id INTEGER PRIMARY KEY AUTOINCREMENT,
                         TradeId INTEGER NOT NULL,AtMs INTEGER NOT NULL,EventJson TEXT NOT NULL);
                     """,token);
+                await EnsureColumn(db,tx,"LabSettings","ExperimentName","TEXT",token);
+                await EnsureColumn(db,tx,"LabSettings","ExperimentStartedAtMs","INTEGER",token);
+                await EnsureColumn(db,tx,"LabSettings","ExperimentVariantIdsJson","TEXT",token);
                 foreach(var p in LabParameters.Initial)
                     await Sql(db,tx,"INSERT OR IGNORE INTO LabVariants VALUES($id,$json,10000,10000,0,'lab-v1');",token,
                         ("$id",p.Id),("$json",JsonSerializer.Serialize(p)));
@@ -60,6 +63,15 @@ public sealed partial class SqliteStrategyLabRepository(string databasePath) : I
             return await work(db);
         }
         finally{_gate.Release();}
+    }
+    private static async Task EnsureColumn(SqliteConnection db,SqliteTransaction tx,string table,string column,string type,CancellationToken token)
+    {
+        await using var cmd=db.CreateCommand();cmd.Transaction=tx;cmd.CommandText=$"PRAGMA table_info({table})";
+        bool exists=false;
+        await using(var reader=await cmd.ExecuteReaderAsync(token))
+            while(await reader.ReadAsync(token))if(string.Equals(reader.GetString(1),column,StringComparison.OrdinalIgnoreCase)){exists=true;break;}
+        if(exists)return;
+        await Sql(db,tx,$"ALTER TABLE {table} ADD COLUMN {column} {type}",token);
     }
     private static async Task<List<(LabParameters Parameters,decimal Cash,decimal Peak,decimal Drawdown)>> Variants(SqliteConnection db,SqliteTransaction? tx,CancellationToken token)
     {
@@ -108,7 +120,7 @@ public sealed partial class SqliteStrategyLabRepository(string databasePath) : I
         long id=Convert.ToInt64(await Sql(db,tx,"SELECT last_insert_rowid()",token));
         bool enabled=Convert.ToInt64(await Sql(db,tx,"SELECT Enabled FROM LabSettings WHERE Id=1",token))==1;
         var open=await Trades(db,tx,false,token);
-        foreach(var v in await Variants(db,tx,token))
+        foreach(var v in (await Variants(db,tx,token)).Where(variant=>variant.Parameters.IsEnabled))
         {
             var (trade,reason)=enabled?LabSimulation.TryOpen(o,v.Parameters,v.Cash,open.Count(t=>t.VariantId==v.Parameters.Id),
                 open.Any(t=>t.VariantId==v.Parameters.Id&&t.Symbol==o.Symbol)):(null,"Novas entradas pausadas");
@@ -157,6 +169,28 @@ public sealed partial class SqliteStrategyLabRepository(string databasePath) : I
                 ("$json",JsonSerializer.Serialize(p)),("$id",p.Id));
         tx.Commit();return 0;
     },token);
+    public Task<LabExperimentStatus> GetExperimentStatusAsync(CancellationToken token=default)=>Use(async db=>
+    {
+        await using var cmd=db.CreateCommand();cmd.CommandText="SELECT ExperimentName,ExperimentStartedAtMs,ExperimentVariantIdsJson FROM LabSettings WHERE Id=1";
+        await using var reader=await cmd.ExecuteReaderAsync(token);
+        if(!await reader.ReadAsync(token) || reader.IsDBNull(1))return new LabExperimentStatus(null,null,[]);
+        var variants=reader.IsDBNull(2) ? [] : JsonSerializer.Deserialize<int[]>(reader.GetString(2))??[];
+        return new LabExperimentStatus(reader.IsDBNull(0)?null:reader.GetString(0),reader.GetInt64(1),variants);
+    },token);
+    public Task StartControlledExperimentAsync(CancellationToken token=default)=>Use(async db=>
+    {
+        using var tx=db.BeginTransaction();
+        foreach(var variant in await Variants(db,tx,token))
+        {
+            var parameters=variant.Parameters with { IsEnabled=variant.Parameters.Id is 1 or 5 };
+            await Sql(db,tx,"UPDATE LabVariants SET ParametersJson=$json WHERE Id=$id",token,
+                ("$json",JsonSerializer.Serialize(parameters)),("$id",parameters.Id));
+        }
+        long started=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        await Sql(db,tx,"UPDATE LabSettings SET ExperimentName=$name,ExperimentStartedAtMs=$started,ExperimentVariantIdsJson=$variants WHERE Id=1",token,
+            ("$name","Validado × Stop mais distante"),("$started",started),("$variants",JsonSerializer.Serialize(new[]{1,5})));
+        tx.Commit();return 0;
+    },token);
     public Task<LabReport> ReportAsync(CancellationToken token=default)=>Use(async db=>
     {
         using var tx=db.BeginTransaction(deferred:true);var open=await Trades(db,tx,false,token);var reports=new List<LabVariantReport>();
@@ -167,7 +201,7 @@ public sealed partial class SqliteStrategyLabRepository(string databasePath) : I
             long rejected=Convert.ToInt64(await Sql(db,tx,"SELECT COUNT(*) FROM LabDecisions WHERE VariantId=$v AND Accepted=0",token,("$v",v.Parameters.Id)));
             long gaps=Convert.ToInt64(await Sql(db,tx,"SELECT COUNT(*) FROM LabTrades WHERE VariantId=$v AND json_extract(StateJson,'$.HasObservationGap')=1",token,("$v",v.Parameters.Id)));
             var positions=open.Where(t=>t.VariantId==v.Parameters.Id).ToArray();
-            reports.Add(new($"V{v.Parameters.Id} · {v.Parameters.Name}",v.Parameters.Mutation,v.Cash,v.Cash+positions.Sum(t=>t.LiquidationValue),v.Drawdown,positions.Length,closed,wins,rejected,gaps));
+            reports.Add(new($"V{v.Parameters.Id} · {v.Parameters.Name}",v.Parameters.Mutation,v.Cash,v.Cash+positions.Sum(t=>t.LiquidationValue),v.Drawdown,positions.Length,closed,wins,rejected,gaps,v.Parameters.IsEnabled));
         }
         bool enabled=Convert.ToInt64(await Sql(db,tx,"SELECT Enabled FROM LabSettings WHERE Id=1",token))==1;
         long count=Convert.ToInt64(await Sql(db,tx,"SELECT COUNT(*) FROM LabOpportunities",token));

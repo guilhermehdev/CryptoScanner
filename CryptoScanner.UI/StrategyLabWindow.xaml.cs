@@ -50,6 +50,19 @@ public partial class StrategyLabWindow : Window
         }
     }
     private async void Refresh_Click(object sender,RoutedEventArgs e)=>await LoadAsync();
+    private async void StartControlledExperiment_Click(object sender,RoutedEventArgs e)
+    {
+        if(_busy)return;
+        try
+        {
+            _busy=true;startControlledExperiment.IsEnabled=false;
+            await _repository.StartControlledExperimentAsync(_closed.Token);
+        }
+        catch(OperationCanceledException) when(_closed.IsCancellationRequested){return;}
+        catch(Exception ex){summary.Text=$"Falha ao iniciar experimento: {ex.Message}";return;}
+        finally{_busy=false;startControlledExperiment.IsEnabled=true;}
+        await LoadAsync();
+    }
     private async void ApplyParameters_Click(object sender, RoutedEventArgs e)
     {
         if (_busy) return;
@@ -106,16 +119,20 @@ public partial class StrategyLabWindow : Window
         if(_busy)return;_busy=true;refresh.IsEnabled=false;pause.IsEnabled=false;export.IsEnabled=false;
         try
         {
-            var report=await Task.Run(async()=>
+            var data=await Task.Run(async()=>
             {
                 if(toggle)await _repository.SetEnabledAsync(!_enabled,_closed.Token);
-                return await _repository.ReportAsync(_closed.Token);
+                return (Report:await _repository.ReportAsync(_closed.Token),Experiment:await _repository.GetExperimentStatusAsync(_closed.Token));
             },_closed.Token);
+            var report=data.Report;
             if(_closed.IsCancellationRequested)return;
             _enabled=report.Enabled;pause.Content=_enabled?"Pausar novas entradas":"Retomar novas entradas";
             await LoadParametersAsync();
             shadowTrades.ItemsSource=report.ShadowTrades;variants.ItemsSource=report.Variants;trades.ItemsSource=report.Trades;decisions.ItemsSource=report.Decisions;
-            summary.Text=$"{report.Opportunities:N0} oportunidades registradas · {report.ShadowCount:N0} testes sem vaga (fora das carteiras) · {(_enabled?"Entradas ativas":"Entradas pausadas; posições continuam acompanhadas")}\nPatrimônio inclui posições abertas na última cotação. Amostras iniciais não definem uma estratégia vencedora. Passe o mouse sobre uma variante para ver sua alteração.";
+            string experiment=data.Experiment.IsActive
+                ? $"Experimento ativo desde {data.Experiment.StartedAtLocal:dd/MM/yyyy HH:mm}: {data.Experiment.Name}. Avalie somente oportunidades posteriores a este corte."
+                : "Sem experimento controlado ativo; as cinco variantes recebem novas oportunidades.";
+            summary.Text=$"{report.Opportunities:N0} oportunidades registradas · {report.ShadowCount:N0} testes sem vaga (fora das carteiras) · {(_enabled?"Entradas ativas":"Entradas pausadas; posições continuam acompanhadas")}\n{experiment}\nPatrimônio inclui posições abertas na última cotação. Amostras iniciais não definem uma estratégia vencedora. Passe o mouse sobre uma variante para ver sua alteração.";
         }
         catch(OperationCanceledException) when(_closed.IsCancellationRequested){}
         catch(Exception ex){summary.Text=$"Falha ao carregar o laboratório: {ex.Message}";}
