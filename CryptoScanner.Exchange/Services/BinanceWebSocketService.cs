@@ -33,13 +33,26 @@ public sealed class BinanceWebSocketService : IAsyncDisposable
 
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
+        if (_receiveLoopTask is not null)
+            return;
+
         _webSocket = new ClientWebSocket();
-        await _webSocket.ConnectAsync(new Uri(BaseUrl), cancellationToken);
-
         _receiveLoopCts = new CancellationTokenSource();
-        _receiveLoopTask = ReceiveLoopAsync(_receiveLoopCts.Token);
 
-        await SendSubscriptionMessageAsync("SUBSCRIBE", KlineStreams, cancellationToken);
+        try
+        {
+            await _webSocket.ConnectAsync(new Uri(BaseUrl), cancellationToken);
+            await SendSubscriptionMessageAsync("SUBSCRIBE", KlineStreams, cancellationToken);
+        }
+        catch
+        {
+            // Se a conexão inicial falhar, inicia o loop mesmo assim para que ele
+            // tente reconectar; antes, só havia reconexão após uma conexão bem-sucedida.
+            _receiveLoopTask = ReceiveLoopAsync(_receiveLoopCts.Token);
+            throw;
+        }
+
+        _receiveLoopTask = ReceiveLoopAsync(_receiveLoopCts.Token);
     }
 
     /// <summary>
