@@ -66,24 +66,6 @@ public partial class SimulateTradeWindow : Window
                 return;
             }
 
-            if (_asset.Direction == TradeDirection.Long && _asset.TakeProfit1.HasValue &&
-                (_asset.TakeProfit1.Value <= entryPrice || _asset.TakeProfit1.Value >= takeProfit ||
-                 !_asset.TakeProfit3.HasValue || _asset.TakeProfit3.Value <= takeProfit))
-            {
-                MessageBox.Show("Trade não aberto: os alvos devem seguir entrada < TP1 < TP2 < TP3. Atualize a análise antes de simular.",
-                    "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            if (_asset.Direction == TradeDirection.Short && _asset.TakeProfit1.HasValue &&
-                (_asset.TakeProfit1.Value >= entryPrice || _asset.TakeProfit1.Value <= takeProfit ||
-                 !_asset.TakeProfit3.HasValue || _asset.TakeProfit3.Value >= takeProfit))
-            {
-                MessageBox.Show("Trade não aberto: os alvos do Short devem seguir entrada > TP1 > TP2 > TP3. Atualize a análise antes de simular.",
-                    "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
             var trade = new SimulatedTrade
             {
                 Symbol = _asset.Symbol,
@@ -92,8 +74,9 @@ public partial class SimulateTradeWindow : Window
                 EntryPrice = entryPrice,
                 TakeProfit = takeProfit,
                 StopLoss = stopLoss,
-                TakeProfit1 = _asset.TakeProfit1,
-                TakeProfit3 = _asset.TakeProfit3,
+                // A janela oferece um único campo de alvo: o valor digitado fecha 100% da posição.
+                TakeProfit1 = null,
+                TakeProfit3 = null,
                 Note = txtNote.Text.Trim(),
                 Profile = _profileName,
 

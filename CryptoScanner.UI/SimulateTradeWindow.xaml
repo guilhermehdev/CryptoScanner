@@ -13,7 +13,7 @@
         <TextBlock Text="Preço de Entrada (atualizado ao salvar):" FontSize="11" Foreground="Gray"/>
         <TextBox x:Name="txtEntryPrice" IsReadOnly="True" Margin="0,2,0,10"/>
 
-        <TextBlock Text="Take Profit:" FontSize="11" Foreground="Gray"/>
+        <TextBlock Text="Take Profit (alvo único):" FontSize="11" Foreground="Gray"/>
         <TextBox x:Name="txtTakeProfit" Margin="0,2,0,10"/>
 
         <TextBlock Text="Stop Loss:" FontSize="11" Foreground="Gray"/>
