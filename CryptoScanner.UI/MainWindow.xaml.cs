@@ -291,6 +291,8 @@ public partial class MainWindow : Window
 
             foreach (var pair in other.Diagnostics.CandidateTypes)
                 diagnostics.CandidateTypes[pair.Key] = diagnostics.CandidateTypes.GetValueOrDefault(pair.Key) + pair.Value;
+            foreach (var pair in other.Diagnostics.PassesRemovingOneFilter)
+                diagnostics.PassesRemovingOneFilter[pair.Key] = diagnostics.PassesRemovingOneFilter.GetValueOrDefault(pair.Key) + pair.Value;
             foreach (var pair in other.Diagnostics.Errors)
                 diagnostics.Errors[$"Short: {pair.Key}"] = pair.Value;
             foreach (var pair in other.Diagnostics.EntryRejectionReasons)

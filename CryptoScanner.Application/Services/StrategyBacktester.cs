@@ -18,7 +18,7 @@ public sealed class StrategyBacktester
     /// configuração de tela idêntica gera a mesma assinatura de sempre, e o sistema recusa
     /// salvar o resultado novo mesmo que o motor por trás tenha mudado completamente.
     /// </summary>
-    public const int EngineVersion = 14; // Adds the dedicated Intraday local-invalidation mode.
+    public const int EngineVersion = 15; // Adds single-filter counterfactual diagnostics.
 
     private const int LookbackCandles = 300;
     private readonly IMarketDataService _marketData;
@@ -580,6 +580,8 @@ public sealed class StrategyBacktester
             target.Thresholds = source.Thresholds;
         target.TotalAnalyzed += source.TotalAnalyzed;
         target.PassedAll += source.PassedAll;
+        foreach (var pair in source.PassesRemovingOneFilter)
+            target.PassesRemovingOneFilter[pair.Key] = target.PassesRemovingOneFilter.GetValueOrDefault(pair.Key) + pair.Value;
         target.FailedScore += source.FailedScore;
         target.FailedBreakout += source.FailedBreakout;
         target.FailedConsolidation += source.FailedConsolidation;

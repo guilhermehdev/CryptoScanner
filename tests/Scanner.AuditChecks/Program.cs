@@ -43,6 +43,14 @@ Check(EligibilityEvaluator.Evaluate(low,"BULL").FailedRiskReward,"Low RR still b
 var dto=AssetScoreFactory.Create(low,"BULL",new HashSet<string>());
 Check(dto.EligibilityDetails.Contains(EligibilityThresholds.Default.MinRiskReward.ToString("F2")),"Tooltip uses actual configured RR floor");
 Check(dto.QualityAnalysis==dto.EligibilityDetails,"Ineligible row explains actual evaluated rules");
+var auditDiagnostics=new FilterDiagnostics();
+StrategyDiagnosticRecorder.RecordSingleFilterCounterfactuals(auditDiagnostics,
+    new EligibilityEvaluator.EligibilityResult { FailedRiskReward=true });
+Check(auditDiagnostics.PassesRemovingOneFilter["FailedRiskReward"]==1,"Single failed filter is counted as removable counterfactual");
+var multiFailureDiagnostics=new FilterDiagnostics();
+StrategyDiagnosticRecorder.RecordSingleFilterCounterfactuals(multiFailureDiagnostics,
+    new EligibilityEvaluator.EligibilityResult { FailedRiskReward=true, FailedVolumeSpike=true });
+Check(multiFailureDiagnostics.PassesRemovingOneFilter.Count==0,"Multiple failed filters are not misreported as single-filter passes");
 Console.WriteLine($"PASS: {checks} scanner audit checks");
 sealed class ResponseHandler(string json):HttpMessageHandler
 {

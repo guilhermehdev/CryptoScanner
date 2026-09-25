@@ -627,6 +627,7 @@ public partial class BacktestWindow : Window
                 $"Win Rate de Equilíbrio: {summary.BreakEvenWinRate:F1}%   |   " +
                 $"Edge: {summary.Edge:F1} pontos % ({(summary.Edge >= 0 ? "vantagem" : "desvantagem")} estatística)\n\n" +
                 $"Filtros (motivos de rejeição, agregado): {summary.Diagnostics.Summary}\n\nPor estratégia (bloqueios entre gatilhos):\n{summary.Diagnostics.StrategySummary}" +
+                $"\n\nPassariam removendo exatamente um filtro (diagnóstico): {summary.Diagnostics.SingleFilterSummary}" +
                 skippedInfo;
 
             dgTrades.ItemsSource = summary.Trades;

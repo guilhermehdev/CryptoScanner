@@ -3,7 +3,7 @@
 public sealed class FilterDiagnostics
 {
     public string RunId { get; set; } = Guid.NewGuid().ToString("N");
-    public string Version { get; set; } = "scan-funnel-v5";
+    public string Version { get; set; } = "scan-funnel-v6";
     public DateTime StartedUtc { get; set; }
     public DateTime CompletedUtc { get; set; }
     public int Requested { get; set; }
@@ -24,6 +24,9 @@ public sealed class FilterDiagnostics
         string.Join(", ",x.Value.TargetPositions.Select(p=>$"{p.Key}={p.Value}"))));
     public Dictionary<string,string> Errors { get; set; } = new();
     public Dictionary<string,int> CandidateTypes { get; set; } = new();
+    // Contador contrafactual: oportunidades que passariam se exatamente um
+    // filtro fosse removido. Não altera a elegibilidade nem abre trades.
+    public Dictionary<string,int> PassesRemovingOneFilter { get; set; } = new();
     public Dictionary<string,List<string>> OnlyBlockedBy { get; set; } = new();
     public int TotalAnalyzed { get; set; }
     public int PassedAll { get; set; }
@@ -62,6 +65,13 @@ public sealed class FilterDiagnostics
     public string EntryRejectionSummary => EntryRejectionReasons.Count == 0
         ? "sem detalhe"
         : string.Join(", ", EntryRejectionReasons.OrderByDescending(x => x.Value).ThenBy(x => x.Key).Select(x => $"{x.Key}={x.Value}"));
+
+    public string SingleFilterSummary => PassesRemovingOneFilter.Count == 0
+        ? "nenhum"
+        : string.Join(", ", PassesRemovingOneFilter
+            .OrderByDescending(x => x.Value)
+            .ThenBy(x => x.Key)
+            .Select(x => $"{StrategyDiagnostics.Label(x.Key)}={x.Value}"));
 
     public string Summary =>
         $"Score: {FailedScore} | Sem breakout: {FailedBreakout} | Sem consol.: {FailedConsolidation} | " +
