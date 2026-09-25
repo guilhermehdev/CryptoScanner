@@ -74,6 +74,10 @@ public partial class MainWindow : Window
     private readonly Dictionary<string, bool> _isScanningByProfile = new();
     private ScanProfile _viewedProfile = ScanProfile.Swing;
     private string _lastMarketRegime = "—";
+    // O scanner ao vivo é opt-in. O WebSocket e o acompanhamento de trades
+    // simulados continuam ativos mesmo quando as varreduras automáticas estão desligadas.
+    private bool _liveScannerEnabled;
+    private bool IsLiveScannerEnabled => _liveScannerEnabled;
     // -------------------------------------------------------------------------
 
     public MainWindow()
@@ -193,6 +197,9 @@ public partial class MainWindow : Window
     // Dispara os 2 perfis a cada tick — cada um com seu próprio lock, não se bloqueiam.
     private void Timer_Tick(object? sender, EventArgs e)
     {
+        if (!IsLiveScannerEnabled)
+            return;
+
         _ = RunScannerAsync(ScanProfile.Swing);
         _ = RunScannerAsync(ScanProfile.Intraday);
     }
@@ -341,6 +348,7 @@ public partial class MainWindow : Window
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         _isWindowLoaded = true;
+        _liveScannerEnabled = chkLiveScanner.IsChecked == true;
         _labTimer.Start();
         _=EvaluateLabAsync();
         await LoadAutoScanIntervalAsync();
@@ -349,9 +357,11 @@ public partial class MainWindow : Window
 
         // O WebSocket reage ao fechamento dos candles, mas o timer é a rede de
         // segurança para manter o scanner ativo quando a conexão não estiver disponível.
-        // O intervalo já foi carregado acima, então a primeira varredura periódica usa a
-        // configuração persistida pelo usuário.
-        _timer.Start();
+        // Ambos só iniciam se o usuário ligar o scanner ao vivo; o padrão é desligado.
+        if (IsLiveScannerEnabled)
+            _timer.Start();
+        else
+            txtScanSummary.Text = "Scanner ao vivo desligado — use Atualizar para uma varredura manual.";
 
         try
         {
@@ -369,9 +379,12 @@ public partial class MainWindow : Window
 
         await LoadSimulatedTradesAsync();
 
-        // Os 2 perfis rodam já na abertura do app, em paralelo.
-        _ = RunScannerAsync(ScanProfile.Swing);
-        _ = RunScannerAsync(ScanProfile.Intraday);
+        // Os 2 perfis só rodam na abertura quando o scanner ao vivo estiver ligado.
+        if (IsLiveScannerEnabled)
+        {
+            _ = RunScannerAsync(ScanProfile.Swing);
+            _ = RunScannerAsync(ScanProfile.Intraday);
+        }
     }
 
     private const string AutoScanIntervalSettingKey = "AutoScanIntervalMinutes";
@@ -448,7 +461,7 @@ public partial class MainWindow : Window
 
     private void ScanDirectionChanged(object sender, RoutedEventArgs e)
     {
-        if (!_isWindowLoaded)
+        if (!_isWindowLoaded || !IsLiveScannerEnabled)
             return;
 
         _ = RunScannerAsync(ScanProfile.Swing);
@@ -457,7 +470,7 @@ public partial class MainWindow : Window
 
     private void ShortExperimentalChanged(object sender, RoutedEventArgs e)
     {
-        if (!_isWindowLoaded)
+        if (!_isWindowLoaded || !IsLiveScannerEnabled)
             return;
 
         // A change to the experimental profile must refresh both rankings so the
@@ -827,6 +840,27 @@ public partial class MainWindow : Window
     {
         _ = RunScannerAsync(ScanProfile.Swing);
         _ = RunScannerAsync(ScanProfile.Intraday);
+    }
+
+    private void LiveScannerChanged(object sender, RoutedEventArgs e)
+    {
+        if (!_isWindowLoaded)
+            return;
+
+        _liveScannerEnabled = chkLiveScanner.IsChecked == true;
+
+        if (IsLiveScannerEnabled)
+        {
+            _timer.Start();
+            txtScanSummary.Text = "Scanner ao vivo ligado — executando os perfis Swing e Intraday.";
+            _ = RunScannerAsync(ScanProfile.Swing);
+            _ = RunScannerAsync(ScanProfile.Intraday);
+        }
+        else
+        {
+            _timer.Stop();
+            txtScanSummary.Text = "Scanner ao vivo desligado — use Atualizar para uma varredura manual.";
+        }
     }
 
     private void TxtSearchSymbol_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
@@ -1241,6 +1275,9 @@ public partial class MainWindow : Window
     /// </summary>
     private void OnCandleClosed(string interval)
     {
+        if (!IsLiveScannerEnabled)
+            return;
+
         ScanProfile? matching =
             string.Equals(interval, ScanProfile.Swing.CandleInterval, StringComparison.OrdinalIgnoreCase) ? ScanProfile.Swing :
             string.Equals(interval, ScanProfile.Intraday.CandleInterval, StringComparison.OrdinalIgnoreCase) ? ScanProfile.Intraday :
