@@ -85,7 +85,7 @@ public partial class BacktestWindow : Window
         chkLimitAtrForMeanReversion.IsChecked = false;
         chkEnableBollingerReversal.IsChecked = false;
         chkRequireBearishMomentum.IsChecked = false;
-        chkBlockShortInSideways.IsChecked = false;
+        chkBlockShortInSideways.IsChecked = true; // próxima variante: excluir Shorts em lateral
 
         UpdateManualSymbolsCount();
         Loaded += BacktestWindow_Loaded;
