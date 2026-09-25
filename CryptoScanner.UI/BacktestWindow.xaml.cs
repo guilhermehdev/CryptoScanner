@@ -44,17 +44,45 @@ public partial class BacktestWindow : Window
         dpEnd.SelectedDate = DateTime.Today;
         dpStart.SelectedDate = DateTime.Today.AddYears(-6);
 
+        // Baseline auditável: Short Breakout usado na validação recente.
+        // Estes defaults afetam somente a janela de Backtest; o scanner ao vivo
+        // continua usando sua própria configuração.
+        rbBacktestIntraday.IsChecked = true;
+        rbBacktestSwing.IsChecked = false;
+        rbBacktestScalp.IsChecked = false;
+        rbDirectionShort.IsChecked = true;
+        rbDirectionLong.IsChecked = false;
+        cmbEntryStrategy.SelectedIndex = 1; // Rompimento + consolidação
+        rbRiskIntradayLocal.IsChecked = true;
+        rbRiskPartialExits.IsChecked = false;
+        rbRiskMeanReversion.IsChecked = false;
+        rbRiskBollingerReversal.IsChecked = false;
+        txtEvaluationHoursOverride.Text = "48";
+
         txtMinScore.Text = ScannerSettings.BuyOpportunityScore.ToString("F0");
         txtMaxShortScore.Text = "100";
         txtMaxShortAdxBear.Text = "999";
         txtMinResistDistance.Text = ScannerSettings.MinResistanceDistance.ToString("F0");
-        txtMinResistDistanceAtr.Text = "10"; // provisório — a comparar empiricamente
-        txtMinResistDistancePartialExits.Text = "4"; // provisório — a comparar empiricamente
+        txtMinResistDistanceAtr.Text = "8";
+        txtMinResistDistancePartialExits.Text = "15";
         txtMinVolumeSpike.Text = ScannerSettings.MinVolumeSpike.ToString("F2");
-        txtMinRiskReward.Text = 2.0m.ToString("F1"); // valor validado real do modo Swing+Resistência Pontuada (confirmado em ScannerService.cs) — corrigido de 1,5 (16/08/2026)
+        txtMinRiskReward.Text = 1.8m.ToString("F1");
         txtMinStopDistance.Text = "0"; // 0 = sem piso, reproduz o comportamento atual do app ao vivo
         txtMaxStopDistance.Text = "25";
         txtMaxRiskReward.Text = "999"; // efetivamente sem teto
+
+        chkTargetAtr.IsChecked = false;
+        chkDisableTimeout.IsChecked = false;
+        cmbStructureExperiment.SelectedIndex = 0;
+        chkEnablePullbackBounce.IsChecked = false;
+        chkEnableMultiTimeframe.IsChecked = false;
+        chkEnableVolatilityScoringPhaseB.IsChecked = false;
+        chkEnableMeanReversionScalp.IsChecked = false;
+        chkBlockMeanReversionInBear.IsChecked = false;
+        chkLimitAtrForMeanReversion.IsChecked = false;
+        chkEnableBollingerReversal.IsChecked = false;
+        chkRequireBearishMomentum.IsChecked = false;
+        chkBlockShortInSideways.IsChecked = false;
 
         UpdateManualSymbolsCount();
         Loaded += BacktestWindow_Loaded;
