@@ -198,7 +198,26 @@
                     <Button x:Name="btnAnalyzeFactors" Content="Análise por Fator" Padding="8,3" Margin="0,0,8,0" Click="BtnAnalyzeFactors_Click"/>
                     <Button x:Name="btnExportTrades" Content="Exportar Trades (CSV)" Padding="8,3" Click="BtnExportTradesCsv_Click"/>
                 </StackPanel>
-                <DataGrid x:Name="dgTrades" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True">
+                <DataGrid x:Name="dgTrades" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True"
+                          Foreground="#172033"
+                          RowBackground="#F3F4F6"
+                          AlternatingRowBackground="#E5E7EB"
+                          GridLinesVisibility="Horizontal"
+                          HorizontalGridLinesBrush="#CBD5E1"
+                          VerticalGridLinesBrush="#CBD5E1">
+                    <DataGrid.Resources>
+                        <!-- O tema global usa texto claro para o scanner escuro. Esta grade
+                             usa fundos claros nas linhas para manter os trades legíveis. -->
+                        <Style TargetType="DataGridCell">
+                            <Setter Property="Foreground" Value="#172033"/>
+                            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+                            <Style.Triggers>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter Property="Foreground" Value="White"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.Resources>
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" Width="90"/>
                         <DataGridTextColumn Header="Direção" Binding="{Binding Direction}" Width="70"/>
@@ -224,7 +243,11 @@
                     </DataGrid.Columns>
                     <DataGrid.RowStyle>
                         <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+                            <Setter Property="Foreground" Value="#172033"/>
                             <Style.Triggers>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter Property="Foreground" Value="White"/>
+                                </Trigger>
                                 <DataTrigger Binding="{Binding ExitReason}" Value="TP">
                                     <Setter Property="Background" Value="LightGreen"/>
                                 </DataTrigger>
