@@ -41,8 +41,11 @@ public partial class BacktestWindow : Window
         _settingsRepository = new SqliteBacktestSettingsRepository(databasePath);
         _runResultRepository = new SqliteBacktestRunResultRepository(databasePath);
 
-        dpEnd.SelectedDate = DateTime.Today;
-        dpStart.SelectedDate = DateTime.Today.AddYears(-6);
+        var today = DateTime.Today;
+        dpEnd.SelectedDate = today;
+        dpStart.SelectedDate = today.AddYears(-2);
+        dpValidationStart.SelectedDate = today.AddYears(-1);
+        chkChronologicalSplit.IsChecked = true;
 
         // Baseline auditável: Short Breakout usado na validação recente.
         // Estes defaults afetam somente a janela de Backtest; o scanner ao vivo
@@ -61,7 +64,7 @@ public partial class BacktestWindow : Window
 
         txtMinScore.Text = ScannerSettings.BuyOpportunityScore.ToString("F0");
         txtMaxShortScore.Text = "100";
-        txtMaxShortAdxBear.Text = "999";
+        txtMaxShortAdxBear.Text = "30"; // variante de validação: limita Shorts em BEAR forte
         txtMinResistDistance.Text = ScannerSettings.MinResistanceDistance.ToString("F0");
         txtMinResistDistanceAtr.Text = "8";
         txtMinResistDistancePartialExits.Text = "15";
