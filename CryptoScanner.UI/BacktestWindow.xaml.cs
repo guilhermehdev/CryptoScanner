@@ -43,35 +43,35 @@ public partial class BacktestWindow : Window
 
         var today = DateTime.Today;
         dpEnd.SelectedDate = today;
-        dpStart.SelectedDate = today.AddYears(-2);
+        dpStart.SelectedDate = today.AddYears(-3);
         dpValidationStart.SelectedDate = today.AddYears(-1);
         chkChronologicalSplit.IsChecked = true;
 
-        // Baseline auditável: Short Breakout usado na validação recente.
+        // Baseline auditável: validação cronológica do Breakout Trend Long.
         // Estes defaults afetam somente a janela de Backtest; o scanner ao vivo
         // continua usando sua própria configuração.
         rbBacktestIntraday.IsChecked = true;
         rbBacktestSwing.IsChecked = false;
         rbBacktestScalp.IsChecked = false;
-        rbDirectionShort.IsChecked = true;
-        rbDirectionLong.IsChecked = false;
+        rbDirectionShort.IsChecked = false;
+        rbDirectionLong.IsChecked = true;
         cmbStrategyProfile.SelectedIndex = 0; // Breakout Trend
         rbRiskIntradayLocal.IsChecked = true;
         rbRiskPartialExits.IsChecked = false;
         rbRiskMeanReversion.IsChecked = false;
         rbRiskBollingerReversal.IsChecked = false;
-        txtEvaluationHoursOverride.Text = "48";
+        txtEvaluationHoursOverride.Text = "";
 
         txtMinScore.Text = ScannerSettings.BuyOpportunityScore.ToString("F0");
         txtMaxShortScore.Text = "100";
-        txtMaxShortAdxBear.Text = "30"; // variante de validação: limita Shorts em BEAR forte
+        txtMaxShortAdxBear.Text = "999"; // não se aplica à Compra; mantém o limite padrão
         txtMinResistDistance.Text = ScannerSettings.MinResistanceDistance.ToString("F0");
         txtMinResistDistanceAtr.Text = "8";
         txtMinResistDistancePartialExits.Text = "15";
         txtMinVolumeSpike.Text = ScannerSettings.MinVolumeSpike.ToString("F2");
-        txtMinRiskReward.Text = 1.8m.ToString("F1");
+        txtMinRiskReward.Text = 2.5m.ToString("F1");
         txtMinStopDistance.Text = "0"; // 0 = sem piso, reproduz o comportamento atual do app ao vivo
-        txtMaxStopDistance.Text = "15";
+        txtMaxStopDistance.Text = "25";
         txtMaxRiskReward.Text = "999"; // efetivamente sem teto
 
         chkTargetAtr.IsChecked = false;
@@ -85,7 +85,7 @@ public partial class BacktestWindow : Window
         chkLimitAtrForMeanReversion.IsChecked = false;
         chkEnableBollingerReversal.IsChecked = false;
         chkRequireBearishMomentum.IsChecked = false;
-        chkBlockShortInSideways.IsChecked = true; // próxima variante: excluir Shorts em lateral
+        chkBlockShortInSideways.IsChecked = false;
 
         UpdateManualSymbolsCount();
         Loaded += BacktestWindow_Loaded;
