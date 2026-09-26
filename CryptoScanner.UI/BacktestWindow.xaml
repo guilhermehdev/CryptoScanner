@@ -12,7 +12,6 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <!-- Bloco 1: Período & Perfil -->
@@ -42,84 +41,111 @@
                 </WrapPanel>
             </StackPanel>
         </GroupBox>
-        <!-- Bloco 2: Moedas -->
-        <GroupBox Grid.Row="1" Header="Moedas" Margin="0,0,0,6">
-            <StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="6,6,6,4">
-                    <RadioButton x:Name="rbManual" Content="Manual:" GroupName="SymbolMode" IsChecked="True" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <TextBox x:Name="txtManualSymbols" Width="280" Text="BTCUSDT,ETHUSDT,SOLUSDT" Margin="0,0,6,0" VerticalAlignment="Center" TextChanged="TxtManualSymbols_TextChanged"/>
-                    <TextBlock x:Name="txtManualSymbolsCount" VerticalAlignment="Center" Foreground="Gray" FontSize="11" Margin="0,0,20,0"/>
-                    <RadioButton x:Name="rbAuto" Content="Top automático:" GroupName="SymbolMode" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <TextBox x:Name="txtTopN" Width="50" Text="20" VerticalAlignment="Center"/>
-                    <TextBlock Text="moedas por volume atual" VerticalAlignment="Center" Margin="6,0,0,0" Foreground="Gray" FontSize="11"/>
+        <!-- Blocos 2–4: configuração principal -->
+        <Grid Grid.Row="1" Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.05*"/>
+                <ColumnDefinition Width="1.35*"/>
+                <ColumnDefinition Width="1.15*"/>
+            </Grid.ColumnDefinitions>
+
+            <GroupBox Grid.Column="0" Header="Moedas" Margin="0,0,6,0">
+                <StackPanel Margin="8">
+                    <RadioButton x:Name="rbManual" Content="Manual" GroupName="SymbolMode" IsChecked="True" Margin="0,0,0,4"/>
+                    <TextBox x:Name="txtManualSymbols" Text="BTCUSDT,ETHUSDT,SOLUSDT" HorizontalAlignment="Stretch" Margin="0,0,0,2" TextChanged="TxtManualSymbols_TextChanged"/>
+                    <TextBlock x:Name="txtManualSymbolsCount" Foreground="Gray" FontSize="11" Margin="0,0,0,10"/>
+                    <RadioButton x:Name="rbAuto" Content="Top automático" GroupName="SymbolMode" Margin="0,0,0,4"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                        <TextBox x:Name="txtTopN" Width="50" Text="20"/>
+                        <TextBlock Text="moedas por volume atual" VerticalAlignment="Center" Margin="6,0,0,0" Foreground="Gray" FontSize="11"/>
+                    </StackPanel>
+                    <Separator Margin="0,4,0,8"/>
+                    <TextBlock Text="Histórico mínimo (anos)" Foreground="Gray"/>
+                    <TextBox x:Name="txtHistoryYears" Width="45" Text="5" HorizontalAlignment="Left" Margin="0,2,0,8"/>
+                    <Button Content="Congelar moedas" Height="24" Padding="8,0" HorizontalAlignment="Left" Margin="0,0,0,6" Click="BtnFreezeWithFullHistory_Click"/>
+                    <Button Content="Histórico de Testes" Height="24" Padding="8,0" HorizontalAlignment="Left" Click="BtnBacktestHistory_Click"/>
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="6,0,6,6">
-                    <TextBlock Text="Histórico mín. (anos):" VerticalAlignment="Center" Margin="0,0,4,0" Foreground="Gray"/>
-                    <TextBox x:Name="txtHistoryYears" Width="35" Text="5" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <Button Content="Congelar moedas" Height="22" Padding="8,0" Margin="0,0,20,0" Click="BtnFreezeWithFullHistory_Click"/>
-                    <Button Content="Histórico de Testes" Height="22" Padding="8,0" Click="BtnBacktestHistory_Click"/>
-                </StackPanel>
-            </StackPanel>
-        </GroupBox>
-        <!-- Bloco 3: Limiares & Modo de Risco -->
-        <GroupBox Grid.Row="2" Header="Limiares deste teste &amp; Modo de Risco" Margin="0,0,0,6">
-            <StackPanel>
-                <WrapPanel Orientation="Horizontal" Margin="6,6,6,4">
-                    <TextBlock Text="Modo do teste:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                    <ComboBox x:Name="cmbTestMode" Width="190" SelectedIndex="0" SelectionChanged="TestMode_Changed" Margin="0,0,12,0" ToolTip="Validado reproduz o scanner; Exploração relaxa limites; Diagnóstico abre os limiares quantitativos para medir o funil.">
-                        <ComboBoxItem Content="Validado (scanner)"/>
-                        <ComboBoxItem Content="Exploração (limiares flexíveis)"/>
-                        <ComboBoxItem Content="Diagnóstico (limiares abertos)"/>
-                    </ComboBox>
-                    <TextBlock Text="Score mín.:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                    <TextBox x:Name="txtMinScore" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
-                    <TextBlock Text="Score máx. Short:" VerticalAlignment="Center" Margin="0,0,4,0" ToolTip="Experimento: bloqueia Shorts cujo Score efetivo fique acima deste valor. Não afeta Compras."/>
-                    <TextBox x:Name="txtMaxShortScore" Width="45" Text="100" VerticalAlignment="Center" Margin="0,0,14,0" ToolTip="Use 80 para testar o teto experimental de Score nos Shorts."/>
-                    <TextBlock Text="ADX máx. Short BEAR:" VerticalAlignment="Center" Margin="0,0,4,0" ToolTip="Experimento: bloqueia Shorts em BEAR quando o ADX ultrapassa este valor. Não afeta Compras ou outros regimes."/>
-                    <TextBox x:Name="txtMaxShortAdxBear" Width="45" Text="999" VerticalAlignment="Center" Margin="0,0,14,0" ToolTip="Use 30 para testar o limite exploratório identificado na auditoria."/>
-                    <TextBlock Text="Dist. Resist. mín. Swing %:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                    <TextBox x:Name="txtMinResistDistance" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
-                    <TextBlock Text="Dist. Resist. mín. ATR %:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                    <TextBox x:Name="txtMinResistDistanceAtr" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
-                    <TextBlock Text="Dist. Resist. mín. Pontuada %:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                    <TextBox x:Name="txtMinResistDistancePartialExits" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
-                    <CheckBox x:Name="chkTargetAtr" Content="Alvo mínimo em ATR" VerticalAlignment="Center" ToolTip="Experimento: substitui a distância percentual pelo múltiplo de ATR abaixo. Não altera o scanner ao vivo." Margin="0,0,6,0"/><TextBox x:Name="txtTargetAtr" Text="1" Width="40" Margin="0,0,10,0"/>
-                    <TextBlock Text="Volume Spike mín.:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                    <TextBox x:Name="txtMinVolumeSpike" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
-                    <TextBlock Text="Risk/Reward mín.:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                    <TextBox x:Name="txtMinRiskReward" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
-                    <TextBlock Text="Risk/Reward máx.:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                    <TextBox x:Name="txtMaxRiskReward" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
-                    <TextBlock Text="Stop mín. %:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                    <TextBox x:Name="txtMinStopDistance" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
-                    <TextBlock Text="Stop máx. %:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                    <TextBox x:Name="txtMaxStopDistance" Width="45" VerticalAlignment="Center" Margin="0,0,14,0"/>
-                    <TextBlock Text="Timeout (h, vazio=padrão):" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                    <TextBox x:Name="txtEvaluationHoursOverride" Width="55" VerticalAlignment="Center" Margin="0,0,14,0"/>
-                    <CheckBox x:Name="chkDisableTimeout" Content="Sem timeout — só TP/SL" VerticalAlignment="Center"/>
-                    <ComboBox x:Name="cmbStructureExperiment" Width="360" SelectedIndex="0" Margin="10,0,0,0"><ComboBoxItem Content="Referência (sem alteração)"/><ComboBoxItem Content="Teste A: só stop do rompimento"/><ComboBoxItem Content="Teste B: só confirmação atual do repique"/><ComboBoxItem Content="Estrutura completa (experimento anterior)"/><ComboBoxItem Content="Alvo: limite inferior da zona"/><ComboBoxItem Content="Alvo: limite superior da zona"/><ComboBoxItem Content="Alvo: extensão após a zona"/></ComboBox>
-                    <Button Content="Copiar parâmetros do scanner" Click="CopyScannerThresholds_Click" Margin="10,0,0,0" Padding="5,1"/>
-                </WrapPanel>
-                <WrapPanel Orientation="Horizontal" Margin="6,0,6,6">
-                    <TextBlock Text="Cálculo de Risco:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <RadioButton x:Name="rbRiskPartialExits" Content="Swing + Resistência Pontuada (4.1)" GroupName="RiskMode" IsChecked="True" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                    <RadioButton x:Name="rbRiskIntradayLocal" Content="Intraday: rompimento + reteste (experimental)" GroupName="RiskMode" VerticalAlignment="Center" Margin="0,0,12,0" ToolTip="Exclusivo do perfil Intraday. Exige rompimento confirmado no candle anterior, reteste no candle atual, stop por invalidação local e alvo 2R. Ainda não validado para uso ao vivo."/>
-                    <RadioButton x:Name="rbRiskMeanReversion" Content="Reversão à Média (Scalp, não validado)" GroupName="RiskMode" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                    <RadioButton x:Name="rbRiskBollingerReversal" Content="Reversão de Bollinger (Venda, não validado)" GroupName="RiskMode" VerticalAlignment="Center" Margin="0,0,24,0"/>
-                    <CheckBox x:Name="chkEnableVolatilityScoringPhaseB" Content="Volatility Scoring — Fase B (experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
-                    <CheckBox x:Name="chkEnableMultiTimeframe" Content="Multi-timeframe (4.2, experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
-                    <CheckBox x:Name="chkEnablePullbackBounce" Content="Caminho A — Repique (pullback, experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
-                    <CheckBox x:Name="chkEnableMeanReversionScalp" Content="Reversão à Média (Scalp, experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
-                    <CheckBox x:Name="chkBlockMeanReversionInBear" Content="Bloquear Reversão à Média em BEAR (experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
-                    <CheckBox x:Name="chkLimitAtrForMeanReversion" Content="Limitar ATR% no Reversão à Média (experimental)" VerticalAlignment="Center" Margin="0,0,20,0"/>
-                    <CheckBox x:Name="chkEnableBollingerReversal" Content="Reversão de Bollinger (Venda, experimental)" VerticalAlignment="Center"/>
-                    <CheckBox x:Name="chkRequireBearishMomentum" Content="Exigir momentum baixista (Short, experimental)" VerticalAlignment="Center" Margin="20,0,20,0"/>
-                    <CheckBox x:Name="chkBlockShortInSideways" Content="Bloquear Short em lateral (experimental)" VerticalAlignment="Center"/>
-                </WrapPanel>
-            </StackPanel>
-        </GroupBox>
+            </GroupBox>
+
+            <GroupBox Grid.Column="1" Header="Modo do teste" Margin="0,0,6,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="430">
+                    <StackPanel Margin="8">
+                        <TextBlock Text="Modo" FontWeight="Bold"/>
+                        <ComboBox x:Name="cmbTestMode" SelectedIndex="0" SelectionChanged="TestMode_Changed" Margin="0,2,0,8" ToolTip="Validado reproduz o scanner; Exploração relaxa limites; Diagnóstico abre os limiares quantitativos para medir o funil.">
+                            <ComboBoxItem Content="Validado (scanner)"/>
+                            <ComboBoxItem Content="Exploração (limiares flexíveis)"/>
+                            <ComboBoxItem Content="Diagnóstico (limiares abertos)"/>
+                        </ComboBox>
+                        <TextBlock Text="Score mínimo"/>
+                        <TextBox x:Name="txtMinScore" Width="70" HorizontalAlignment="Left" Margin="0,2,0,6"/>
+                        <TextBlock Text="Score máximo Short" ToolTip="Experimento: bloqueia Shorts cujo Score efetivo fique acima deste valor. Não afeta Compras."/>
+                        <TextBox x:Name="txtMaxShortScore" Width="70" Text="100" HorizontalAlignment="Left" Margin="0,2,0,6" ToolTip="Use 80 para testar o teto experimental de Score nos Shorts."/>
+                        <TextBlock Text="ADX máximo Short em BEAR" ToolTip="Experimento: bloqueia Shorts em BEAR quando o ADX ultrapassa este valor. Não afeta Compras ou outros regimes."/>
+                        <TextBox x:Name="txtMaxShortAdxBear" Width="70" Text="999" HorizontalAlignment="Left" Margin="0,2,0,6" ToolTip="Use 30 para testar o limite exploratório identificado na auditoria."/>
+                        <TextBlock Text="Distância mínima da resistência — Swing (%)"/>
+                        <TextBox x:Name="txtMinResistDistance" Width="70" HorizontalAlignment="Left" Margin="0,2,0,6"/>
+                        <TextBlock Text="Distância mínima da resistência — ATR (%)"/>
+                        <TextBox x:Name="txtMinResistDistanceAtr" Width="70" HorizontalAlignment="Left" Margin="0,2,0,6"/>
+                        <TextBlock Text="Distância mínima da resistência pontuada (%)"/>
+                        <TextBox x:Name="txtMinResistDistancePartialExits" Width="70" HorizontalAlignment="Left" Margin="0,2,0,6"/>
+                        <CheckBox x:Name="chkTargetAtr" Content="Alvo mínimo em ATR" Margin="0,2,0,2" ToolTip="Experimento: substitui a distância percentual pelo múltiplo de ATR abaixo. Não altera o scanner ao vivo."/>
+                        <StackPanel Orientation="Horizontal" Margin="20,0,0,6">
+                            <TextBlock Text="Múltiplo ATR:" VerticalAlignment="Center"/>
+                            <TextBox x:Name="txtTargetAtr" Text="1" Width="50" Margin="8,0,0,0"/>
+                        </StackPanel>
+                        <TextBlock Text="Volume Spike mínimo"/>
+                        <TextBox x:Name="txtMinVolumeSpike" Width="70" HorizontalAlignment="Left" Margin="0,2,0,6"/>
+                        <TextBlock Text="Risk/Reward mínimo"/>
+                        <TextBox x:Name="txtMinRiskReward" Width="70" HorizontalAlignment="Left" Margin="0,2,0,6"/>
+                        <TextBlock Text="Risk/Reward máximo"/>
+                        <TextBox x:Name="txtMaxRiskReward" Width="70" HorizontalAlignment="Left" Margin="0,2,0,6"/>
+                        <TextBlock Text="Stop mínimo (%)"/>
+                        <TextBox x:Name="txtMinStopDistance" Width="70" HorizontalAlignment="Left" Margin="0,2,0,6"/>
+                        <TextBlock Text="Stop máximo (%)"/>
+                        <TextBox x:Name="txtMaxStopDistance" Width="70" HorizontalAlignment="Left" Margin="0,2,0,6"/>
+                        <TextBlock Text="Timeout (horas; vazio = padrão)"/>
+                        <TextBox x:Name="txtEvaluationHoursOverride" Width="80" HorizontalAlignment="Left" Margin="0,2,0,6"/>
+                        <CheckBox x:Name="chkDisableTimeout" Content="Sem timeout — só TP/SL" Margin="0,0,0,8"/>
+                        <TextBlock Text="Experimento estrutural"/>
+                        <ComboBox x:Name="cmbStructureExperiment" SelectedIndex="0" Margin="0,2,0,8">
+                            <ComboBoxItem Content="Referência (sem alteração)"/>
+                            <ComboBoxItem Content="Teste A: só stop do rompimento"/>
+                            <ComboBoxItem Content="Teste B: só confirmação atual do repique"/>
+                            <ComboBoxItem Content="Estrutura completa (experimento anterior)"/>
+                            <ComboBoxItem Content="Alvo: limite inferior da zona"/>
+                            <ComboBoxItem Content="Alvo: limite superior da zona"/>
+                            <ComboBoxItem Content="Alvo: extensão após a zona"/>
+                        </ComboBox>
+                        <Button Content="Copiar parâmetros do scanner" Click="CopyScannerThresholds_Click" Padding="5,2" HorizontalAlignment="Left"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </GroupBox>
+
+            <GroupBox Grid.Column="2" Header="Cálculo de risco" Margin="0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="430">
+                    <StackPanel Margin="8">
+                        <TextBlock Text="Modo de cálculo" FontWeight="Bold" Margin="0,0,0,6"/>
+                        <RadioButton x:Name="rbRiskPartialExits" Content="Swing + Resistência Pontuada (4.1)" GroupName="RiskMode" IsChecked="True" Margin="0,0,0,8"/>
+                        <RadioButton x:Name="rbRiskIntradayLocal" Content="Intraday: rompimento + reteste (experimental)" GroupName="RiskMode" Margin="0,0,0,8" ToolTip="Exclusivo do perfil Intraday. Exige rompimento confirmado no candle anterior, reteste no candle atual, stop por invalidação local e alvo 2R. Ainda não validado para uso ao vivo."/>
+                        <RadioButton x:Name="rbRiskMeanReversion" Content="Reversão à Média (Scalp, não validado)" GroupName="RiskMode" Margin="0,0,0,8"/>
+                        <RadioButton x:Name="rbRiskBollingerReversal" Content="Reversão de Bollinger (Venda, não validado)" GroupName="RiskMode" Margin="0,0,0,10"/>
+                        <Separator Margin="0,0,0,8"/>
+                        <TextBlock Text="Experimentos" FontWeight="Bold" Margin="0,0,0,6"/>
+                        <CheckBox x:Name="chkEnableVolatilityScoringPhaseB" Content="Volatility Scoring — Fase B" Margin="0,0,0,8"/>
+                        <CheckBox x:Name="chkEnableMultiTimeframe" Content="Multi-timeframe (4.2)" Margin="0,0,0,8"/>
+                        <CheckBox x:Name="chkEnablePullbackBounce" Content="Caminho A — Repique (pullback)" Margin="0,0,0,8"/>
+                        <CheckBox x:Name="chkEnableMeanReversionScalp" Content="Reversão à Média (Scalp)" Margin="0,0,0,8"/>
+                        <CheckBox x:Name="chkBlockMeanReversionInBear" Content="Bloquear Reversão à Média em BEAR" Margin="0,0,0,8"/>
+                        <CheckBox x:Name="chkLimitAtrForMeanReversion" Content="Limitar ATR% no Reversão à Média" Margin="0,0,0,8"/>
+                        <CheckBox x:Name="chkEnableBollingerReversal" Content="Reversão de Bollinger (Venda)" Margin="0,0,0,8"/>
+                        <CheckBox x:Name="chkRequireBearishMomentum" Content="Exigir momentum baixista (Short)" Margin="0,0,0,8"/>
+                        <CheckBox x:Name="chkBlockShortInSideways" Content="Bloquear Short em lateral"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </GroupBox>
+        </Grid>
         <!-- Bloco 4: Ações -->
-        <GroupBox Grid.Row="3" Header="Ações" Margin="0,0,0,6">
+        <GroupBox Grid.Row="2" Header="Ações" Margin="0,0,0,6">
             <StackPanel>
                 <WrapPanel Orientation="Horizontal" Margin="6,6,6,4">
                     <Button x:Name="btnRun" Content="Rodar Backtest" Width="130" Height="26" Click="BtnRun_Click"/>
@@ -140,7 +166,7 @@
             </StackPanel>
         </GroupBox>
         <!-- Bloco 5: Resultados -->
-        <Grid Grid.Row="4">
+        <Grid Grid.Row="3">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
