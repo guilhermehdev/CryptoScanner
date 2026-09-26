@@ -305,6 +305,21 @@ public partial class BacktestWindow : Window
         if (chkEnablePullbackBounce == null || chkEnableMeanReversionScalp == null)
             return;
 
+        ApplyStrategyProfileOptions();
+
+        if (GetSelectedStrategyProfile() == TradingStrategyProfile.MeanReversion)
+        {
+            rbBacktestScalp.IsChecked = true;
+            rbDirectionLong.IsChecked = true;
+            txtEvaluationHoursOverride.Text = "6";
+        }
+
+        ApplyStrategyProfileOptions();
+        ApplyStrategyProfileRiskMode();
+    }
+
+    private void ApplyStrategyProfileOptions()
+    {
         switch (GetSelectedStrategyProfile())
         {
             case TradingStrategyProfile.BreakoutTrend:
@@ -320,13 +335,8 @@ public partial class BacktestWindow : Window
                 chkEnableMeanReversionScalp.IsChecked = true;
                 chkBlockMeanReversionInBear.IsChecked = true;
                 chkLimitAtrForMeanReversion.IsChecked = true;
-                rbBacktestScalp.IsChecked = true;
-                rbDirectionLong.IsChecked = true;
-                txtEvaluationHoursOverride.Text = "6";
                 break;
         }
-
-        ApplyStrategyProfileRiskMode();
     }
 
     private void ApplyStrategyProfileRiskMode()
@@ -426,6 +436,7 @@ public partial class BacktestWindow : Window
         var t = GetValidatedThresholdsForSelectedStrategy(profile, GetSelectedDirection());
         ApplyValidatedThresholdFields(t);
         ApplyBreakoutLongRiskFloor(profile, GetSelectedDirection());
+        ApplyStrategyProfileOptions();
         ApplyStrategyProfileRiskMode();
     }
 
@@ -448,6 +459,7 @@ public partial class BacktestWindow : Window
                 ApplyDiagnosticThresholdFields();
                 break;
         }
+        ApplyStrategyProfileOptions();
         ApplyStrategyProfileRiskMode();
     }
 
