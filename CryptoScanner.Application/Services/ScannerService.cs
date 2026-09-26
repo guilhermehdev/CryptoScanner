@@ -169,7 +169,11 @@ public sealed class ScannerService
                 executionRisk = direction == TradeDirection.Long
                     ? EntryRiskMetrics.Calculate(execution.EntryFill, execution.Stop, execution.Tp2)
                     : EntryRiskMetrics.CalculateDirectional(execution.EntryFill, execution.Stop, execution.Tp2, direction);
-                if(executionRisk.RiskReward<thresholds.MinRiskReward)
+                if (!EntryRiskMetrics.MeetsExecutionMinimum(
+                        asset.Risk.RiskReward,
+                        executionRisk.RiskReward,
+                        thresholds.MinRiskReward,
+                        asset.Risk.Mode))
                 {diagnostics.Errors[asset.Symbol]="R/R insuficiente na cotação de entrada";continue;}
             }
             catch(Exception ex) when(!cancellationToken.IsCancellationRequested){diagnostics.Errors[asset.Symbol]="Cotação de entrada: "+ex.Message;continue;}

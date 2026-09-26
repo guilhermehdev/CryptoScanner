@@ -164,6 +164,10 @@ var lowResult=EligibilityEvaluator.Evaluate(lowRr,"BULL",ScannerProfiles.For(Sca
 Check(lowResult.FailedRiskReward && !lowResult.FailedInvalidLevels,"Exported SOLV has valid geometry and low RR");
 var metrics=EntryRiskMetrics.Calculate(110.055m,95,120);
 Check(metrics.RiskReward<1 && metrics.RiskReward != 4,"Next-open gap recalculates actual entry RR");
+Check(EntryRiskMetrics.MeetsExecutionMinimum(2m,1.96m,2m,RiskCalculationMode.IntradayLocal) &&
+      !EntryRiskMetrics.MeetsExecutionMinimum(2m,1.94m,2m,RiskCalculationMode.IntradayLocal) &&
+      !EntryRiskMetrics.MeetsExecutionMinimum(2m,1.96m,2m,RiskCalculationMode.SwingWithPartialExits),
+    "Intraday local accepts only the modeled slippage tolerance at execution");
 var serialized=JsonSerializer.Serialize(ScannerProfiles.For(ScanProfile.Intraday));
 var node=System.Text.Json.Nodes.JsonNode.Parse(serialized)!;node["MinimumTargetAtr"]=2m;
 var atrThresholds=JsonSerializer.Deserialize<EligibilityThresholds>(node.ToJsonString())!;

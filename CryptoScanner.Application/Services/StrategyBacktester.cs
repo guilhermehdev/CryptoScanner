@@ -453,7 +453,12 @@ public sealed class StrategyBacktester
                 direction == TradeDirection.Long ? analysis.Risk.Support : analysis.Risk.Resistance,
                 direction == TradeDirection.Long ? analysis.Risk.Resistance : analysis.Risk.Support,
                 direction);
-            if(entryRisk.RiskReward < (thresholds ?? EligibilityThresholds.Default).MinRiskReward)
+            var entryThresholds = thresholds ?? EligibilityThresholds.Default;
+            if (!EntryRiskMetrics.MeetsExecutionMinimum(
+                    analysis.Risk.RiskReward,
+                    entryRisk.RiskReward,
+                    entryThresholds.MinRiskReward,
+                    analysis.Risk.Mode))
             { RecordEntryRejection(diagnostics, "R/R após slippage abaixo do mínimo"); continue; }
             lastSignalTimeByKey[key] = decisionTime;
             diagnostics.PassedAll++;
