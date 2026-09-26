@@ -69,7 +69,9 @@ public partial class BacktestWindow : Window
         txtMinResistDistanceAtr.Text = "8";
         txtMinResistDistancePartialExits.Text = "15";
         txtMinVolumeSpike.Text = ScannerSettings.MinVolumeSpike.ToString("F2");
-        txtMinRiskReward.Text = 2.5m.ToString("F1");
+        // O risco local do Breakout Intraday usa alvo fixo de 2R; exigir mais que
+        // isso elimina matematicamente todos os gatilhos antes da simulação.
+        txtMinRiskReward.Text = 2.0m.ToString("F1");
         txtMinStopDistance.Text = "0"; // 0 = sem piso, reproduz o comportamento atual do app ao vivo
         txtMaxStopDistance.Text = "25";
         txtMaxRiskReward.Text = "999"; // efetivamente sem teto
@@ -404,6 +406,7 @@ public partial class BacktestWindow : Window
         var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
         var t = GetValidatedThresholdsForSelectedStrategy(profile, GetSelectedDirection());
         ApplyValidatedThresholdFields(t);
+        ApplyBreakoutLongRiskFloor(profile, GetSelectedDirection());
     }
 
     private void TestMode_Changed(object sender, SelectionChangedEventArgs e)
@@ -416,6 +419,7 @@ public partial class BacktestWindow : Window
         {
             case 0:
                 ApplyValidatedThresholdFields(GetValidatedThresholdsForSelectedStrategy(profile, GetSelectedDirection()));
+                ApplyBreakoutLongRiskFloor(profile, GetSelectedDirection());
                 break;
             case 1:
                 ApplyExplorationThresholdFields();
@@ -460,6 +464,13 @@ public partial class BacktestWindow : Window
             chkBlockMeanReversionInBear.IsChecked = true;
             chkLimitAtrForMeanReversion.IsChecked = true;
         }
+    }
+
+    private void ApplyBreakoutLongRiskFloor(ScanProfile profile, TradeDirection direction)
+    {
+        if (GetSelectedStrategyProfile() == TradingStrategyProfile.BreakoutTrend &&
+            direction == TradeDirection.Long && profile.Name == ScanProfile.Intraday.Name)
+            txtMinRiskReward.Text = "2.0";
     }
 
     private void ApplyExplorationThresholdFields()
