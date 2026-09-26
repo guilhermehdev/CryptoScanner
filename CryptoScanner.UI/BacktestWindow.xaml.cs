@@ -314,17 +314,36 @@ public partial class BacktestWindow : Window
             case TradingStrategyProfile.PullbackTrend:
                 chkEnablePullbackBounce.IsChecked = true;
                 chkEnableMeanReversionScalp.IsChecked = false;
-                rbRiskPartialExits.IsChecked = true;
                 break;
             case TradingStrategyProfile.MeanReversion:
                 chkEnablePullbackBounce.IsChecked = false;
                 chkEnableMeanReversionScalp.IsChecked = true;
                 chkBlockMeanReversionInBear.IsChecked = true;
                 chkLimitAtrForMeanReversion.IsChecked = true;
-                rbRiskMeanReversion.IsChecked = true;
                 rbBacktestScalp.IsChecked = true;
                 rbDirectionLong.IsChecked = true;
                 txtEvaluationHoursOverride.Text = "6";
+                break;
+        }
+
+        ApplyStrategyProfileRiskMode();
+    }
+
+    private void ApplyStrategyProfileRiskMode()
+    {
+        switch (GetSelectedStrategyProfile())
+        {
+            case TradingStrategyProfile.BreakoutTrend:
+                if (rbBacktestIntraday.IsChecked == true)
+                    rbRiskIntradayLocal.IsChecked = true;
+                else
+                    rbRiskPartialExits.IsChecked = true;
+                break;
+            case TradingStrategyProfile.PullbackTrend:
+                rbRiskPartialExits.IsChecked = true;
+                break;
+            case TradingStrategyProfile.MeanReversion:
+                rbRiskMeanReversion.IsChecked = true;
                 break;
         }
     }
@@ -407,6 +426,7 @@ public partial class BacktestWindow : Window
         var t = GetValidatedThresholdsForSelectedStrategy(profile, GetSelectedDirection());
         ApplyValidatedThresholdFields(t);
         ApplyBreakoutLongRiskFloor(profile, GetSelectedDirection());
+        ApplyStrategyProfileRiskMode();
     }
 
     private void TestMode_Changed(object sender, SelectionChangedEventArgs e)
@@ -428,6 +448,7 @@ public partial class BacktestWindow : Window
                 ApplyDiagnosticThresholdFields();
                 break;
         }
+        ApplyStrategyProfileRiskMode();
     }
 
     private void ApplyValidatedThresholdFields(EligibilityThresholds t)
@@ -444,8 +465,6 @@ public partial class BacktestWindow : Window
         txtMaxStopDistance.Text = t.MaxStopDistancePercent.ToString();
         txtMaxRiskReward.Text = t.MaxRiskReward.ToString();
         chkTargetAtr.IsChecked = false;
-        rbRiskIntradayLocal.IsChecked = false;
-        rbRiskPartialExits.IsChecked = true;
         cmbStructureExperiment.SelectedIndex = 0;
         chkEnablePullbackBounce.IsChecked = t.EnablePullbackBounce;
         chkEnableMultiTimeframe.IsChecked = t.EnableMultiTimeframe;
@@ -487,8 +506,6 @@ public partial class BacktestWindow : Window
         txtMaxStopDistance.Text = "40";
         txtMaxRiskReward.Text = "999";
         chkTargetAtr.IsChecked = false;
-        rbRiskIntradayLocal.IsChecked = false;
-        rbRiskPartialExits.IsChecked = true;
         cmbStructureExperiment.SelectedIndex = 0;
         chkEnablePullbackBounce.IsChecked = true;
         chkEnableMultiTimeframe.IsChecked = false;
@@ -515,8 +532,6 @@ public partial class BacktestWindow : Window
         txtMaxStopDistance.Text = "100";
         txtMaxRiskReward.Text = "999";
         chkTargetAtr.IsChecked = false;
-        rbRiskIntradayLocal.IsChecked = false;
-        rbRiskPartialExits.IsChecked = true;
         cmbStructureExperiment.SelectedIndex = 0;
         chkEnablePullbackBounce.IsChecked = true;
         chkEnableMultiTimeframe.IsChecked = false;
