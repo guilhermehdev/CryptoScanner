@@ -68,7 +68,7 @@
             </GroupBox>
 
             <GroupBox Grid.Column="1" Header="Modo do teste" Margin="0,0,6,0">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="430">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="300">
                     <StackPanel Margin="8">
                         <TextBlock Text="Modo" FontWeight="Bold"/>
                         <ComboBox x:Name="cmbTestMode" SelectedIndex="0" SelectionChanged="TestMode_Changed" Margin="0,2,0,8" ToolTip="Validado reproduz o scanner; Exploração relaxa limites; Diagnóstico abre os limiares quantitativos para medir o funil.">
@@ -122,7 +122,7 @@
             </GroupBox>
 
             <GroupBox Grid.Column="2" Header="Cálculo de risco" Margin="0">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="430">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="300">
                     <StackPanel Margin="8">
                         <TextBlock Text="Modo de cálculo" FontWeight="Bold" Margin="0,0,0,6"/>
                         <RadioButton x:Name="rbRiskPartialExits" Content="Swing + Resistência Pontuada (4.1)" GroupName="RiskMode" IsChecked="True" Margin="0,0,0,8"/>
@@ -171,10 +171,15 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
-            <Grid Grid.Row="0" Margin="0,0,0,10">
-                <Border Background="#252525" BorderBrush="#444444" BorderThickness="1" Padding="10" MaxHeight="180">
+            <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,4">
+                <Button x:Name="btnAnalyzeFactors" Content="Análise por Fator" Padding="8,3" Margin="0,0,8,0" Click="BtnAnalyzeFactors_Click"/>
+                <Button x:Name="btnExportTrades" Content="Exportar Trades (CSV)" Padding="8,3" Click="BtnExportTradesCsv_Click"/>
+            </StackPanel>
+            <Grid Grid.Row="1" Margin="0,0,0,8">
+                <Border Background="#252525" BorderBrush="#444444" BorderThickness="1" Padding="10" MaxHeight="120">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <TextBlock x:Name="txtSummaryResult" FontWeight="Bold" TextWrapping="Wrap"/>
                     </ScrollViewer>
@@ -183,11 +188,11 @@
                     Margin="0,4,4,0" Padding="6,2" FontSize="10" Click="BtnCopySummary_Click"/>
             </Grid>
             <DataGrid x:Name="dgComparison"
-                  Grid.Row="1"
+                  Grid.Row="2"
                   AutoGenerateColumns="False"
                   IsReadOnly="True"
                   Visibility="Collapsed"
-                  MaxHeight="180"
+                  MaxHeight="120"
                   Margin="0,0,0,10">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Cenário" Binding="{Binding Label}" Width="140"/>
@@ -208,22 +213,18 @@
                     </DataGridTextColumn>
                 </DataGrid.Columns>
             </DataGrid>
-            <Border Grid.Row="2" BorderBrush="#444444" BorderThickness="1" Background="#252525" Margin="0,0,0,10">
+            <Border Grid.Row="3" BorderBrush="#444444" BorderThickness="1" Background="#252525" Margin="0,0,0,8">
                 <StackPanel>
                     <TextBlock Text="Soma dos retornos por trade (pontos percentuais; não representa o saldo da carteira)"
                            FontWeight="Bold" FontSize="11" Margin="6,4,0,0"/>
-                    <Canvas x:Name="cnvEquityCurve" Height="170" Margin="4" SizeChanged="CnvEquityCurve_SizeChanged"/>
+                    <Canvas x:Name="cnvEquityCurve" Height="130" Margin="4" SizeChanged="CnvEquityCurve_SizeChanged"/>
                 </StackPanel>
             </Border>
-            <Grid Grid.Row="3">
+            <Grid Grid.Row="4">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-                <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,4">
-                    <Button x:Name="btnAnalyzeFactors" Content="Análise por Fator" Padding="8,3" Margin="0,0,8,0" Click="BtnAnalyzeFactors_Click"/>
-                    <Button x:Name="btnExportTrades" Content="Exportar Trades (CSV)" Padding="8,3" Click="BtnExportTradesCsv_Click"/>
-                </StackPanel>
                 <DataGrid x:Name="dgTrades" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True"
                           Foreground="#172033"
                           RowBackground="#F3F4F6"
