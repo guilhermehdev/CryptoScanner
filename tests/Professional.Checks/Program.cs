@@ -209,6 +209,10 @@ Check(shortExperimentalProfile.MaxShortOpportunityScore == 80 && shortExperiment
     "Short experimental profile applies the calibrated score and ADX ceilings");
 Check(shortExperimentalProfile.RequireBearishMomentumConfirmed && shortExperimentalProfile.BlockShortInSideways,
     "Short experimental profile applies momentum and sideways filters");
+var shortBreakoutProfile = ScannerProfiles.ForShortBreakoutExperimental(ScanProfile.Intraday);
+Check(shortBreakoutProfile.MaxStopDistancePercent == 15 && shortBreakoutProfile.MaxShortAdxInBear == 30 &&
+      shortBreakoutProfile.BlockShortInSideways,
+    "Live Short breakout profile matches the chronologically validated stop, ADX and sideways filters");
 Check(shortExperimentalProfile.MinVolumeSpike == ScannerSettings.ShortBalancedMinVolumeSpike &&
       shortExperimentalProfile.MinResistanceDistancePartialExits == ScannerSettings.ShortBalancedMinResistanceDistancePartialExits,
     "Short balanced profile uses the validated frequency thresholds");

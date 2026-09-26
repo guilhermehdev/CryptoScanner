@@ -63,7 +63,7 @@
                 <RadioButton x:Name="rbScanBoth" Content="Ambos" GroupName="ScanDirection" IsChecked="True" Margin="0,3,8,3" VerticalAlignment="Center" Checked="ScanDirectionChanged"/>
                 <RadioButton x:Name="rbScanLong" Content="Compra" GroupName="ScanDirection" Margin="0,3,8,3" VerticalAlignment="Center" Checked="ScanDirectionChanged"/>
                 <RadioButton x:Name="rbScanShort" Content="Venda" GroupName="ScanDirection" Margin="0,3,16,3" VerticalAlignment="Center" Checked="ScanDirectionChanged"/>
-                <CheckBox x:Name="chkShortExperimental" Content="Short: rompimento" IsChecked="True" Margin="0,3,16,3" VerticalAlignment="Center" Checked="ShortExperimentalChanged" Unchecked="ShortExperimentalChanged" ToolTip="Modo experimental operacional: somente rompimentos Short no Intraday, risco local, R/R mínimo 1,8 e alvo mínimo 8%. O Long permanece apenas em observação."/>
+                <CheckBox x:Name="chkShortExperimental" Content="Short: rompimento" IsChecked="True" Margin="0,3,16,3" VerticalAlignment="Center" Checked="ShortExperimentalChanged" Unchecked="ShortExperimentalChanged" ToolTip="Modo experimental operacional: somente rompimentos Short no Intraday, risco local, R/R mínimo 1,8, alvo mínimo 8%, stop até 15%, ADX Bear até 30 e bloqueio no lateral. O Long permanece apenas em observação."/>
                 <CheckBox x:Name="chkFavoritesOnly" Content="★ Só favoritos" Margin="0,3,16,3" VerticalAlignment="Center" Checked="ChkFavoritesOnly_Changed" Unchecked="ChkFavoritesOnly_Changed"/>
                 <TextBlock Text="Ativo:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                 <TextBox x:Name="txtSearchSymbol" Width="100" Margin="0,3,6,3" VerticalAlignment="Center" KeyDown="TxtSearchSymbol_KeyDown"/>

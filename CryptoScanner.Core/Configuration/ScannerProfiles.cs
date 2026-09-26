@@ -126,8 +126,10 @@ public static class ScannerProfiles
     /// <summary>
     /// Configuração experimental que foi validada separadamente no backtest:
     /// Short por rompimento, risco local do Intraday, R/R mínimo 1,8 e alvo mínimo
-    /// de 8% no modo ATR. Fica separada do Short balanceado para não alterar os
-    /// testes e o comportamento histórico desse perfil.
+    /// de 8% no modo ATR. O conjunto aplica stop máximo de 15%, ADX máximo de 30
+    /// no regime Bear e bloqueio em lateral, conforme a validação cronológica.
+    /// Fica separado do Short balanceado para não alterar os testes e o comportamento
+    /// histórico desse perfil.
     /// </summary>
     public static EligibilityThresholds ForShortBreakoutExperimental(ScanProfile profile)
     {
@@ -150,9 +152,9 @@ public static class ScannerProfiles
             MinRiskReward = 1.8m,
             MinRelativeStrengthPercent = baseThresholds.MinRelativeStrengthPercent,
             MinStopDistancePercent = baseThresholds.MinStopDistancePercent,
-            MaxStopDistancePercent = baseThresholds.MaxStopDistancePercent,
+            MaxStopDistancePercent = 15m,
             MaxShortOpportunityScore = 100m,
-            MaxShortAdxInBear = 999m,
+            MaxShortAdxInBear = 30m,
             MaxRiskReward = baseThresholds.MaxRiskReward,
             EnablePullbackBounce = false,
             EnableBollingerScoring = baseThresholds.EnableBollingerScoring,
@@ -161,7 +163,7 @@ public static class ScannerProfiles
             EnableMeanReversionScalp = baseThresholds.EnableMeanReversionScalp,
             EnableBollingerReversal = baseThresholds.EnableBollingerReversal,
             RequireBearishMomentumConfirmed = false,
-            BlockShortInSideways = false,
+            BlockShortInSideways = true,
             EnableLowRsiPath = baseThresholds.EnableLowRsiPath,
             BlockMeanReversionInBear = baseThresholds.BlockMeanReversionInBear,
             LimitAtrForMeanReversion = baseThresholds.LimitAtrForMeanReversion,
