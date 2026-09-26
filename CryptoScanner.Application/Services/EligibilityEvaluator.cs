@@ -133,8 +133,14 @@ public static class EligibilityEvaluator
             // acima; só force um único caminho quando a análise realmente o identificou.
             if (strategy != EntryStrategy.Legacy)
             {
-                failedBreakout=strategy==EntryStrategy.Breakout?!asset.Setup.IsBreakout:!asset.Setup.IsPullbackBounce;
-                failedConsolidation=strategy==EntryStrategy.Breakout && !asset.Setup.IsConsolidating;
+                failedBreakout = strategy switch
+                {
+                    EntryStrategy.Breakout => !asset.Setup.IsBreakout,
+                    EntryStrategy.Pullback => !asset.Setup.IsPullbackBounce,
+                    EntryStrategy.MeanReversion => !asset.Setup.IsMeanReversionSetup,
+                    _ => failedBreakout
+                };
+                failedConsolidation = strategy == EntryStrategy.Breakout && !asset.Setup.IsConsolidating;
             }
         }
 

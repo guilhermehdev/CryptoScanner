@@ -85,7 +85,7 @@ public partial class BacktestHistoryWindow : Window
         var sb = new StringBuilder();
         sb.AppendLine($"Teste: {r.Label}");
         sb.AppendLine($"Salvo em: {r.SavedAt:dd/MM/yy HH:mm}");
-        sb.AppendLine($"Perfil: {r.Profile} | Modo de Risco: {r.RiskMode}");
+        sb.AppendLine($"Perfil: {r.Profile} | Estratégia: {r.StrategyProfile} | Modo de Risco: {r.RiskMode}");
         sb.AppendLine($"Período: {r.StartDate:dd/MM/yy} - {r.EndDate:dd/MM/yy}");
         sb.AppendLine($"Moedas ({r.SymbolCount}): {r.Symbols}");
         sb.AppendLine($"Limiares: Score>={r.MinScore:F0} | RR min={r.MinRiskReward:F1} | RR max={r.MaxRiskReward:F0} | " +

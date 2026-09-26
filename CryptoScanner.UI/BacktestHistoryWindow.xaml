@@ -35,6 +35,7 @@
                 <DataGridTextColumn Header="Salvo em" Binding="{Binding SavedAt, StringFormat=dd/MM/yy HH:mm}" Width="110"/>
                 <DataGridTextColumn Header="Rótulo" Binding="{Binding Label}" Width="160"/>
                 <DataGridTextColumn Header="Perfil" Binding="{Binding Profile}" Width="70"/>
+                <DataGridTextColumn Header="Estratégia" Binding="{Binding StrategyProfile}" Width="125"/>
                 <DataGridTextColumn Header="Modo Risco" Binding="{Binding RiskMode}" Width="130"/>
                 <DataGridTextColumn Header="Início" Binding="{Binding StartDate, StringFormat=dd/MM/yy}" Width="70"/>
                 <DataGridTextColumn Header="Fim" Binding="{Binding EndDate, StringFormat=dd/MM/yy}" Width="70"/>

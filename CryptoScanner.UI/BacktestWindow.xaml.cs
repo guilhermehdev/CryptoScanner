@@ -55,7 +55,7 @@ public partial class BacktestWindow : Window
         rbBacktestScalp.IsChecked = false;
         rbDirectionShort.IsChecked = true;
         rbDirectionLong.IsChecked = false;
-        cmbEntryStrategy.SelectedIndex = 1; // Rompimento + consolidação
+        cmbStrategyProfile.SelectedIndex = 0; // Breakout Trend
         rbRiskIntradayLocal.IsChecked = true;
         rbRiskPartialExits.IsChecked = false;
         rbRiskMeanReversion.IsChecked = false;
@@ -71,7 +71,7 @@ public partial class BacktestWindow : Window
         txtMinVolumeSpike.Text = ScannerSettings.MinVolumeSpike.ToString("F2");
         txtMinRiskReward.Text = 1.8m.ToString("F1");
         txtMinStopDistance.Text = "0"; // 0 = sem piso, reproduz o comportamento atual do app ao vivo
-        txtMaxStopDistance.Text = "25";
+        txtMaxStopDistance.Text = "15";
         txtMaxRiskReward.Text = "999"; // efetivamente sem teto
 
         chkTargetAtr.IsChecked = false;
@@ -220,9 +220,10 @@ public partial class BacktestWindow : Window
             {
                 SignatureHash = signature,
                 SavedAt = DateTime.UtcNow,
-                    Label = label + (thresholds.StructuralEntryExperiment ? " | Estrutura experimental v1" :  $" | Experimento isolado {thresholds.IsolatedEntryExperiment}") + $" | {thresholds.EntryStrategy} | Alvo mín.: " + (thresholds.MinimumTargetAtr is decimal atrFloor ? $"{atrFloor:G} ATR" : $"{thresholds.MinResistanceDistancePartialExits:G}% (parciais)") +
+                Label = label + (thresholds.StructuralEntryExperiment ? " | Estrutura experimental v1" :  $" | Experimento isolado {thresholds.IsolatedEntryExperiment}") + $" | {StrategyDisplayName(thresholds.EntryStrategy)} | Alvo mín.: " + (thresholds.MinimumTargetAtr is decimal atrFloor ? $"{atrFloor:G} ATR" : $"{thresholds.MinResistanceDistancePartialExits:G}% (parciais)") +
                     $" | Short momentum={(thresholds.RequireBearishMomentumConfirmed ? "sim" : "não")}, lateral={(thresholds.BlockShortInSideways ? "bloqueado" : "aceito")}, score máx.={thresholds.MaxShortOpportunityScore:F0}, ADX BEAR máx.={thresholds.MaxShortAdxInBear:F0}",
                 Profile = profile.Name,
+                StrategyProfile = StrategyDisplayName(thresholds.EntryStrategy),
                 RiskMode = riskMode.ToString(),
                 StartDate = start,
                 EndDate = end,
@@ -267,7 +268,6 @@ public partial class BacktestWindow : Window
     private RiskCalculationMode GetSelectedRiskMode()
     {
         if (rbRiskIntradayLocal.IsChecked == true) return RiskCalculationMode.IntradayLocal;
-        if(cmbEntryStrategy.SelectedIndex>0)return RiskCalculationMode.SwingWithPartialExits;
         if (rbRiskMeanReversion.IsChecked == true) return RiskCalculationMode.MeanReversionScalp;
         if (rbRiskBollingerReversal.IsChecked == true) return RiskCalculationMode.BollingerReversal;
         // Fallback pro modo validado real — "Swing (atual)" (SwingBased) saiu da tela
@@ -283,6 +283,50 @@ public partial class BacktestWindow : Window
         return rbDirectionShort.IsChecked == true ? TradeDirection.Short : TradeDirection.Long;
     }
 
+    private TradingStrategyProfile GetSelectedStrategyProfile() => cmbStrategyProfile.SelectedIndex switch
+    {
+        1 => TradingStrategyProfile.PullbackTrend,
+        2 => TradingStrategyProfile.MeanReversion,
+        _ => TradingStrategyProfile.BreakoutTrend
+    };
+
+    private static string StrategyDisplayName(EntryStrategy strategy) => strategy switch
+    {
+        EntryStrategy.Breakout => TradingStrategyProfiles.DisplayName(TradingStrategyProfile.BreakoutTrend),
+        EntryStrategy.Pullback => TradingStrategyProfiles.DisplayName(TradingStrategyProfile.PullbackTrend),
+        EntryStrategy.MeanReversion => TradingStrategyProfiles.DisplayName(TradingStrategyProfile.MeanReversion),
+        _ => strategy.ToString()
+    };
+
+    private void StrategyProfile_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (chkEnablePullbackBounce == null || chkEnableMeanReversionScalp == null)
+            return;
+
+        switch (GetSelectedStrategyProfile())
+        {
+            case TradingStrategyProfile.BreakoutTrend:
+                chkEnablePullbackBounce.IsChecked = false;
+                chkEnableMeanReversionScalp.IsChecked = false;
+                break;
+            case TradingStrategyProfile.PullbackTrend:
+                chkEnablePullbackBounce.IsChecked = true;
+                chkEnableMeanReversionScalp.IsChecked = false;
+                rbRiskPartialExits.IsChecked = true;
+                break;
+            case TradingStrategyProfile.MeanReversion:
+                chkEnablePullbackBounce.IsChecked = false;
+                chkEnableMeanReversionScalp.IsChecked = true;
+                chkBlockMeanReversionInBear.IsChecked = true;
+                chkLimitAtrForMeanReversion.IsChecked = true;
+                rbRiskMeanReversion.IsChecked = true;
+                rbBacktestScalp.IsChecked = true;
+                rbDirectionLong.IsChecked = true;
+                txtEvaluationHoursOverride.Text = "6";
+                break;
+        }
+    }
+
     /// <summary>
     /// Config validada REAL por perfil (16/08/2026) — corrige o método antigo
     /// (BuildDefaultThresholdsWithCurrentAtrDistance), que usava os genéricos do
@@ -294,6 +338,15 @@ public partial class BacktestWindow : Window
     /// ScannerService.cs marca esse perfil como "NÃO VALIDADO — não expor no app ao vivo".
     /// </summary>
     private static EligibilityThresholds BuildLiveValidatedThresholds(ScanProfile profile) => ScannerProfiles.For(profile);
+
+    private EligibilityThresholds GetValidatedThresholdsForSelectedStrategy(ScanProfile profile, TradeDirection direction)
+    {
+        if (GetSelectedStrategyProfile() == TradingStrategyProfile.BreakoutTrend &&
+            direction == TradeDirection.Short && profile.Name == ScanProfile.Intraday.Name)
+            return ScannerProfiles.ForShortBreakoutExperimental(profile);
+
+        return BuildLiveValidatedThresholds(profile);
+    }
 
     private bool TryGetDateRange(out DateTime start, out DateTime end)
     {
@@ -349,7 +402,7 @@ public partial class BacktestWindow : Window
     private void CopyScannerThresholds_Click(object sender, RoutedEventArgs e)
     {
         var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
-        var t = ScannerProfiles.For(profile);
+        var t = GetValidatedThresholdsForSelectedStrategy(profile, GetSelectedDirection());
         ApplyValidatedThresholdFields(t);
     }
 
@@ -362,7 +415,7 @@ public partial class BacktestWindow : Window
         switch (cmbTestMode.SelectedIndex)
         {
             case 0:
-                ApplyValidatedThresholdFields(ScannerProfiles.For(profile));
+                ApplyValidatedThresholdFields(GetValidatedThresholdsForSelectedStrategy(profile, GetSelectedDirection()));
                 break;
             case 1:
                 ApplyExplorationThresholdFields();
@@ -375,7 +428,6 @@ public partial class BacktestWindow : Window
 
     private void ApplyValidatedThresholdFields(EligibilityThresholds t)
     {
-        cmbEntryStrategy.SelectedIndex = 3;
         txtMinScore.Text = t.BuyOpportunityScore.ToString();
         txtMaxShortScore.Text = t.MaxShortOpportunityScore.ToString();
         txtMaxShortAdxBear.Text = t.MaxShortAdxInBear.ToString();
@@ -400,11 +452,18 @@ public partial class BacktestWindow : Window
         chkEnableBollingerReversal.IsChecked = t.EnableBollingerReversal;
         chkRequireBearishMomentum.IsChecked = t.RequireBearishMomentumConfirmed;
         chkBlockShortInSideways.IsChecked = t.BlockShortInSideways;
+        if (GetSelectedStrategyProfile() == TradingStrategyProfile.PullbackTrend)
+            chkEnablePullbackBounce.IsChecked = true;
+        if (GetSelectedStrategyProfile() == TradingStrategyProfile.MeanReversion)
+        {
+            chkEnableMeanReversionScalp.IsChecked = true;
+            chkBlockMeanReversionInBear.IsChecked = true;
+            chkLimitAtrForMeanReversion.IsChecked = true;
+        }
     }
 
     private void ApplyExplorationThresholdFields()
     {
-        cmbEntryStrategy.SelectedIndex = 4;
         txtMinScore.Text = "55";
         txtMaxShortScore.Text = "100";
         txtMaxShortAdxBear.Text = "999";
@@ -433,7 +492,6 @@ public partial class BacktestWindow : Window
 
     private void ApplyDiagnosticThresholdFields()
     {
-        cmbEntryStrategy.SelectedIndex = 4;
         txtMinScore.Text = "0";
         txtMaxShortScore.Text = "100";
         txtMaxShortAdxBear.Text = "999";
@@ -493,7 +551,7 @@ public partial class BacktestWindow : Window
 
         thresholds = new EligibilityThresholds
         {
-            EntryStrategy=cmbEntryStrategy.SelectedIndex >= 3 ? EntryStrategy.Auto : (EntryStrategy)cmbEntryStrategy.SelectedIndex,
+            EntryStrategy=TradingStrategyProfiles.EntryStrategyFor(GetSelectedStrategyProfile()),
             StructuralEntryExperiment=cmbStructureExperiment.SelectedIndex == 3,
             IsolatedEntryExperiment=cmbStructureExperiment.SelectedIndex is 1 or 2 ? cmbStructureExperiment.SelectedIndex : 0,
             TargetZoneExperiment=cmbStructureExperiment.SelectedIndex is >= 4 and <= 6 ? cmbStructureExperiment.SelectedIndex - 3 : 0,
@@ -513,14 +571,14 @@ public partial class BacktestWindow : Window
             MinStopDistancePercent = minStopDistance,
             MaxStopDistancePercent = maxStopDistance,
             MaxRiskReward = maxRiskReward,
-            EnablePullbackBounce = chkEnablePullbackBounce.IsChecked == true, // Caminho A reexposto na tela — antes fixo em false
+            EnablePullbackBounce = GetSelectedStrategyProfile() == TradingStrategyProfile.PullbackTrend,
             // Bollinger Scoring — validado e ativo nos 2 perfis reais (Swing e Intraday) via
             // ScannerService.cs. Checkbox removido (22/08/2026); sempre true agora, já que
             // nunca faz sentido testar sem ele dado que a config real sempre usa.
             EnableBollingerScoring = true,
             EnableVolatilityScoringPhaseB = chkEnableVolatilityScoringPhaseB.IsChecked == true,
             EnableMultiTimeframe = chkEnableMultiTimeframe.IsChecked == true,
-            EnableMeanReversionScalp = chkEnableMeanReversionScalp.IsChecked == true,
+            EnableMeanReversionScalp = GetSelectedStrategyProfile() == TradingStrategyProfile.MeanReversion,
             BlockMeanReversionInBear = chkBlockMeanReversionInBear.IsChecked == true,
             LimitAtrForMeanReversion = chkLimitAtrForMeanReversion.IsChecked == true,
             EnableBollingerReversal = chkEnableBollingerReversal.IsChecked == true,
@@ -543,17 +601,21 @@ public partial class BacktestWindow : Window
         var profile = rbBacktestIntraday.IsChecked == true ? ScanProfile.Intraday : rbBacktestScalp.IsChecked == true ? ScanProfile.Scalp : ScanProfile.Swing;
         var direction = GetSelectedDirection();
         var selectedRiskMode = GetSelectedRiskMode();
+        var strategyProfile = GetSelectedStrategyProfile();
         if (selectedRiskMode == RiskCalculationMode.IntradayLocal && profile.Name != ScanProfile.Intraday.Name)
         {
             MessageBox.Show("O modo Intraday: rompimento + reteste só pode ser usado com o perfil Intraday (1h).", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
-        if(cmbStructureExperiment.SelectedIndex > 0 && cmbEntryStrategy.SelectedIndex==0){MessageBox.Show("Selecione Rompimento, Repique ou Automática (experimental) para testar a estrutura.");return;}
-        if(cmbEntryStrategy.SelectedIndex>0 && direction==TradeDirection.Short && cmbEntryStrategy.SelectedIndex>=3 && selectedRiskMode != RiskCalculationMode.IntradayLocal){MessageBox.Show("A estratégia automática experimental ainda é exclusiva de compra. Use Rompimento ou Repique para testar venda.");return;}
-        if(cmbEntryStrategy.SelectedIndex==3 && selectedRiskMode != RiskCalculationMode.IntradayLocal)
+        if (cmbStructureExperiment.SelectedIndex > 0 && strategyProfile == TradingStrategyProfile.MeanReversion)
         {
-            if(chkTargetAtr.IsChecked == true || cmbStructureExperiment.SelectedIndex > 0){MessageBox.Show("Selecione Automática (experimental) para testar distância em ATR. Automática (scanner) reproduz os parâmetros ao vivo.");return;}
-            thresholds=ScannerProfiles.For(profile);
+            MessageBox.Show("Os experimentos estruturais pertencem aos perfis Breakout Trend ou Pullback Trend.", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        if (strategyProfile == TradingStrategyProfile.MeanReversion && (profile.Name != ScanProfile.Scalp.Name || direction != TradeDirection.Long || selectedRiskMode != RiskCalculationMode.MeanReversionScalp))
+        {
+            MessageBox.Show("Mean Reversion é experimental e só pode ser testado como Compra no perfil Scalp com o risco Reversão à Média.", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
         }
 
         txtStatus.Text = "Preparando backtest...";
@@ -590,8 +652,6 @@ public partial class BacktestWindow : Window
                 : null;
 
             bool disableTimeout = chkDisableTimeout.IsChecked == true;
-            if(cmbEntryStrategy.SelectedIndex>=3){evaluationHoursOverride=null;disableTimeout=false;}
-
             // Momentum RSI invertido — testado e descartado (efeito quase nulo na config
             // validada, 5% de peso é fraco demais pra mover a agulha). Checkbox removido
             // da tela (16/08/2026) pra reduzir a quantidade de controles experimentais

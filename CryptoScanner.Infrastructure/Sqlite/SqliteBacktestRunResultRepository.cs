@@ -23,6 +23,7 @@ public sealed class SqliteBacktestRunResultRepository : IBacktestRunResultReposi
                 SavedAt TEXT NOT NULL,
                 Label TEXT,
                 Profile TEXT,
+                StrategyProfile TEXT,
                 RiskMode TEXT,
                 StartDate TEXT,
                 EndDate TEXT,
@@ -121,6 +122,13 @@ public sealed class SqliteBacktestRunResultRepository : IBacktestRunResultReposi
                 "ALTER TABLE BacktestRunResults ADD COLUMN MaxShortAdxInBear REAL DEFAULT 999", connection);
             await alterCommand.ExecuteNonQueryAsync(cancellationToken);
         }
+
+        if (!existingColumns.Contains("StrategyProfile"))
+        {
+            await using var alterCommand = new SqliteCommand(
+                "ALTER TABLE BacktestRunResults ADD COLUMN StrategyProfile TEXT DEFAULT ''", connection);
+            await alterCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
     }
 
     public async Task<bool> ExistsAsync(string signatureHash, CancellationToken cancellationToken = default)
@@ -140,13 +148,13 @@ public sealed class SqliteBacktestRunResultRepository : IBacktestRunResultReposi
 
         const string sql = """
             INSERT OR IGNORE INTO BacktestRunResults
-            (SignatureHash, SavedAt, Label, Profile, RiskMode, StartDate, EndDate, Symbols, SymbolCount,
+            (SignatureHash, SavedAt, Label, Profile, StrategyProfile, RiskMode, StartDate, EndDate, Symbols, SymbolCount,
              MinScore, MinResistanceDistanceSwing, MinResistanceDistanceAtr, MinVolumeSpike, MinRiskReward,
              MinStopDistancePercent, MaxRiskReward, EnablePullbackBounce, EnableBollingerScoring, EnableVolatilityScoringPhaseB, EvaluationHoursOverride,
              TotalTrades, WinRate, TotalReturnPercent, MaxDrawdownPercent, ProfitFactor,
              AvgRiskRewardAtEntry, BreakEvenWinRate, Edge, Diagnostics, Tp1Fraction, Tp2Fraction, MaxStopDistancePercent, DisableTimeout, MaxShortOpportunityScore, MaxShortAdxInBear)
             VALUES
-            (@SignatureHash, @SavedAt, @Label, @Profile, @RiskMode, @StartDate, @EndDate, @Symbols, @SymbolCount,
+            (@SignatureHash, @SavedAt, @Label, @Profile, @StrategyProfile, @RiskMode, @StartDate, @EndDate, @Symbols, @SymbolCount,
              @MinScore, @MinResistanceDistanceSwing, @MinResistanceDistanceAtr, @MinVolumeSpike, @MinRiskReward,
              @MinStopDistancePercent, @MaxRiskReward, @EnablePullbackBounce, @EnableBollingerScoring, @EnableVolatilityScoringPhaseB, @EvaluationHoursOverride,
              @TotalTrades, @WinRate, @TotalReturnPercent, @MaxDrawdownPercent, @ProfitFactor,
@@ -157,6 +165,7 @@ public sealed class SqliteBacktestRunResultRepository : IBacktestRunResultReposi
         command.Parameters.AddWithValue("@SavedAt", result.SavedAt.ToString("O"));
         command.Parameters.AddWithValue("@Label", result.Label ?? "");
         command.Parameters.AddWithValue("@Profile", result.Profile ?? "");
+        command.Parameters.AddWithValue("@StrategyProfile", result.StrategyProfile ?? "");
         command.Parameters.AddWithValue("@RiskMode", result.RiskMode ?? "");
         command.Parameters.AddWithValue("@StartDate", result.StartDate.ToString("O"));
         command.Parameters.AddWithValue("@EndDate", result.EndDate.ToString("O"));
@@ -207,6 +216,7 @@ public sealed class SqliteBacktestRunResultRepository : IBacktestRunResultReposi
                 SavedAt = ParseDateTimePreservingKind(reader.GetString(reader.GetOrdinal("SavedAt"))),
                 Label = GetStringOrDefault(reader, "Label"),
                 Profile = GetStringOrDefault(reader, "Profile"),
+                StrategyProfile = GetStringOrDefault(reader, "StrategyProfile"),
                 RiskMode = GetStringOrDefault(reader, "RiskMode"),
                 StartDate = ParseDateTimePreservingKind(reader.GetString(reader.GetOrdinal("StartDate"))),
                 EndDate = ParseDateTimePreservingKind(reader.GetString(reader.GetOrdinal("EndDate"))),

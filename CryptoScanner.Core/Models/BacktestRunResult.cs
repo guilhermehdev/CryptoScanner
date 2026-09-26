@@ -7,6 +7,7 @@ public sealed class BacktestRunResult
     public DateTime SavedAt { get; set; }
     public string Label { get; set; } = "";
     public string Profile { get; set; } = "";
+    public string StrategyProfile { get; set; } = "";
     public string RiskMode { get; set; } = "";
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }

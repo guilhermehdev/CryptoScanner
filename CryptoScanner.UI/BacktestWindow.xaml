@@ -30,7 +30,11 @@
                 </WrapPanel>
                 <WrapPanel Margin="6,0,6,6">
                     <TextBlock Text="Estratégia:" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <ComboBox x:Name="cmbEntryStrategy" Width="205" SelectedIndex="0" Margin="0,0,12,0"><ComboBoxItem Content="Legado (comparação)"/><ComboBoxItem Content="Rompimento + consolidação"/><ComboBoxItem Content="Repique em tendência"/><ComboBoxItem Content="Automática (scanner)"/><ComboBoxItem Content="Automática (experimental)"/></ComboBox>
+                    <ComboBox x:Name="cmbStrategyProfile" Width="205" SelectedIndex="0" Margin="0,0,12,0" SelectionChanged="StrategyProfile_Changed" ToolTip="Cada perfil tem um gatilho próprio e é registrado separadamente no histórico.">
+                        <ComboBoxItem Content="Breakout Trend"/>
+                        <ComboBoxItem Content="Pullback Trend"/>
+                        <ComboBoxItem Content="Mean Reversion (experimental)"/>
+                    </ComboBox>
                     <TextBlock Text="Perfil:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <RadioButton x:Name="rbBacktestIntraday" Content="Intraday (1h / 24h)" GroupName="BacktestProfile" Margin="0,0,12,0" VerticalAlignment="Center"/>
                     <RadioButton x:Name="rbBacktestSwing" Content="Swing (4h / 10 dias)" GroupName="BacktestProfile" IsChecked="True" VerticalAlignment="Center" Margin="0,0,12,0"/>

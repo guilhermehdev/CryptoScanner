@@ -213,6 +213,10 @@ var shortBreakoutProfile = ScannerProfiles.ForShortBreakoutExperimental(ScanProf
 Check(shortBreakoutProfile.MaxStopDistancePercent == 15 && shortBreakoutProfile.MaxShortAdxInBear == 30 &&
       shortBreakoutProfile.BlockShortInSideways,
     "Live Short breakout profile matches the chronologically validated stop, ADX and sideways filters");
+Check(TradingStrategyProfiles.EntryStrategyFor(TradingStrategyProfile.BreakoutTrend) == EntryStrategy.Breakout &&
+      TradingStrategyProfiles.EntryStrategyFor(TradingStrategyProfile.PullbackTrend) == EntryStrategy.Pullback &&
+      TradingStrategyProfiles.EntryStrategyFor(TradingStrategyProfile.MeanReversion) == EntryStrategy.MeanReversion,
+    "Independent strategy profiles map to their own entry rules");
 Check(shortExperimentalProfile.MinVolumeSpike == ScannerSettings.ShortBalancedMinVolumeSpike &&
       shortExperimentalProfile.MinResistanceDistancePartialExits == ScannerSettings.ShortBalancedMinResistanceDistancePartialExits,
     "Short balanced profile uses the validated frequency thresholds");
