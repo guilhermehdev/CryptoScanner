@@ -90,6 +90,10 @@ public sealed class EligibilityThresholds
     // de 3.885 trades). Default false.
     public bool LimitAtrForMeanReversion { get; init; } = false;
 
+    // Alvo mínimo até a banda média exclusivo da Reversão Bollinger Long V3.
+    // Zero preserva o comportamento diagnóstico aberto.
+    public decimal MinimumBollingerTargetPercent { get; init; } = 0m;
+
     public static readonly EligibilityThresholds Default = new()
     {
         BuyOpportunityScore = ScannerSettings.BuyOpportunityScore,

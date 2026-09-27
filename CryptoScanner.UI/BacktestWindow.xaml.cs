@@ -176,6 +176,7 @@ public partial class BacktestWindow : Window
         sb.Append(thresholds.MinimumTargetAtr).Append('|');
         sb.Append(thresholds.MinVolumeSpike).Append('|');
         sb.Append(thresholds.MinRiskReward).Append('|');
+        sb.Append(thresholds.MinimumBollingerTargetPercent).Append('|');
         sb.Append(thresholds.MinStopDistancePercent).Append('|');
         sb.Append(thresholds.MaxStopDistancePercent).Append('|');
         sb.Append(thresholds.MaxRiskReward).Append('|');
@@ -223,6 +224,7 @@ public partial class BacktestWindow : Window
                 SignatureHash = signature,
                 SavedAt = DateTime.UtcNow,
                 Label = label + (thresholds.StructuralEntryExperiment ? " | Estrutura experimental v1" :  $" | Experimento isolado {thresholds.IsolatedEntryExperiment}") + $" | {StrategyDisplayName(thresholds.EntryStrategy)} | Alvo mín.: " + (thresholds.MinimumTargetAtr is decimal atrFloor ? $"{atrFloor:G} ATR" : $"{thresholds.MinResistanceDistancePartialExits:G}% (parciais)") +
+                    (thresholds.EntryStrategy == EntryStrategy.BollingerLowerReclaim ? $" | Alvo Bollinger ≥ {thresholds.MinimumBollingerTargetPercent:G}%" : string.Empty) +
                     $" | Short momentum={(thresholds.RequireBearishMomentumConfirmed ? "sim" : "não")}, lateral={(thresholds.BlockShortInSideways ? "bloqueado" : "aceito")}, score máx.={thresholds.MaxShortOpportunityScore:F0}, ADX BEAR máx.={thresholds.MaxShortAdxInBear:F0}",
                 Profile = profile.Name,
                 StrategyProfile = StrategyDisplayName(thresholds.EntryStrategy),
@@ -318,6 +320,7 @@ public partial class BacktestWindow : Window
 
         ApplyStrategyProfileOptions();
         ApplyStrategyProfileRiskMode();
+        ApplyBollingerTargetDefault();
     }
 
     private void ApplyStrategyProfileOptions()
@@ -359,6 +362,17 @@ public partial class BacktestWindow : Window
                 rbRiskBollingerReversal.IsChecked = true;
                 break;
         }
+    }
+
+    private void ApplyBollingerTargetDefault()
+    {
+        if (txtMinimumBollingerTarget == null)
+            return;
+
+        txtMinimumBollingerTarget.Text = GetSelectedStrategyProfile() == TradingStrategyProfile.MeanReversion &&
+                                         cmbTestMode?.SelectedIndex != 2
+            ? "2"
+            : "0";
     }
 
     /// <summary>
@@ -441,6 +455,7 @@ public partial class BacktestWindow : Window
         ApplyBreakoutLongRiskFloor(profile, GetSelectedDirection());
         ApplyStrategyProfileOptions();
         ApplyStrategyProfileRiskMode();
+        ApplyBollingerTargetDefault();
     }
 
     private void TestMode_Changed(object sender, SelectionChangedEventArgs e)
@@ -464,6 +479,7 @@ public partial class BacktestWindow : Window
         }
         ApplyStrategyProfileOptions();
         ApplyStrategyProfileRiskMode();
+        ApplyBollingerTargetDefault();
     }
 
     private void ApplyValidatedThresholdFields(EligibilityThresholds t)
@@ -474,6 +490,7 @@ public partial class BacktestWindow : Window
         txtMinResistDistance.Text = t.MinResistanceDistance.ToString();
         txtMinResistDistanceAtr.Text = t.MinResistanceDistanceAtrMode.ToString();
         txtMinResistDistancePartialExits.Text = t.MinResistanceDistancePartialExits.ToString();
+        txtMinimumBollingerTarget.Text = t.MinimumBollingerTargetPercent.ToString();
         txtMinVolumeSpike.Text = t.MinVolumeSpike.ToString();
         txtMinRiskReward.Text = t.MinRiskReward.ToString();
         txtMinStopDistance.Text = t.MinStopDistancePercent.ToString();
@@ -577,6 +594,7 @@ public partial class BacktestWindow : Window
             !decimal.TryParse(txtMinResistDistance.Text, out decimal minResistDistance) ||
             !decimal.TryParse(txtMinResistDistanceAtr.Text, out decimal minResistDistanceAtr) ||
             !decimal.TryParse(txtMinResistDistancePartialExits.Text, out decimal minResistDistancePartialExits) ||
+            !decimal.TryParse(txtMinimumBollingerTarget.Text, out decimal minimumBollingerTarget) || minimumBollingerTarget < 0 ||
             !decimal.TryParse(txtMinVolumeSpike.Text, out decimal minVolumeSpike) ||
             !decimal.TryParse(txtMinRiskReward.Text, out decimal minRiskReward) ||
             !decimal.TryParse(txtMinStopDistance.Text, out decimal minStopDistance) ||
@@ -608,6 +626,7 @@ public partial class BacktestWindow : Window
             MinResistanceDistance = minResistDistance,
             MinResistanceDistanceAtrMode = minResistDistanceAtr,
             MinResistanceDistancePartialExits = minResistDistancePartialExits,
+            MinimumBollingerTargetPercent = minimumBollingerTarget,
             MinRiskReward = minRiskReward,
             MinRelativeStrengthPercent = ScannerSettings.MinRelativeStrengthPercent,
             MinStopDistancePercent = minStopDistance,

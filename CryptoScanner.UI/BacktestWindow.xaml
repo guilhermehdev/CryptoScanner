@@ -92,6 +92,8 @@
                         <TextBox x:Name="txtMinResistDistanceAtr" Width="70" HorizontalAlignment="Left" Margin="0,2,0,6"/>
                         <TextBlock Text="Distância mínima da resistência pontuada (%)"/>
                         <TextBox x:Name="txtMinResistDistancePartialExits" Width="70" HorizontalAlignment="Left" Margin="0,2,0,6"/>
+                        <TextBlock Text="Alvo mínimo V3 — banda média (%)" ToolTip="Aplicado somente à Reversão Bollinger Long V3. Exige espaço suficiente até a banda média após custos."/>
+                        <TextBox x:Name="txtMinimumBollingerTarget" Width="70" Text="0" HorizontalAlignment="Left" Margin="0,2,0,6"/>
                         <CheckBox x:Name="chkTargetAtr" Content="Alvo mínimo em ATR" Margin="0,2,0,2" ToolTip="Experimento: substitui a distância percentual pelo múltiplo de ATR abaixo. Não altera o scanner ao vivo."/>
                         <StackPanel Orientation="Horizontal" Margin="20,0,0,6">
                             <TextBlock Text="Múltiplo ATR:" VerticalAlignment="Center"/>

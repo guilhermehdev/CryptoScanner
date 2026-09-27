@@ -190,6 +190,17 @@ var node=System.Text.Json.Nodes.JsonNode.Parse(serialized)!;node["MinimumTargetA
 var atrThresholds=JsonSerializer.Deserialize<EligibilityThresholds>(node.ToJsonString())!;
 Check(EligibilityEvaluator.MinimumTargetDistance(Asset("NOATR"),atrThresholds)==decimal.MaxValue,"ATR experiment rejects missing volatility");
 Check(EligibilityEvaluator.MinimumTargetDistance(Asset("DEFAULT"),ScannerProfiles.For(ScanProfile.Intraday))==15,"Live distance preset remains unchanged");
+var bollingerThresholdNode = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(EligibilityThresholds.Default))!;
+bollingerThresholdNode["MinimumBollingerTargetPercent"] = 2m;
+var bollingerThresholds = JsonSerializer.Deserialize<EligibilityThresholds>(bollingerThresholdNode.ToJsonString())!;
+var bollingerRiskAsset = new AssetAnalysis
+{
+    Symbol = "BOLL", Direction = TradeDirection.Long, Trend = new() { Close = 100, Direction = "ALTA" },
+    Volume = new(), Structure = new(), Candle = new(), Setup = new(),
+    Risk = new() { Mode = RiskCalculationMode.BollingerReversal, Support = 98, Resistance = 103, SupportDistancePercent = 2, ResistanceDistancePercent = 3, RiskReward = 1.5m }
+};
+Check(EligibilityEvaluator.MinimumTargetDistance(bollingerRiskAsset, bollingerThresholds) == 2,
+    "Bollinger Long applies its own minimum target distance");
 var archived=new FilterDiagnostics{Thresholds=ScannerProfiles.For(ScanProfile.Swing),MarketRegime="BULL",Analyses=new(){lowRr}};
 var replay=JsonSerializer.Deserialize<FilterDiagnostics>(JsonSerializer.Serialize(archived))!;
 Check(EligibilityEvaluator.Evaluate(replay.Analyses[0],replay.MarketRegime,replay.Thresholds).FailedRiskReward,"Exported full analysis supports exact eligibility replay");

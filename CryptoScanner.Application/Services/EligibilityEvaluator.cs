@@ -77,7 +77,9 @@ public static class EligibilityEvaluator
     }
     public static decimal MinimumTargetDistance(AssetAnalysis asset, EligibilityThresholds t, TradeDirection direction = TradeDirection.Long)
     {
-        if (asset.Risk.Mode is RiskCalculationMode.MeanReversionScalp or RiskCalculationMode.BollingerReversal) return 0;
+        if (asset.Risk.Mode == RiskCalculationMode.MeanReversionScalp) return 0;
+        if (asset.Risk.Mode == RiskCalculationMode.BollingerReversal && direction == TradeDirection.Long)
+            return t.MinimumBollingerTargetPercent;
         if (t.MinimumTargetAtr is > 0) return asset.Trend.AtrPercent > 0 ? asset.Trend.AtrPercent * t.MinimumTargetAtr.Value : decimal.MaxValue;
         return asset.Risk.Mode switch
         {
