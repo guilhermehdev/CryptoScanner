@@ -369,8 +369,7 @@ public partial class BacktestWindow : Window
         if (txtMinimumBollingerTarget == null)
             return;
 
-        txtMinimumBollingerTarget.Text = GetSelectedStrategyProfile() == TradingStrategyProfile.MeanReversion &&
-                                         cmbTestMode?.SelectedIndex != 2
+        txtMinimumBollingerTarget.Text = GetSelectedStrategyProfile() == TradingStrategyProfile.MeanReversion
             ? "2"
             : "0";
     }
