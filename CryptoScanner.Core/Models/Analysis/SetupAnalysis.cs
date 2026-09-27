@@ -18,6 +18,10 @@ public sealed record SetupAnalysis
     // alta, com sinal de virada no candle atual. Alvo é a volta pra EMA21, não resistência.
     public bool IsMeanReversionSetup { get; init; }
 
+    // V2: a reação da V1 ocorreu no candle anterior e o candle atual confirmou a
+    // recuperação fechando acima da máxima daquela reação.
+    public bool IsMeanReversionConfirmedSetup { get; init; }
+
     // Reversão de Bollinger (Fase A do lado de venda) — banda superior + resistência como
     // zona de gatilho, com rejeição confirmada e filtro contra "andar na banda" (momentum
     // de alta forte demais pra brigar). Ver AssetAnalyzer.cs pros detalhes de cada condição.

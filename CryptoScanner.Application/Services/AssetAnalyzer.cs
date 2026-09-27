@@ -76,6 +76,25 @@ public sealed class AssetAnalyzer
                 }
             }
         }
+        if (entryStrategy == EntryStrategy.MeanReversionConfirmed && direction == TradeDirection.Long)
+        {
+            // A invalidação da V2 fica sob a mínima do candle de reação, com uma
+            // pequena folga proporcional à volatilidade atual. O alvo permanece EMA21.
+            decimal support = MeanReversionConfirmation.StopBelowReaction(candles[^2], trend.Atr);
+            decimal supportDistance = trend.Close > 0 ? (trend.Close - support) / trend.Close * 100m : 0;
+            risk = new RiskAnalysis
+            {
+                Mode = risk.Mode,
+                Support = support,
+                Resistance = risk.Resistance,
+                TargetZone = risk.TargetZone,
+                SupportDistancePercent = supportDistance,
+                ResistanceDistancePercent = risk.ResistanceDistancePercent,
+                RiskReward = supportDistance > 0 ? risk.ResistanceDistancePercent / supportDistance : 0,
+                TakeProfit1 = risk.TakeProfit1,
+                TakeProfit3 = risk.TakeProfit3
+            };
+        }
         var analysis = new AssetAnalysis
         {
             Direction = direction,
@@ -331,6 +350,31 @@ public sealed class AssetAnalyzer
             (trend.Ema21 - trend.Close) / trend.Atr >= 1.0m &&
             (candle.IsBullishEngulfing || candle.IsHammer || structure.LiquiditySweepLow);
 
+        // V2: a reação ocorre no candle anterior. O candle atual precisa fechar acima
+        // da máxima daquela reação, evitando comprar a primeira vela de reversão que
+        // ainda pode falhar e continuar o recuo.
+        bool isMeanReversionConfirmedSetup = false;
+        if (direction == TradeDirection.Long && candles.Count >= 3)
+        {
+            var candlesBeforeConfirmation = candles.Take(candles.Count - 1).ToList();
+            var reactionStructure = AnalyzeStructure(candlesBeforeConfirmation);
+            var reactionTrend = AnalyzeTrend(candlesBeforeConfirmation, reactionStructure, direction);
+            var reactionCandle = AnalyzeCandle(candlesBeforeConfirmation);
+            bool hasBullishReaction = reactionCandle.IsBullishEngulfing ||
+                                      reactionCandle.IsHammer ||
+                                      reactionStructure.LiquiditySweepLow;
+
+            isMeanReversionConfirmedSetup = structure.IsUptrend &&
+                MeanReversionConfirmation.IsConfirmed(
+                    candlesBeforeConfirmation[^1],
+                    candles[^1],
+                    reactionStructure.IsUptrend,
+                    reactionTrend.Close,
+                    reactionTrend.Ema21,
+                    reactionTrend.Atr,
+                    hasBullishReaction);
+        }
+
         // Reversão de Bollinger (Fase A do lado de venda) — banda superior + resistência
         // como ZONA DE GATILHO (não fechamento obrigatório acima, nem alvo — o alvo é a
         // volta pra banda média). Exige rejeição confirmada e um filtro contra "andar na
@@ -394,6 +438,7 @@ public sealed class AssetAnalyzer
             SwingUsageAtr = result.SwingUsageAtr,
             IsPullbackBounce = isPullbackBounce,
             IsMeanReversionSetup = isMeanReversionSetup,
+            IsMeanReversionConfirmedSetup = isMeanReversionConfirmedSetup,
             IsBollingerReversalSetup = isBollingerReversalSetup,
             IsLowRsiSetup = isLowRsiSetup
         };

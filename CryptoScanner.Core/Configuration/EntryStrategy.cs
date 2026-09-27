@@ -5,5 +5,8 @@ public enum EntryStrategy
     Breakout,
     Pullback,
     MeanReversion,
-    Auto
+    Auto,
+    // V2: entra somente depois de um candle fechado romper a máxima do candle de reação.
+    // MeanReversion permanece para reproduzir os testes históricos da V1.
+    MeanReversionConfirmed
 }

@@ -17,7 +17,7 @@ public static class TradingStrategyProfiles
     {
         TradingStrategyProfile.BreakoutTrend => EntryStrategy.Breakout,
         TradingStrategyProfile.PullbackTrend => EntryStrategy.Pullback,
-        TradingStrategyProfile.MeanReversion => EntryStrategy.MeanReversion,
+        TradingStrategyProfile.MeanReversion => EntryStrategy.MeanReversionConfirmed,
         _ => throw new ArgumentOutOfRangeException(nameof(profile), profile, null)
     };
 
@@ -25,7 +25,7 @@ public static class TradingStrategyProfiles
     {
         TradingStrategyProfile.BreakoutTrend => "Breakout Trend",
         TradingStrategyProfile.PullbackTrend => "Pullback Trend",
-        TradingStrategyProfile.MeanReversion => "Mean Reversion",
+        TradingStrategyProfile.MeanReversion => "Mean Reversion V2 (confirmada)",
         _ => profile.ToString()
     };
 }

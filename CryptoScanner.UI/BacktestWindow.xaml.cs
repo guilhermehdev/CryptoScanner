@@ -296,7 +296,8 @@ public partial class BacktestWindow : Window
     {
         EntryStrategy.Breakout => TradingStrategyProfiles.DisplayName(TradingStrategyProfile.BreakoutTrend),
         EntryStrategy.Pullback => TradingStrategyProfiles.DisplayName(TradingStrategyProfile.PullbackTrend),
-        EntryStrategy.MeanReversion => TradingStrategyProfiles.DisplayName(TradingStrategyProfile.MeanReversion),
+        EntryStrategy.MeanReversion => "Mean Reversion V1",
+        EntryStrategy.MeanReversionConfirmed => TradingStrategyProfiles.DisplayName(TradingStrategyProfile.MeanReversion),
         _ => strategy.ToString()
     };
 
