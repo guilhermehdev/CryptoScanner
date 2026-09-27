@@ -59,6 +59,7 @@ public sealed class FilterDiagnostics
 
     // Filtro experimental (28/08/2026) — ver EligibilityThresholds.LimitAtrForMeanReversion.
     public int FailedMeanReversionAtrFilter { get; set; }
+    public int FailedBollingerLongSideways { get; set; }
 
     public int SkippedDuplicateToday { get; set; }
 
@@ -78,7 +79,7 @@ public sealed class FilterDiagnostics
         $"Vol. spike: {FailedVolumeSpike} | Dist. resist.: {FailedResistanceDistance} | " +
         $"Direção: {FailedDirection} | Níveis inválidos: {FailedInvalidLevels} | R/R baixo: {FailedRiskReward} | Stop mín.: {FailedStopDistance} | " +
         $"Stop máx.: {FailedStopDistanceTooHigh} | RR teto: {FailedRiskRewardTooHigh} | Bull Trap: {FailedBullTrap} | " +
-        $"Tendência (EMA): {FailedTrendConfirmation} | Momentum: {FailedMomentumFilter} | Short lateral: {FailedShortSideways} | Score Short máx.: {FailedShortScoreCeiling} | ADX Short BEAR máx.: {FailedShortAdxInBear} | Regime MeanRev: {FailedMeanReversionRegimeFilter} | ATR MeanRev: {FailedMeanReversionAtrFilter} | " +
+        $"Tendência (EMA): {FailedTrendConfirmation} | Momentum: {FailedMomentumFilter} | Short lateral: {FailedShortSideways} | Score Short máx.: {FailedShortScoreCeiling} | ADX Short BEAR máx.: {FailedShortAdxInBear} | Regime MeanRev: {FailedMeanReversionRegimeFilter} | ATR MeanRev: {FailedMeanReversionAtrFilter} | Bollinger Long lateral: {FailedBollingerLongSideways} | " +
         $"Duplicado hoje: {SkippedDuplicateToday} | Entrada rejeitada: {EntryRejected} ({EntryRejectionSummary}) | " +
         $"Passaram: {PassedAll}/{TotalAnalyzed}";
 }

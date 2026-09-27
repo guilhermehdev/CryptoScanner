@@ -86,6 +86,7 @@ public partial class BacktestWindow : Window
         chkBlockMeanReversionInBear.IsChecked = false;
         chkLimitAtrForMeanReversion.IsChecked = false;
         chkEnableBollingerReversal.IsChecked = false;
+        chkBlockBollingerLongInSideways.IsChecked = false;
         chkRequireBearishMomentum.IsChecked = false;
         chkBlockShortInSideways.IsChecked = false;
 
@@ -188,6 +189,7 @@ public partial class BacktestWindow : Window
         sb.Append(thresholds.BlockShortInSideways).Append('|');
         sb.Append(thresholds.EnableLowRsiPath).Append('|');
         sb.Append(thresholds.BlockMeanReversionInBear).Append('|');
+        sb.Append(thresholds.BlockBollingerLongInSideways).Append('|');
         sb.Append(thresholds.LimitAtrForMeanReversion).Append('|');
         sb.Append(useInvertedRsiMomentum).Append('|');
         sb.Append(evaluationHoursOverride?.ToString() ?? "default").Append('|');
@@ -225,7 +227,7 @@ public partial class BacktestWindow : Window
                 SavedAt = DateTime.UtcNow,
                 Label = label + (thresholds.StructuralEntryExperiment ? " | Estrutura experimental v1" :  $" | Experimento isolado {thresholds.IsolatedEntryExperiment}") + $" | {StrategyDisplayName(thresholds.EntryStrategy)} | Alvo mín.: " + (thresholds.MinimumTargetAtr is decimal atrFloor ? $"{atrFloor:G} ATR" : $"{thresholds.MinResistanceDistancePartialExits:G}% (parciais)") +
                     (thresholds.EntryStrategy == EntryStrategy.BollingerLowerReclaim ? $" | Alvo Bollinger ≥ {thresholds.MinimumBollingerTargetPercent:G}%" : string.Empty) +
-                    $" | Short momentum={(thresholds.RequireBearishMomentumConfirmed ? "sim" : "não")}, lateral={(thresholds.BlockShortInSideways ? "bloqueado" : "aceito")}, score máx.={thresholds.MaxShortOpportunityScore:F0}, ADX BEAR máx.={thresholds.MaxShortAdxInBear:F0}",
+                    $" | Short momentum={(thresholds.RequireBearishMomentumConfirmed ? "sim" : "não")}, lateral={(thresholds.BlockShortInSideways ? "bloqueado" : "aceito")}, Bollinger Long lateral={(thresholds.BlockBollingerLongInSideways ? "bloqueado" : "aceito")}, score máx.={thresholds.MaxShortOpportunityScore:F0}, ADX BEAR máx.={thresholds.MaxShortAdxInBear:F0}",
                 Profile = profile.Name,
                 StrategyProfile = StrategyDisplayName(thresholds.EntryStrategy),
                 RiskMode = riskMode.ToString(),
@@ -330,10 +332,12 @@ public partial class BacktestWindow : Window
             case TradingStrategyProfile.BreakoutTrend:
                 chkEnablePullbackBounce.IsChecked = false;
                 chkEnableMeanReversionScalp.IsChecked = false;
+                chkBlockBollingerLongInSideways.IsChecked = false;
                 break;
             case TradingStrategyProfile.PullbackTrend:
                 chkEnablePullbackBounce.IsChecked = true;
                 chkEnableMeanReversionScalp.IsChecked = false;
+                chkBlockBollingerLongInSideways.IsChecked = false;
                 break;
             case TradingStrategyProfile.MeanReversion:
                 chkEnablePullbackBounce.IsChecked = false;
@@ -504,6 +508,7 @@ public partial class BacktestWindow : Window
         chkBlockMeanReversionInBear.IsChecked = t.BlockMeanReversionInBear;
         chkLimitAtrForMeanReversion.IsChecked = t.LimitAtrForMeanReversion;
         chkEnableBollingerReversal.IsChecked = t.EnableBollingerReversal;
+        chkBlockBollingerLongInSideways.IsChecked = t.BlockBollingerLongInSideways;
         chkRequireBearishMomentum.IsChecked = t.RequireBearishMomentumConfirmed;
         chkBlockShortInSideways.IsChecked = t.BlockShortInSideways;
         if (GetSelectedStrategyProfile() == TradingStrategyProfile.PullbackTrend)
@@ -546,6 +551,7 @@ public partial class BacktestWindow : Window
         chkBlockMeanReversionInBear.IsChecked = false;
         chkLimitAtrForMeanReversion.IsChecked = false;
         chkEnableBollingerReversal.IsChecked = false;
+        chkBlockBollingerLongInSideways.IsChecked = false;
         chkRequireBearishMomentum.IsChecked = false;
         chkBlockShortInSideways.IsChecked = false;
     }
@@ -572,6 +578,7 @@ public partial class BacktestWindow : Window
         chkBlockMeanReversionInBear.IsChecked = false;
         chkLimitAtrForMeanReversion.IsChecked = false;
         chkEnableBollingerReversal.IsChecked = false;
+        chkBlockBollingerLongInSideways.IsChecked = false;
         chkRequireBearishMomentum.IsChecked = false;
         chkBlockShortInSideways.IsChecked = false;
     }
@@ -640,6 +647,7 @@ public partial class BacktestWindow : Window
             EnableMultiTimeframe = chkEnableMultiTimeframe.IsChecked == true,
             EnableMeanReversionScalp = false,
             BlockMeanReversionInBear = chkBlockMeanReversionInBear.IsChecked == true,
+            BlockBollingerLongInSideways = chkBlockBollingerLongInSideways.IsChecked == true,
             LimitAtrForMeanReversion = chkLimitAtrForMeanReversion.IsChecked == true,
             EnableBollingerReversal = GetSelectedStrategyProfile() == TradingStrategyProfile.MeanReversion || chkEnableBollingerReversal.IsChecked == true,
             RequireBearishMomentumConfirmed = chkRequireBearishMomentum.IsChecked == true,

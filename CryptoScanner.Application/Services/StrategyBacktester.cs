@@ -421,6 +421,7 @@ public sealed class StrategyBacktester
             if (eligibility.FailedShortAdxInBear) diagnostics.FailedShortAdxInBear++;
             if (eligibility.FailedMeanReversionRegimeFilter) diagnostics.FailedMeanReversionRegimeFilter++;
             if (eligibility.FailedMeanReversionAtrFilter) diagnostics.FailedMeanReversionAtrFilter++;
+            if (eligibility.FailedBollingerLongSideways) diagnostics.FailedBollingerLongSideways++;
 
             if (!eligibility.IsEligible)
                 continue;
@@ -620,6 +621,7 @@ public sealed class StrategyBacktester
         target.FailedShortAdxInBear += source.FailedShortAdxInBear;
         target.FailedMeanReversionRegimeFilter += source.FailedMeanReversionRegimeFilter;
         target.FailedMeanReversionAtrFilter += source.FailedMeanReversionAtrFilter;
+        target.FailedBollingerLongSideways += source.FailedBollingerLongSideways;
     }
 
     private static BacktestTradeResult CloseTrade(BacktestOpenPosition position, DateTime exitTime, decimal exitPrice, string reason)

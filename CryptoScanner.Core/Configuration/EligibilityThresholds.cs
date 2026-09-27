@@ -81,6 +81,10 @@ public sealed class EligibilityThresholds
     // resultado até ser explicitamente habilitado.
     public bool BlockMeanReversionInBear { get; init; } = false;
 
+    // Experimento exclusivo da Reversão Bollinger Long V3. O padrão falso preserva
+    // os demais perfis e deixa a hipótese de regime lateral restrita ao backtest.
+    public bool BlockBollingerLongInSideways { get; init; } = false;
+
     // Filtro experimental (28/08/2026) — teto de ATR% pro Reversão à Média (Scalp).
     // Investigação: comparando período ruim (2020-2022, ATR% médio 4,85, 78% saída por
     // SL) vs período bom (2024-2025, ATR% médio 2,94, 45,8% SL) — volatilidade alta

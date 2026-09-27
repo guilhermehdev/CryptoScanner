@@ -29,6 +29,7 @@ public static class EligibilityEvaluator
 
         // Filtro experimental (22/08/2026) — ver EligibilityThresholds.BlockMeanReversionInBear.
         public bool FailedMeanReversionRegimeFilter { get; init; }
+        public bool FailedBollingerLongSideways { get; init; }
 
         // Filtro experimental (28/08/2026) — ver EligibilityThresholds.LimitAtrForMeanReversion.
         public bool FailedMeanReversionAtrFilter { get; init; }
@@ -39,7 +40,7 @@ public static class EligibilityEvaluator
             !FailedDirection && !FailedInvalidLevels && !FailedRiskReward && !FailedStopDistance &&
             !FailedStopDistanceTooHigh && !FailedRiskRewardTooHigh && !FailedBullTrap &&
             !FailedTrendConfirmation && !FailedMomentumFilter && !FailedShortSideways && !FailedShortScoreCeiling && !FailedShortAdxInBear && !FailedMeanReversionRegimeFilter &&
-            !FailedMeanReversionAtrFilter;
+            !FailedMeanReversionAtrFilter && !FailedBollingerLongSideways;
     }
 
     public static string Describe(AssetAnalysis asset, string regime, EligibilityThresholds? thresholds = null)
@@ -73,6 +74,7 @@ public static class EligibilityEvaluator
         if(result.FailedShortAdxInBear) reasons.Add($"ADX Short em BEAR acima do teto {t.MaxShortAdxInBear:F0}.");
         if(result.FailedMeanReversionRegimeFilter) reasons.Add("Regime bloqueia reversão à média.");
         if(result.FailedMeanReversionAtrFilter) reasons.Add("ATR bloqueia reversão à média.");
+        if(result.FailedBollingerLongSideways) reasons.Add("Mercado lateral bloqueia a Reversão Bollinger Long V3.");
         return reasons.Count==0 ? "Critérios de entrada atendidos no candle fechado analisado." : string.Join("\n",reasons);
     }
     public static decimal MinimumTargetDistance(AssetAnalysis asset, EligibilityThresholds t, TradeDirection direction = TradeDirection.Long)
@@ -243,6 +245,12 @@ public static class EligibilityEvaluator
             asset.Risk.Mode is RiskCalculationMode.MeanReversionScalp or RiskCalculationMode.BollingerReversal &&
             asset.Trend.AtrPercent > 4m;
 
+        bool failedBollingerLongSideways =
+            thresholds.BlockBollingerLongInSideways &&
+            direction == TradeDirection.Long &&
+            asset.Risk.Mode == RiskCalculationMode.BollingerReversal &&
+            marketRegime == "LATERAL";
+
         return new EligibilityResult
         {
             FailedScore = failedScore,
@@ -263,7 +271,8 @@ public static class EligibilityEvaluator
             FailedShortScoreCeiling = failedShortScoreCeiling,
             FailedShortAdxInBear = failedShortAdxInBear,
             FailedMeanReversionRegimeFilter = failedMeanReversionRegimeFilter,
-            FailedMeanReversionAtrFilter = failedMeanReversionAtrFilter
+            FailedMeanReversionAtrFilter = failedMeanReversionAtrFilter,
+            FailedBollingerLongSideways = failedBollingerLongSideways
         };
     }
 }

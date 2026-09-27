@@ -192,6 +192,7 @@ Check(EligibilityEvaluator.MinimumTargetDistance(Asset("NOATR"),atrThresholds)==
 Check(EligibilityEvaluator.MinimumTargetDistance(Asset("DEFAULT"),ScannerProfiles.For(ScanProfile.Intraday))==15,"Live distance preset remains unchanged");
 var bollingerThresholdNode = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(EligibilityThresholds.Default))!;
 bollingerThresholdNode["MinimumBollingerTargetPercent"] = 2m;
+bollingerThresholdNode["BlockBollingerLongInSideways"] = true;
 var bollingerThresholds = JsonSerializer.Deserialize<EligibilityThresholds>(bollingerThresholdNode.ToJsonString())!;
 var bollingerRiskAsset = new AssetAnalysis
 {
@@ -201,6 +202,9 @@ var bollingerRiskAsset = new AssetAnalysis
 };
 Check(EligibilityEvaluator.MinimumTargetDistance(bollingerRiskAsset, bollingerThresholds) == 2,
     "Bollinger Long applies its own minimum target distance");
+Check(EligibilityEvaluator.Evaluate(bollingerRiskAsset, "LATERAL", bollingerThresholds, TradeDirection.Long).FailedBollingerLongSideways &&
+      !EligibilityEvaluator.Evaluate(bollingerRiskAsset, "BULL", bollingerThresholds, TradeDirection.Long).FailedBollingerLongSideways,
+    "Bollinger Long sideways block applies only in lateral regime");
 var archived=new FilterDiagnostics{Thresholds=ScannerProfiles.For(ScanProfile.Swing),MarketRegime="BULL",Analyses=new(){lowRr}};
 var replay=JsonSerializer.Deserialize<FilterDiagnostics>(JsonSerializer.Serialize(archived))!;
 Check(EligibilityEvaluator.Evaluate(replay.Analyses[0],replay.MarketRegime,replay.Thresholds).FailedRiskReward,"Exported full analysis supports exact eligibility replay");
