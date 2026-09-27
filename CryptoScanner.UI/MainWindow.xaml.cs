@@ -500,7 +500,7 @@ public partial class MainWindow : Window
     private void BtnFullBacktest_Click(object sender, RoutedEventArgs e)
     {
         var databasePath = GetDatabasePath();
-        var cacheRepository = new SqliteCandleCacheRepository(databasePath);
+        var cacheRepository = new SqliteCandleCacheRepository(GetCandleCachePath());
         var cachingMarketData = new CachingMarketDataService(new BinanceExchangeService(), cacheRepository);
         var window = new BacktestWindow(cachingMarketData, new AssetAnalyzer(), databasePath)
         {
@@ -521,6 +521,11 @@ public partial class MainWindow : Window
     private void BtnPressureAnalysis_Click(object sender, RoutedEventArgs e)
     {
         new PressureAnalysisWindow(GetDatabasePath()) { Owner = this }.Show();
+    }
+
+    private void BtnDatabaseMaintenance_Click(object sender, RoutedEventArgs e)
+    {
+        new DatabaseMaintenanceWindow(GetDatabasePath(), GetCandleCachePath()) { Owner = this }.Show();
     }
 
     private void BtnStrategyLab_Click(object sender,RoutedEventArgs e) => new StrategyLabWindow(_labRepository) { Owner=this }.Show();
@@ -1634,6 +1639,15 @@ public partial class MainWindow : Window
         if (!File.Exists(databasePath) && File.Exists(legacyPath))
             File.Copy(legacyPath, databasePath);
         return databasePath;
+    }
+
+    private static string GetCandleCachePath()
+    {
+        string databaseDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "CryptoScanner");
+        Directory.CreateDirectory(databaseDirectory);
+        return Path.Combine(databaseDirectory, "market-cache.db");
     }
 
     // --- Novos métodos auxiliares do Scan Duplo -------------------------------

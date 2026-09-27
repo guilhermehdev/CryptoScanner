@@ -205,6 +205,38 @@ Check(EligibilityEvaluator.MinimumTargetDistance(bollingerRiskAsset, bollingerTh
 Check(EligibilityEvaluator.Evaluate(bollingerRiskAsset, "LATERAL", bollingerThresholds, TradeDirection.Long).FailedBollingerLongSideways &&
       !EligibilityEvaluator.Evaluate(bollingerRiskAsset, "BULL", bollingerThresholds, TradeDirection.Long).FailedBollingerLongSideways,
     "Bollinger Long sideways block applies only in lateral regime");
+var maintenanceDb = Path.Combine(Path.GetTempPath(), $"cryptoscanner-maintenance-{Guid.NewGuid():N}.db");
+await using (var db = new SqliteConnection($"Data Source={maintenanceDb}"))
+{
+    await db.OpenAsync();
+    await using var command = db.CreateCommand();
+    command.CommandText = """
+        CREATE TABLE CandleCache(Symbol TEXT, Interval TEXT, OpenTimeUnixMs INTEGER, Open REAL, High REAL, Low REAL, Close REAL, Volume REAL, PRIMARY KEY(Symbol, Interval, OpenTimeUnixMs));
+        CREATE TABLE CandleCacheRanges(Symbol TEXT, Interval TEXT, RangeStartMs INTEGER, RangeEndMs INTEGER);
+        CREATE TABLE Signals(Id INTEGER PRIMARY KEY, Symbol TEXT);
+        INSERT INTO CandleCache VALUES('BTCUSDT','15m',1,1,1,1,1,1),('BTCUSDT','15m',2,1,1,1,1,1);
+        INSERT INTO CandleCacheRanges VALUES('BTCUSDT','15m',1,2);
+        INSERT INTO Signals VALUES(1,'BTCUSDT');
+        """;
+    await command.ExecuteNonQueryAsync();
+}
+var maintenance = new SqliteDatabaseMaintenanceService(maintenanceDb, maintenanceDb);
+Check((await maintenance.GetSnapshotAsync()).CandleCacheHighestRowId == 2,
+    "Storage maintenance reports the candle cache separately");
+await maintenance.ClearCandleCachesAndCompactAsync();
+await using (var db = new SqliteConnection($"Data Source={maintenanceDb};Mode=ReadOnly"))
+{
+    await db.OpenAsync();
+    await using var command = db.CreateCommand();
+    command.CommandText = "SELECT COUNT(*) FROM CandleCache;";
+    var candlesAfterCleanup = Convert.ToInt64(await command.ExecuteScalarAsync());
+    command.CommandText = "SELECT COUNT(*) FROM Signals;";
+    var signalsAfterCleanup = Convert.ToInt64(await command.ExecuteScalarAsync());
+    Check(candlesAfterCleanup == 0 && signalsAfterCleanup == 1,
+        "Storage maintenance clears only candle cache and preserves signals");
+}
+SqliteConnection.ClearAllPools();
+File.Delete(maintenanceDb);
 var archived=new FilterDiagnostics{Thresholds=ScannerProfiles.For(ScanProfile.Swing),MarketRegime="BULL",Analyses=new(){lowRr}};
 var replay=JsonSerializer.Deserialize<FilterDiagnostics>(JsonSerializer.Serialize(archived))!;
 Check(EligibilityEvaluator.Evaluate(replay.Analyses[0],replay.MarketRegime,replay.Thresholds).FailedRiskReward,"Exported full analysis supports exact eligibility replay");
