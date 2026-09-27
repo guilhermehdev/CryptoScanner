@@ -139,6 +139,7 @@ public static class EligibilityEvaluator
                     EntryStrategy.Pullback => !asset.Setup.IsPullbackBounce,
                     EntryStrategy.MeanReversion => !asset.Setup.IsMeanReversionSetup,
                     EntryStrategy.MeanReversionConfirmed => !asset.Setup.IsMeanReversionConfirmedSetup,
+                    EntryStrategy.BollingerLowerReclaim => !asset.Setup.IsBollingerLowerReclaimSetup,
                     _ => failedBreakout
                 };
                 failedConsolidation = strategy == EntryStrategy.Breakout && !asset.Setup.IsConsolidating;
@@ -231,13 +232,13 @@ public static class EligibilityEvaluator
         // Filtro experimental (22/08/2026) — ver EligibilityThresholds.BlockMeanReversionInBear.
         bool failedMeanReversionRegimeFilter =
             thresholds.BlockMeanReversionInBear &&
-            asset.Risk.Mode == RiskCalculationMode.MeanReversionScalp &&
+            asset.Risk.Mode is RiskCalculationMode.MeanReversionScalp or RiskCalculationMode.BollingerReversal &&
             marketRegime == "BEAR";
 
         // Filtro experimental (28/08/2026) — ver EligibilityThresholds.LimitAtrForMeanReversion.
         bool failedMeanReversionAtrFilter =
             thresholds.LimitAtrForMeanReversion &&
-            asset.Risk.Mode == RiskCalculationMode.MeanReversionScalp &&
+            asset.Risk.Mode is RiskCalculationMode.MeanReversionScalp or RiskCalculationMode.BollingerReversal &&
             asset.Trend.AtrPercent > 4m;
 
         return new EligibilityResult

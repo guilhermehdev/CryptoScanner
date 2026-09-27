@@ -22,6 +22,10 @@ public sealed record SetupAnalysis
     // recuperação fechando acima da máxima daquela reação.
     public bool IsMeanReversionConfirmedSetup { get; init; }
 
+    // V3: candle anterior tocou a banda inferior e o candle atual recuperou acima
+    // da máxima desse toque, ainda com espaço até a banda média.
+    public bool IsBollingerLowerReclaimSetup { get; init; }
+
     // Reversão de Bollinger (Fase A do lado de venda) — banda superior + resistência como
     // zona de gatilho, com rejeição confirmada e filtro contra "andar na banda" (momentum
     // de alta forte demais pra brigar). Ver AssetAnalyzer.cs pros detalhes de cada condição.

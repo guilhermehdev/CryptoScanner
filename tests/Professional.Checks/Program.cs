@@ -20,6 +20,14 @@ Check(!MeanReversionConfirmation.IsConfirmed(meanReversionReaction, new Candle {
     "Mean Reversion V2 rejects a candle that does not close above the reaction high");
 Check(MeanReversionConfirmation.StopBelowReaction(meanReversionReaction, 2) == 97.7m,
     "Mean Reversion V2 stop stays below the reaction low with an ATR buffer");
+var bollingerTouch = new Candle { Open = 101, Close = 100, High = 101, Low = 98 };
+var bollingerRecovery = new Candle { Open = 100, Close = 101.1m, High = 101.5m, Low = 99.5m };
+Check(BollingerLowerReclaim.IsConfirmed(bollingerTouch, bollingerRecovery, 99, 99.5m, 103),
+    "Bollinger Long V3 requires a lower-band touch and a confirmed reclaim");
+Check(!BollingerLowerReclaim.IsConfirmed(bollingerTouch, new Candle { Open = 100, Close = 101, High = 101.5m, Low = 99.5m }, 99, 99.5m, 103),
+    "Bollinger Long V3 rejects a recovery that does not close above the touch high");
+Check(BollingerLowerReclaim.StopBelowLowerBand(99, 2) == 98.5m,
+    "Bollinger Long V3 stop stays below the lower band with an ATR buffer");
 AssetAnalysis Asset(string symbol,decimal volume=2)=>new(){Symbol=symbol,EntryStrategy=EntryStrategy.Breakout,OpportunityScore=85,
  Trend=new(){Close=100,Direction="ALTA"},Volume=new(){Spike=volume},Structure=new(),Candle=new(),Setup=new(){IsBreakout=true,IsConsolidating=true},
  Risk=new(){Mode=RiskCalculationMode.SwingWithPartialExits,Support=95,Resistance=120,TakeProfit1=112,TakeProfit3=130,SupportDistancePercent=5,ResistanceDistancePercent=20,RiskReward=4}};
@@ -228,7 +236,7 @@ Check(shortBreakoutProfile.MaxStopDistancePercent == 15 && shortBreakoutProfile.
     "Live Short breakout profile matches the chronologically validated stop, ADX and sideways filters");
 Check(TradingStrategyProfiles.EntryStrategyFor(TradingStrategyProfile.BreakoutTrend) == EntryStrategy.Breakout &&
       TradingStrategyProfiles.EntryStrategyFor(TradingStrategyProfile.PullbackTrend) == EntryStrategy.Pullback &&
-      TradingStrategyProfiles.EntryStrategyFor(TradingStrategyProfile.MeanReversion) == EntryStrategy.MeanReversionConfirmed,
+      TradingStrategyProfiles.EntryStrategyFor(TradingStrategyProfile.MeanReversion) == EntryStrategy.BollingerLowerReclaim,
     "Independent strategy profiles map to their own entry rules");
 Check(shortExperimentalProfile.MinVolumeSpike == ScannerSettings.ShortBalancedMinVolumeSpike &&
       shortExperimentalProfile.MinResistanceDistancePartialExits == ScannerSettings.ShortBalancedMinResistanceDistancePartialExits,

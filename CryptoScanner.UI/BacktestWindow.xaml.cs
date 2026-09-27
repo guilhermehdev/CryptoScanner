@@ -297,7 +297,8 @@ public partial class BacktestWindow : Window
         EntryStrategy.Breakout => TradingStrategyProfiles.DisplayName(TradingStrategyProfile.BreakoutTrend),
         EntryStrategy.Pullback => TradingStrategyProfiles.DisplayName(TradingStrategyProfile.PullbackTrend),
         EntryStrategy.MeanReversion => "Mean Reversion V1",
-        EntryStrategy.MeanReversionConfirmed => TradingStrategyProfiles.DisplayName(TradingStrategyProfile.MeanReversion),
+        EntryStrategy.MeanReversionConfirmed => "Mean Reversion V2 (confirmada)",
+        EntryStrategy.BollingerLowerReclaim => TradingStrategyProfiles.DisplayName(TradingStrategyProfile.MeanReversion),
         _ => strategy.ToString()
     };
 
@@ -333,7 +334,8 @@ public partial class BacktestWindow : Window
                 break;
             case TradingStrategyProfile.MeanReversion:
                 chkEnablePullbackBounce.IsChecked = false;
-                chkEnableMeanReversionScalp.IsChecked = true;
+                chkEnableMeanReversionScalp.IsChecked = false;
+                chkEnableBollingerReversal.IsChecked = true;
                 chkBlockMeanReversionInBear.IsChecked = true;
                 chkLimitAtrForMeanReversion.IsChecked = true;
                 break;
@@ -354,7 +356,7 @@ public partial class BacktestWindow : Window
                 rbRiskPartialExits.IsChecked = true;
                 break;
             case TradingStrategyProfile.MeanReversion:
-                rbRiskMeanReversion.IsChecked = true;
+                rbRiskBollingerReversal.IsChecked = true;
                 break;
         }
     }
@@ -492,7 +494,8 @@ public partial class BacktestWindow : Window
             chkEnablePullbackBounce.IsChecked = true;
         if (GetSelectedStrategyProfile() == TradingStrategyProfile.MeanReversion)
         {
-            chkEnableMeanReversionScalp.IsChecked = true;
+            chkEnableMeanReversionScalp.IsChecked = false;
+            chkEnableBollingerReversal.IsChecked = true;
             chkBlockMeanReversionInBear.IsChecked = true;
             chkLimitAtrForMeanReversion.IsChecked = true;
         }
@@ -617,10 +620,10 @@ public partial class BacktestWindow : Window
             EnableBollingerScoring = true,
             EnableVolatilityScoringPhaseB = chkEnableVolatilityScoringPhaseB.IsChecked == true,
             EnableMultiTimeframe = chkEnableMultiTimeframe.IsChecked == true,
-            EnableMeanReversionScalp = GetSelectedStrategyProfile() == TradingStrategyProfile.MeanReversion,
+            EnableMeanReversionScalp = false,
             BlockMeanReversionInBear = chkBlockMeanReversionInBear.IsChecked == true,
             LimitAtrForMeanReversion = chkLimitAtrForMeanReversion.IsChecked == true,
-            EnableBollingerReversal = chkEnableBollingerReversal.IsChecked == true,
+            EnableBollingerReversal = GetSelectedStrategyProfile() == TradingStrategyProfile.MeanReversion || chkEnableBollingerReversal.IsChecked == true,
             RequireBearishMomentumConfirmed = chkRequireBearishMomentum.IsChecked == true,
             BlockShortInSideways = chkBlockShortInSideways.IsChecked == true,
             EnableLowRsiPath = false
@@ -651,9 +654,9 @@ public partial class BacktestWindow : Window
             MessageBox.Show("Os experimentos estruturais pertencem aos perfis Breakout Trend ou Pullback Trend.", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
-        if (strategyProfile == TradingStrategyProfile.MeanReversion && (profile.Name != ScanProfile.Scalp.Name || direction != TradeDirection.Long || selectedRiskMode != RiskCalculationMode.MeanReversionScalp))
+        if (strategyProfile == TradingStrategyProfile.MeanReversion && (profile.Name != ScanProfile.Scalp.Name || direction != TradeDirection.Long || selectedRiskMode != RiskCalculationMode.BollingerReversal))
         {
-            MessageBox.Show("Mean Reversion é experimental e só pode ser testado como Compra no perfil Scalp com o risco Reversão à Média.", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show("Reversão Bollinger Long é experimental e só pode ser testada como Compra no perfil Scalp com o risco Reversão de Bollinger.", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 

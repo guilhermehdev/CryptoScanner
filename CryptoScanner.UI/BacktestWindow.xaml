@@ -33,7 +33,7 @@
                     <ComboBox x:Name="cmbStrategyProfile" Width="205" SelectedIndex="0" Margin="0,0,12,0" SelectionChanged="StrategyProfile_Changed" ToolTip="Cada perfil tem um gatilho próprio e é registrado separadamente no histórico.">
                         <ComboBoxItem Content="Breakout Trend"/>
                         <ComboBoxItem Content="Pullback Trend"/>
-                        <ComboBoxItem Content="Mean Reversion V2 (confirmada)"/>
+                        <ComboBoxItem Content="Reversão Bollinger Long (V3)"/>
                     </ComboBox>
                     <TextBlock Text="Perfil:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <RadioButton x:Name="rbBacktestIntraday" Content="Intraday (1h / 24h)" GroupName="BacktestProfile" Margin="0,0,12,0" VerticalAlignment="Center"/>
@@ -132,7 +132,7 @@
                         <RadioButton x:Name="rbRiskPartialExits" Content="Swing + Resistência Pontuada (4.1)" GroupName="RiskMode" IsChecked="True" Margin="0,0,0,8"/>
                         <RadioButton x:Name="rbRiskIntradayLocal" Content="Intraday: rompimento + reteste (experimental)" GroupName="RiskMode" Margin="0,0,0,8" ToolTip="Exclusivo do perfil Intraday. Exige rompimento confirmado no candle anterior, reteste no candle atual, stop por invalidação local e alvo 2R. Ainda não validado para uso ao vivo."/>
                         <RadioButton x:Name="rbRiskMeanReversion" Content="Reversão à Média (Scalp, não validado)" GroupName="RiskMode" Margin="0,0,0,8"/>
-                        <RadioButton x:Name="rbRiskBollingerReversal" Content="Reversão de Bollinger (Venda, não validado)" GroupName="RiskMode" Margin="0,0,0,10"/>
+                        <RadioButton x:Name="rbRiskBollingerReversal" Content="Reversão de Bollinger (não validada)" GroupName="RiskMode" Margin="0,0,0,10"/>
                         <Separator Margin="0,0,0,8"/>
                         <TextBlock Text="Experimentos" FontWeight="Bold" Margin="0,0,0,6"/>
                         <CheckBox x:Name="chkEnableVolatilityScoringPhaseB" Content="Volatility Scoring — Fase B" Margin="0,0,0,8"/>
@@ -141,7 +141,7 @@
                         <CheckBox x:Name="chkEnableMeanReversionScalp" Content="Reversão à Média (Scalp)" Margin="0,0,0,8"/>
                         <CheckBox x:Name="chkBlockMeanReversionInBear" Content="Bloquear Reversão à Média em BEAR" Margin="0,0,0,8"/>
                         <CheckBox x:Name="chkLimitAtrForMeanReversion" Content="Limitar ATR% no Reversão à Média" Margin="0,0,0,8"/>
-                        <CheckBox x:Name="chkEnableBollingerReversal" Content="Reversão de Bollinger (Venda)" Margin="0,0,0,8"/>
+                        <CheckBox x:Name="chkEnableBollingerReversal" Content="Reversão de Bollinger" Margin="0,0,0,8"/>
                         <CheckBox x:Name="chkRequireBearishMomentum" Content="Exigir momentum baixista (Short)" Margin="0,0,0,8"/>
                         <CheckBox x:Name="chkBlockShortInSideways" Content="Bloquear Short em lateral"/>
                     </StackPanel>

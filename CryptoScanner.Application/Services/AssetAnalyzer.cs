@@ -375,6 +375,20 @@ public sealed class AssetAnalyzer
                     hasBullishReaction);
         }
 
+        // V3: o candle anterior tocou a banda inferior e o atual recuperou acima
+        // da máxima daquele toque, mantendo a banda média como alvo ainda à frente.
+        bool isBollingerLowerReclaimSetup = false;
+        if (direction == TradeDirection.Long && bollinger.HasValue && candles.Count >= 2)
+        {
+            isBollingerLowerReclaimSetup = structure.IsUptrend &&
+                BollingerLowerReclaim.IsConfirmed(
+                    candles[^2],
+                    candles[^1],
+                    bollinger.Value.Lower[^2],
+                    bollinger.Value.Lower[^1],
+                    bollinger.Value.Middle[^1]);
+        }
+
         // Reversão de Bollinger (Fase A do lado de venda) — banda superior + resistência
         // como ZONA DE GATILHO (não fechamento obrigatório acima, nem alvo — o alvo é a
         // volta pra banda média). Exige rejeição confirmada e um filtro contra "andar na
@@ -439,6 +453,7 @@ public sealed class AssetAnalyzer
             IsPullbackBounce = isPullbackBounce,
             IsMeanReversionSetup = isMeanReversionSetup,
             IsMeanReversionConfirmedSetup = isMeanReversionConfirmedSetup,
+            IsBollingerLowerReclaimSetup = isBollingerLowerReclaimSetup,
             IsBollingerReversalSetup = isBollingerReversalSetup,
             IsLowRsiSetup = isLowRsiSetup
         };
@@ -448,6 +463,28 @@ public sealed class AssetAnalyzer
         (List<decimal?> Middle, List<decimal?> Upper, List<decimal?> Lower, List<decimal?> BandWidthPercent)? bollinger = null,
         List<Candle>? symbolDailyCandles = null, int targetZoneExperiment = 0)
     {
+        if (mode == RiskCalculationMode.BollingerReversal && direction == TradeDirection.Long && bollinger.HasValue)
+        {
+            decimal? currentMiddle = bollinger.Value.Middle[^1];
+            decimal? currentLower = bollinger.Value.Lower[^1];
+            if (currentMiddle is > 0 && currentLower is > 0 && currentMiddle > close)
+            {
+                decimal stop = BollingerLowerReclaim.StopBelowLowerBand(currentLower.Value, atr);
+                decimal targetDistance = (currentMiddle.Value - close) / close * 100m;
+                decimal stopDistance = (close - stop) / close * 100m;
+
+                return new RiskAnalysis
+                {
+                    Support = stop,
+                    Resistance = currentMiddle.Value,
+                    SupportDistancePercent = stopDistance,
+                    ResistanceDistancePercent = targetDistance,
+                    RiskReward = stopDistance > 0 ? targetDistance / stopDistance : 0,
+                    Mode = RiskCalculationMode.BollingerReversal
+                };
+            }
+        }
+
         if (mode == RiskCalculationMode.BollingerReversal && direction == TradeDirection.Short && bollinger.HasValue)
         {
             decimal? currentMiddle = bollinger.Value.Middle[^1];
