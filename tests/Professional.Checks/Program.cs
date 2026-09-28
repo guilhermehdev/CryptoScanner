@@ -247,6 +247,11 @@ StrategyDiagnosticRecorder.Record(buckets,fixture,new EligibilityEvaluator.Eligi
 Check(buckets.Strategies["Breakout"].Evaluated==2 && buckets.Strategies["Breakout"].Triggered==1 && !buckets.Strategies["Breakout"].Rejections.ContainsKey("FailedScore"),"Non-trigger candles do not inflate candidate blockers");
 var merged=new FilterDiagnostics();StrategyBacktester.MergeDiagnostics(merged,buckets);
 Check(merged.Strategies["Breakout"].Samples.Count==1 && merged.Strategies["Breakout"].Samples[0].Stop==lowRr.Risk.Support,"Merging preserves rejection levels");
+var shortDiagnostics = new FilterDiagnostics();
+StrategyDiagnosticRecorder.Record(shortDiagnostics, shortFixture, new EligibilityEvaluator.EligibilityResult { FailedScore = true }, day);
+var shortSample = shortDiagnostics.Strategies["Legacy"].Samples.Single();
+Check(shortSample.Stop == shortFixture.Risk.Resistance && shortSample.Target == shortFixture.Risk.Support,
+    "Short diagnostic sample uses the execution stop above and target below entry");
 var excursion=new PreExitExcursion();excursion.Observe(new Candle{High=108,Low=97},100,TradeDirection.Long);
 Check(excursion.FavorablePercent==8 && excursion.AdversePercent==3 && excursion.Candles==1,"Long excursion records favorable and adverse movement");
 var shortExcursion=new PreExitExcursion();shortExcursion.Observe(new Candle{High=108,Low=97},100,TradeDirection.Short);

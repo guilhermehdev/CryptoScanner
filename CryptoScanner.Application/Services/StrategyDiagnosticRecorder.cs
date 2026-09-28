@@ -31,7 +31,19 @@ public static class StrategyDiagnosticRecorder
         if(failures.Length==0){bucket.Eligible++;return;}
         foreach(var name in failures) bucket.Rejections[name]=bucket.Rejections.GetValueOrDefault(name)+1;
         if(failures.Length==1) bucket.SoleBlocker[failures[0]]=bucket.SoleBlocker.GetValueOrDefault(failures[0])+1;
-        if(bucket.Samples.Count<30) bucket.Samples.Add(new(asset.Symbol,at,asset.Trend.Close,asset.Risk.Support,asset.Risk.Resistance,asset.Risk.RiskReward,failures){TargetZone=asset.Direction == TradeDirection.Short ? null : asset.Risk.TargetZone});
+        if (bucket.Samples.Count < 30)
+        {
+            // RiskAnalysis sempre preserva a geometria do gráfico: Support abaixo e
+            // Resistance acima. Para venda, portanto, Resistance é o stop e Support
+            // é o alvo. O diagnóstico deve usar a mesma semântica da execução, senão
+            // a amostra exportada induz a leitura de um Short invertido.
+            decimal stop = asset.Direction == TradeDirection.Short ? asset.Risk.Resistance : asset.Risk.Support;
+            decimal target = asset.Direction == TradeDirection.Short ? asset.Risk.Support : asset.Risk.Resistance;
+            bucket.Samples.Add(new(asset.Symbol, at, asset.Trend.Close, stop, target, asset.Risk.RiskReward, failures)
+            {
+                TargetZone = asset.Direction == TradeDirection.Short ? null : asset.Risk.TargetZone
+            });
+        }
     }
 
     private static string[] FailedFilterNames(EligibilityEvaluator.EligibilityResult result) =>
