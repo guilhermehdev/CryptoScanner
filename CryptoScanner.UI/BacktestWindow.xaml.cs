@@ -31,6 +31,7 @@ public partial class BacktestWindow : Window
     private readonly IBacktestRunResultRepository _runResultRepository;
     private CancellationTokenSource? _cts;
     private List<BacktestTradeResult> _lastDisplayedTrades = new();
+    private List<BacktestResearchCandidate> _lastResearchCandidates = new();
     private FilterDiagnostics? _exportDiagnostics;
 
     public BacktestWindow(IMarketDataService marketData, AssetAnalyzer assetAnalyzer, string databasePath)
@@ -727,6 +728,7 @@ public partial class BacktestWindow : Window
         dgTrades.ItemsSource = null;
         cnvEquityCurve.Children.Clear();
         _lastDisplayedTrades = new List<BacktestTradeResult>();
+        _lastResearchCandidates = new List<BacktestResearchCandidate>();
         _exportDiagnostics=null;
         txtSummaryResult.Text = "";
         _cts = new CancellationTokenSource();
@@ -790,6 +792,7 @@ public partial class BacktestWindow : Window
                 : "sem teto";
 
             _exportDiagnostics=summary.Diagnostics;
+            _lastResearchCandidates = summary.ResearchCandidates;
             txtSummaryResult.Text =
                 $"Modo: {SelectedTestModeLabel} | Risco: {selectedRiskMode} | Direção: {(direction == TradeDirection.Short ? "VENDA (Short)" : "Compra")} | " +
                 $"Score≥{thresholds.BuyOpportunityScore:F0} | RR mín.={thresholds.MinRiskReward:F1} | Stop mín.={thresholds.MinStopDistancePercent:F0}% | Stop máx.={maxStopText}" +
@@ -1047,10 +1050,36 @@ public partial class BacktestWindow : Window
             // BOM UTF-8 — sem isso, o Excel às vezes abre acentos/caracteres especiais
             // corrompidos mesmo o arquivo estando salvo certo.
             File.WriteAllText(dialog.FileName, sb.ToString(), new UTF8Encoding(true));
+            string researchInfo = "";
+            if (_lastResearchCandidates.Count > 0)
+            {
+                string researchPath = System.IO.Path.Combine(
+                    System.IO.Path.GetDirectoryName(dialog.FileName)!,
+                    System.IO.Path.GetFileNameWithoutExtension(dialog.FileName) + "_pesquisa.csv");
+                var research = new StringBuilder();
+                research.AppendLine("Symbol;Direction;Strategy;DecisionTime;EntryTime;EntryPrice;MarketRegime;PassedAllFilters;Failures;Score;Rsi;Adx;AtrPercent;VolumeSpike;VolumeImbalance;CloseAfter6Hours;ReturnAfter6HoursPercent;CloseAfter24Hours;ReturnAfter24HoursPercent;MaximumFavorable24HoursPercent;MaximumAdverse24HoursPercent");
+                foreach (var candidate in _lastResearchCandidates)
+                {
+                    research.AppendLine(string.Join(";",
+                        candidate.Symbol, candidate.Direction, candidate.Strategy,
+                        candidate.DecisionTime.ToString("yyyy-MM-dd HH:mm", culture),
+                        candidate.EntryTime.ToString("yyyy-MM-dd HH:mm", culture),
+                        candidate.EntryPrice.ToString("0.########", culture), candidate.MarketRegime,
+                        candidate.PassedAllFilters, candidate.Failures,
+                        candidate.Score.ToString("F2", culture), candidate.Rsi.ToString("F2", culture),
+                        candidate.Adx.ToString("F2", culture), candidate.AtrPercent.ToString("F2", culture),
+                        candidate.VolumeSpike.ToString("F2", culture), candidate.VolumeImbalance.ToString("F2", culture),
+                        candidate.CloseAfter6Hours.ToString("yyyy-MM-dd HH:mm", culture), candidate.ReturnAfter6HoursPercent.ToString("F4", culture),
+                        candidate.CloseAfter24Hours.ToString("yyyy-MM-dd HH:mm", culture), candidate.ReturnAfter24HoursPercent.ToString("F4", culture),
+                        candidate.MaximumFavorable24HoursPercent.ToString("F4", culture), candidate.MaximumAdverse24HoursPercent.ToString("F4", culture)));
+                }
+                File.WriteAllText(researchPath, research.ToString(), new UTF8Encoding(true));
+                researchInfo = $"\nBase de pesquisa: {researchPath}";
+            }
             if(_exportDiagnostics is not null)
                 File.WriteAllText(System.IO.Path.ChangeExtension(dialog.FileName,"diagnosticos.json"),System.Text.Json.JsonSerializer.Serialize(new { EngineVersion=StrategyBacktester.EngineVersion, Diagnostics=_exportDiagnostics },new System.Text.Json.JsonSerializerOptions{WriteIndented=true}),new UTF8Encoding(true));
 
-            MessageBox.Show($"Exportado com sucesso:\n{dialog.FileName}\nDiagnósticos por estratégia: arquivo .diagnosticos.json ao lado do CSV (quando disponíveis).", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show($"Exportado com sucesso:\n{dialog.FileName}\nDiagnósticos por estratégia: arquivo .diagnosticos.json ao lado do CSV (quando disponíveis).{researchInfo}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
@@ -1115,10 +1144,12 @@ public partial class BacktestWindow : Window
         dgTrades.ItemsSource = null;
         cnvEquityCurve.Children.Clear();
         _lastDisplayedTrades = new List<BacktestTradeResult>();
+        _lastResearchCandidates = new List<BacktestResearchCandidate>();
         _exportDiagnostics=null;
         txtSummaryResult.Text = "";
         var results = new List<ScenarioResult>();
         var allTrades = new List<BacktestTradeResult>();
+        var allResearchCandidates = new List<BacktestResearchCandidate>();
         var aggregatedDiagnostics = new FilterDiagnostics();
         _cts = new CancellationTokenSource();
 
@@ -1168,12 +1199,13 @@ public partial class BacktestWindow : Window
                 });
 
                 allTrades.AddRange(summary.Trades);
+                allResearchCandidates.AddRange(summary.ResearchCandidates);
                 StrategyBacktester.MergeDiagnostics(aggregatedDiagnostics, summary.Diagnostics);
             }
 
             // Junta todos os trades de todos os períodos numa amostra só — mais poder estatístico
             // do que qualquer período isolado.
-            var pooledSummary = StrategyBacktester.BuildSummary(allTrades, aggregatedDiagnostics, new List<string>());
+            var pooledSummary = StrategyBacktester.BuildSummary(allTrades, aggregatedDiagnostics, new List<string>(), allResearchCandidates);
             _exportDiagnostics=aggregatedDiagnostics;
             var spanStart = DateTime.SpecifyKind(anchorEnd.AddYears(-periodCount * periodYears), DateTimeKind.Utc);
             await SaveRunResultAsync("TOTAL (todos os períodos juntos)", symbols, spanStart, anchorEnd, profile, liveThresholds, RiskCalculationMode.SwingWithPartialExits, null, pooledSummary, direction: direction);
@@ -1195,6 +1227,7 @@ public partial class BacktestWindow : Window
             dgComparison.Visibility = Visibility.Visible;
 
             var orderedAllTrades = allTrades.OrderBy(t => t.ExitTime).ToList();
+            _lastResearchCandidates = allResearchCandidates;
             dgTrades.ItemsSource = orderedAllTrades;
             DrawEquityCurve(orderedAllTrades);
 

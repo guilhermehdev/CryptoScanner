@@ -288,7 +288,8 @@ Check(shortBreakoutProfile.MaxStopDistancePercent == 15 && shortBreakoutProfile.
     "Live Short breakout profile matches the chronologically validated stop, ADX and sideways filters");
 Check(TradingStrategyProfiles.EntryStrategyFor(TradingStrategyProfile.BreakoutTrend) == EntryStrategy.Breakout &&
       TradingStrategyProfiles.EntryStrategyFor(TradingStrategyProfile.PullbackTrend) == EntryStrategy.Pullback &&
-      TradingStrategyProfiles.EntryStrategyFor(TradingStrategyProfile.MeanReversion) == EntryStrategy.BollingerLowerReclaim,
+      TradingStrategyProfiles.EntryStrategyFor(TradingStrategyProfile.MeanReversion) == EntryStrategy.BollingerLowerReclaim &&
+      TradingStrategyProfiles.EntryStrategyFor(TradingStrategyProfile.IntradayBreakoutRetest) == EntryStrategy.IntradayBreakoutRetest,
     "Independent strategy profiles map to their own entry rules");
 Check(shortExperimentalProfile.MinVolumeSpike == ScannerSettings.ShortBalancedMinVolumeSpike &&
       shortExperimentalProfile.MinResistanceDistancePartialExits == ScannerSettings.ShortBalancedMinResistanceDistancePartialExits,
@@ -345,6 +346,17 @@ var retestFixture = new AssetAnalysis
 };
 Check(EligibilityEvaluator.Evaluate(retestFixture, "BULL", retestThresholds, TradeDirection.Long).IsEligible,
     "Perfil Intraday usa o gatilho de rompimento e reteste sem depender do breakout clássico");
+var researchCandles = Enumerable.Range(0, 25).Select(i => new Candle
+{
+    OpenTime = day.AddHours(i), Open = 100, Close = 100, High = 101, Low = 99
+}).ToList();
+researchCandles[5] = new Candle { OpenTime = day.AddHours(5), Open = 100, Close = 104, High = 105, Low = 98 };
+researchCandles[23] = new Candle { OpenTime = day.AddHours(23), Open = 104, Close = 110, High = 112, Low = 95 };
+var research = CandidateOutcomeResearch.TryCreate(researchCandles, 0, TimeSpan.FromHours(1), retestFixture, "BULL", true, Array.Empty<string>());
+Check(research is not null && research.CloseAfter6Hours == day.AddHours(6) && research.CloseAfter24Hours == day.AddHours(24) &&
+      research.ReturnAfter6HoursPercent == 4 && research.ReturnAfter24HoursPercent == 10 &&
+      research.MaximumFavorable24HoursPercent == 12 && research.MaximumAdverse24HoursPercent == 5,
+    "Research candidate records future outcomes from the next-open entry without execution rules");
 intradaySetupCandles = Enumerable.Range(0, 22).Select(i => new Candle
 {
     OpenTime = day.AddHours(i), Open = 105m, Close = 105m, High = 110m, Low = 100m, Volume = 100m

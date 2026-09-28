@@ -11,6 +11,7 @@ public sealed class BacktestSummary
     public required decimal MaxDrawdownPercent { get; init; }
     public required decimal ProfitFactor { get; init; }
     public required List<BacktestTradeResult> Trades { get; init; }
+    public required List<BacktestResearchCandidate> ResearchCandidates { get; init; }
     public required FilterDiagnostics Diagnostics { get; init; }
     public required List<string> SkippedSymbols { get; init; }
 

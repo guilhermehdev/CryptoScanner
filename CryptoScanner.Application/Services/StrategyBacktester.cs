@@ -59,6 +59,7 @@ public sealed class StrategyBacktester
         var btcDailyCandles = await _marketData.GetHistoricalCandlesAsync("BTCUSDT", "1d", dailyFetchStart, endUtc, cancellationToken);
 
         var allTrades = new List<BacktestTradeResult>();
+        var allResearchCandidates = new List<BacktestResearchCandidate>();
         var diagnostics = new FilterDiagnostics
         {
             StartedUtc = DateTime.UtcNow,
@@ -117,12 +118,16 @@ public sealed class StrategyBacktester
                     return;
                 }
 
-                var (trades, symbolDiagnostics) = await Task.Run(
+                var (trades, researchCandidates, symbolDiagnostics) = await Task.Run(
                     () => SimulateSymbol(symbol, candles, btcCandles, btcDailyCandles, symbolDailyCandles, startUtc, profile, thresholds, riskMode, evaluationHoursOverride, partialExitFractions, disableTimeout, direction, useInvertedRsiMomentum,
                         (message, _) => { }),
                     cancellationToken);
 
-                lock (tradesLock) { allTrades.AddRange(trades); }
+                lock (tradesLock)
+                {
+                    allTrades.AddRange(trades);
+                    allResearchCandidates.AddRange(researchCandidates);
+                }
                 lock (diagnosticsLock) { MergeDiagnostics(diagnostics, symbolDiagnostics); }
             }
             finally
@@ -140,10 +145,10 @@ public sealed class StrategyBacktester
         diagnostics.CompletedUtc = DateTime.UtcNow;
         diagnostics.SignalsSaved = allTrades.Count;
         onProgress?.Invoke("Calculando resumo...", 100);
-        return BuildSummary(allTrades, diagnostics, skippedSymbols);
+        return BuildSummary(allTrades, diagnostics, skippedSymbols, allResearchCandidates);
     }
 
-    private (List<BacktestTradeResult> Trades, FilterDiagnostics Diagnostics) SimulateSymbol(
+    private (List<BacktestTradeResult> Trades, List<BacktestResearchCandidate> ResearchCandidates, FilterDiagnostics Diagnostics) SimulateSymbol(
         string symbol,
         List<Candle> candles,
         List<Candle> btcCandles,
@@ -161,12 +166,14 @@ public sealed class StrategyBacktester
         Action<string, double>? onProgress)
     {
         var trades = new List<BacktestTradeResult>();
+        var researchCandidates = new List<BacktestResearchCandidate>();
         var diagnostics = new FilterDiagnostics();
+        var intervalSpan = CandleIntervalHelper.ToTimeSpan(profile.CandleInterval);
         BacktestOpenPosition? openPosition = null;
         var lastSignalTimeByKey = new Dictionary<string, DateTime>();
 
         int startIndex = candles.FindIndex(c => c.OpenTime >= startUtc);
-        if(startIndex<0)return(trades,diagnostics);
+        if(startIndex<0)return(trades,researchCandidates,diagnostics);
         if (startIndex < LookbackCandles)
             startIndex = LookbackCandles;
 
@@ -402,6 +409,19 @@ public sealed class StrategyBacktester
             diagnostics.TotalAnalyzed++;
             StrategyDiagnosticRecorder.Record(diagnostics,analysis,eligibility,decisionTime);
 
+            // Registra todo gatilho com desfecho observável em 6h/24h, antes de abrir
+            // posições ou aplicar filtros. A pesquisa usa a abertura do candle seguinte,
+            // a mesma convenção temporal adotada pela simulação de trades.
+            if (!eligibility.FailedBreakout && i + 1 < candles.Count)
+            {
+                var failures = typeof(EligibilityEvaluator.EligibilityResult).GetProperties()
+                    .Where(property => property.Name.StartsWith("Failed") && (bool)property.GetValue(eligibility)!)
+                    .Select(property => property.Name);
+                var candidate = CandidateOutcomeResearch.TryCreate(candles, i + 1, intervalSpan, analysis, marketRegime, eligibility.IsEligible, failures);
+                if (candidate is not null)
+                    researchCandidates.Add(candidate);
+            }
+
             if (eligibility.FailedScore) diagnostics.FailedScore++;
             if (eligibility.FailedBreakout) diagnostics.FailedBreakout++;
             if (eligibility.FailedConsolidation) diagnostics.FailedConsolidation++;
@@ -556,7 +576,7 @@ public sealed class StrategyBacktester
         if (skippedInsufficientData > 0 && diagnostics.TotalAnalyzed == 0)
             System.Diagnostics.Debug.WriteLine($"[Backtest] {symbol}: todas as {skippedInsufficientData} janelas puladas por falta de candles de BTC suficientes.");
 
-        return (trades, diagnostics);
+        return (trades, researchCandidates, diagnostics);
     }
 
     private static void RecordEntryRejection(FilterDiagnostics diagnostics, string reason)
@@ -812,7 +832,7 @@ public sealed class StrategyBacktester
         return false;
     }
 
-    public static BacktestSummary BuildSummary(List<BacktestTradeResult> trades, FilterDiagnostics diagnostics, List<string> skippedSymbols)
+    public static BacktestSummary BuildSummary(List<BacktestTradeResult> trades, FilterDiagnostics diagnostics, List<string> skippedSymbols, List<BacktestResearchCandidate>? researchCandidates = null)
     {
         var ordered = trades.OrderBy(t => t.ExitTime).ToList();
         int total = ordered.Count;
@@ -857,6 +877,7 @@ public sealed class StrategyBacktester
             MaxDrawdownPercent = maxDrawdown,
             ProfitFactor = profitFactor,
             Trades = ordered,
+            ResearchCandidates = researchCandidates ?? new List<BacktestResearchCandidate>(),
             Diagnostics = diagnostics,
             SkippedSymbols = skippedSymbols,
             AvgRiskRewardAtEntry = avgRiskReward,
