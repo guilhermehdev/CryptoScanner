@@ -8,7 +8,8 @@ public enum TradingStrategyProfile
 {
     BreakoutTrend,
     PullbackTrend,
-    MeanReversion
+    MeanReversion,
+    IntradayBreakoutRetest
 }
 
 public static class TradingStrategyProfiles
@@ -18,6 +19,7 @@ public static class TradingStrategyProfiles
         TradingStrategyProfile.BreakoutTrend => EntryStrategy.Breakout,
         TradingStrategyProfile.PullbackTrend => EntryStrategy.Pullback,
         TradingStrategyProfile.MeanReversion => EntryStrategy.BollingerLowerReclaim,
+        TradingStrategyProfile.IntradayBreakoutRetest => EntryStrategy.IntradayBreakoutRetest,
         _ => throw new ArgumentOutOfRangeException(nameof(profile), profile, null)
     };
 
@@ -26,6 +28,7 @@ public static class TradingStrategyProfiles
         TradingStrategyProfile.BreakoutTrend => "Breakout Trend",
         TradingStrategyProfile.PullbackTrend => "Pullback Trend",
         TradingStrategyProfile.MeanReversion => "Reversão Bollinger Long (V3)",
+        TradingStrategyProfile.IntradayBreakoutRetest => "Rompimento + Reteste Intraday (experimental)",
         _ => profile.ToString()
     };
 }

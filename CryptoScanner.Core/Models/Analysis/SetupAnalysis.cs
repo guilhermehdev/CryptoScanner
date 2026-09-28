@@ -26,6 +26,10 @@ public sealed record SetupAnalysis
     // da máxima desse toque, ainda com espaço até a banda média.
     public bool IsBollingerLowerReclaimSetup { get; init; }
 
+    // Rompimento fechado seguido de reteste confirmado no candle seguinte.
+    // Usado somente pelo perfil experimental de backtest Intraday.
+    public bool IsIntradayBreakoutRetestSetup { get; init; }
+
     // Reversão de Bollinger (Fase A do lado de venda) — banda superior + resistência como
     // zona de gatilho, com rejeição confirmada e filtro contra "andar na banda" (momentum
     // de alta forte demais pra brigar). Ver AssetAnalyzer.cs pros detalhes de cada condição.

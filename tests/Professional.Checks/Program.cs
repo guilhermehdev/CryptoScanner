@@ -319,6 +319,27 @@ intradaySetupCandles[^2] = new Candle { Open = 100m, Close = 102m, High = 103m, 
 intradaySetupCandles[^1] = new Candle { Open = 100.5m, Close = 101m, High = 102m, Low = 100m, Volume = 120m };
 Check(IntradayBreakoutRetestIndicator.IsConfirmed(intradaySetupCandles, 2m, TradeDirection.Long),
     "Intraday Long exige rompimento fechado e reteste confirmado");
+var retestThresholds = new EligibilityThresholds
+{
+    EntryStrategy = EntryStrategy.IntradayBreakoutRetest,
+    BuyOpportunityScore = 0, BearRegimePenalty = 0, SidewaysRegimePenalty = 0,
+    MinVolumeSpike = 0, DefensiveMinVolumeSpike = 0,
+    MinResistanceDistance = 0, MinResistanceDistanceAtrMode = 0,
+    MinRiskReward = 0, MinRelativeStrengthPercent = 0, MinStopDistancePercent = 0,
+    MaxRiskReward = 999, EnablePullbackBounce = false, EnableBollingerScoring = false,
+    EnableVolatilityScoringPhaseB = false, MinResistanceDistancePartialExits = 0,
+    EnableMultiTimeframe = false
+};
+var retestFixture = new AssetAnalysis
+{
+    Symbol = "RETEST", Direction = TradeDirection.Long, EntryStrategy = EntryStrategy.IntradayBreakoutRetest,
+    OpportunityScore = 80, Trend = new() { Close = 100, Direction = "ALTA" }, Volume = new() { Spike = 1 },
+    Structure = new(), Candle = new(), Setup = new() { IsIntradayBreakoutRetestSetup = true },
+    Risk = new() { Mode = RiskCalculationMode.IntradayLocal, Support = 95, Resistance = 110,
+        SupportDistancePercent = 5, ResistanceDistancePercent = 10, RiskReward = 2 }
+};
+Check(EligibilityEvaluator.Evaluate(retestFixture, "BULL", retestThresholds, TradeDirection.Long).IsEligible,
+    "Perfil Intraday usa o gatilho de rompimento e reteste sem depender do breakout clássico");
 intradaySetupCandles = Enumerable.Range(0, 22).Select(i => new Candle
 {
     OpenTime = day.AddHours(i), Open = 105m, Close = 105m, High = 110m, Low = 100m, Volume = 100m

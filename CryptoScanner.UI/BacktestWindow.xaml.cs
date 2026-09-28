@@ -293,6 +293,7 @@ public partial class BacktestWindow : Window
     {
         1 => TradingStrategyProfile.PullbackTrend,
         2 => TradingStrategyProfile.MeanReversion,
+        3 => TradingStrategyProfile.IntradayBreakoutRetest,
         _ => TradingStrategyProfile.BreakoutTrend
     };
 
@@ -303,6 +304,7 @@ public partial class BacktestWindow : Window
         EntryStrategy.MeanReversion => "Mean Reversion V1",
         EntryStrategy.MeanReversionConfirmed => "Mean Reversion V2 (confirmada)",
         EntryStrategy.BollingerLowerReclaim => TradingStrategyProfiles.DisplayName(TradingStrategyProfile.MeanReversion),
+        EntryStrategy.IntradayBreakoutRetest => TradingStrategyProfiles.DisplayName(TradingStrategyProfile.IntradayBreakoutRetest),
         _ => strategy.ToString()
     };
 
@@ -346,6 +348,14 @@ public partial class BacktestWindow : Window
                 chkBlockMeanReversionInBear.IsChecked = true;
                 chkLimitAtrForMeanReversion.IsChecked = true;
                 break;
+            case TradingStrategyProfile.IntradayBreakoutRetest:
+                chkEnablePullbackBounce.IsChecked = false;
+                chkEnableMeanReversionScalp.IsChecked = false;
+                chkEnableBollingerReversal.IsChecked = false;
+                chkBlockBollingerLongInSideways.IsChecked = false;
+                chkBlockMeanReversionInBear.IsChecked = false;
+                chkLimitAtrForMeanReversion.IsChecked = false;
+                break;
         }
     }
 
@@ -364,6 +374,10 @@ public partial class BacktestWindow : Window
                 break;
             case TradingStrategyProfile.MeanReversion:
                 rbRiskBollingerReversal.IsChecked = true;
+                break;
+            case TradingStrategyProfile.IntradayBreakoutRetest:
+                rbBacktestIntraday.IsChecked = true;
+                rbRiskIntradayLocal.IsChecked = true;
                 break;
         }
     }
@@ -683,6 +697,12 @@ public partial class BacktestWindow : Window
         if (strategyProfile == TradingStrategyProfile.MeanReversion && (profile.Name != ScanProfile.Scalp.Name || direction != TradeDirection.Long || selectedRiskMode != RiskCalculationMode.BollingerReversal))
         {
             MessageBox.Show("Reversão Bollinger Long é experimental e só pode ser testada como Compra no perfil Scalp com o risco Reversão de Bollinger.", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        if (strategyProfile == TradingStrategyProfile.IntradayBreakoutRetest &&
+            (profile.Name != ScanProfile.Intraday.Name || selectedRiskMode != RiskCalculationMode.IntradayLocal))
+        {
+            MessageBox.Show("Rompimento + Reteste Intraday é experimental e só pode ser testado com o perfil Intraday (1h) e o risco Intraday local.", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 

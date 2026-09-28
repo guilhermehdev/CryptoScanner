@@ -34,6 +34,7 @@
                         <ComboBoxItem Content="Breakout Trend"/>
                         <ComboBoxItem Content="Pullback Trend"/>
                         <ComboBoxItem Content="Reversão Bollinger Long (V3)"/>
+                        <ComboBoxItem Content="Rompimento + Reteste Intraday (experimental)"/>
                     </ComboBox>
                     <TextBlock Text="Perfil:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <RadioButton x:Name="rbBacktestIntraday" Content="Intraday (1h / 24h)" GroupName="BacktestProfile" Margin="0,0,12,0" VerticalAlignment="Center"/>

@@ -10,5 +10,8 @@ public enum EntryStrategy
     // MeanReversion permanece para reproduzir os testes históricos da V1.
     MeanReversionConfirmed,
     // V3: toque na banda inferior seguido de recuperação confirmada.
-    BollingerLowerReclaim
+    BollingerLowerReclaim,
+    // Hipótese independente para pesquisa: rompimento fechado e reteste confirmado
+    // no candle seguinte. Disponível apenas no backtest Intraday.
+    IntradayBreakoutRetest
 }

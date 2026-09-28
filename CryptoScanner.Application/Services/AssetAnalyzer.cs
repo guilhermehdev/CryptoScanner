@@ -389,6 +389,12 @@ public sealed class AssetAnalyzer
                     bollinger.Value.Middle[^1]);
         }
 
+        // Hipótese Intraday independente: o candle anterior rompeu um nível e o
+        // candle atual retestou esse nível, fechando novamente na direção do trade.
+        // O indicador só recebe candles fechados.
+        bool isIntradayBreakoutRetestSetup = mode == RiskCalculationMode.IntradayLocal &&
+            IntradayBreakoutRetestIndicator.IsConfirmed(candles, trend.Atr, direction);
+
         // Reversão de Bollinger (Fase A do lado de venda) — banda superior + resistência
         // como ZONA DE GATILHO (não fechamento obrigatório acima, nem alvo — o alvo é a
         // volta pra banda média). Exige rejeição confirmada e um filtro contra "andar na
@@ -454,6 +460,7 @@ public sealed class AssetAnalyzer
             IsMeanReversionSetup = isMeanReversionSetup,
             IsMeanReversionConfirmedSetup = isMeanReversionConfirmedSetup,
             IsBollingerLowerReclaimSetup = isBollingerLowerReclaimSetup,
+            IsIntradayBreakoutRetestSetup = isIntradayBreakoutRetestSetup,
             IsBollingerReversalSetup = isBollingerReversalSetup,
             IsLowRsiSetup = isLowRsiSetup
         };
