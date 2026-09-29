@@ -362,6 +362,14 @@ var totalResearchSummary = researchSummary.Single(summary => summary.Dimension =
 Check(totalResearchSummary.Count == 1 && totalResearchSummary.Positive24HoursPercent == 100 &&
       totalResearchSummary.AverageReturn24HoursPercent == 10 && totalResearchSummary.GrossProfitFactor24Hours == 999999m,
     "Research summary aggregates candidate outcomes without changing the candidate data");
+var walkForward = CandidateResearchWalkForwardComparer.Compare(new List<(string Period, IEnumerable<ResearchCandidateSummary> Summaries)>
+{
+    ("2023-2024", new[] { new ResearchCandidateSummary { Dimension = "ATR%", Bucket = "<1%", Count = 10, Positive24HoursPercent = 60, AverageReturn6HoursPercent = .1m, AverageReturn24HoursPercent = .2m, GrossProfitFactor24Hours = 1.2m, AverageMaximumFavorable24HoursPercent = 1, AverageMaximumAdverse24HoursPercent = .5m } }),
+    ("2024-2025", new[] { new ResearchCandidateSummary { Dimension = "ATR%", Bucket = "<1%", Count = 20, Positive24HoursPercent = 55, AverageReturn6HoursPercent = .2m, AverageReturn24HoursPercent = .1m, GrossProfitFactor24Hours = 1.1m, AverageMaximumFavorable24HoursPercent = 1, AverageMaximumAdverse24HoursPercent = .5m } })
+});
+Check(walkForward.Single().IsConsistentlyPositive && walkForward.Single().WeightedAverageReturn24HoursPercent == (4m / 30m) &&
+      walkForward.Single().PositivePeriods == 2 && walkForward.Single().LowestProfitFactor24Hours == 1.1m,
+    "Walk-forward comparison requires a positive return and PF in every loaded window");
 intradaySetupCandles = Enumerable.Range(0, 22).Select(i => new Candle
 {
     OpenTime = day.AddHours(i), Open = 105m, Close = 105m, High = 110m, Low = 100m, Volume = 100m

@@ -184,6 +184,7 @@
             </Grid.RowDefinitions>
             <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,4">
                 <Button x:Name="btnAnalyzeFactors" Content="Análise por Fator" Padding="8,3" Margin="0,0,8,0" Click="BtnAnalyzeFactors_Click"/>
+                <Button Content="Comparar Pesquisa" Padding="8,3" Margin="0,0,8,0" Click="BtnCompareResearch_Click"/>
                 <Button x:Name="btnExportTrades" Content="Exportar Trades (CSV)" Padding="8,3" Click="BtnExportTradesCsv_Click"/>
             </StackPanel>
             <Grid Grid.Row="1" Margin="0,0,0,8">

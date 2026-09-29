@@ -964,6 +964,15 @@ public partial class BacktestWindow : Window
         window.Show();
     }
 
+    private void BtnCompareResearch_Click(object sender, RoutedEventArgs e)
+    {
+        var window = new ResearchWalkForwardWindow
+        {
+            Owner = this
+        };
+        window.Show();
+    }
+
     private void BtnExportTradesCsv_Click(object sender, RoutedEventArgs e)
     {
         if (_lastDisplayedTrades.Count == 0 && _exportDiagnostics is null)
