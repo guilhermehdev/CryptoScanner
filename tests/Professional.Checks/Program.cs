@@ -357,6 +357,11 @@ Check(research is not null && research.CloseAfter6Hours == day.AddHours(6) && re
       research.ReturnAfter6HoursPercent == 4 && research.ReturnAfter24HoursPercent == 10 &&
       research.MaximumFavorable24HoursPercent == 12 && research.MaximumAdverse24HoursPercent == 5,
     "Research candidate records future outcomes from the next-open entry without execution rules");
+var researchSummary = CandidateResearchSummaryBuilder.Build([research!]);
+var totalResearchSummary = researchSummary.Single(summary => summary.Dimension == "Todos");
+Check(totalResearchSummary.Count == 1 && totalResearchSummary.Positive24HoursPercent == 100 &&
+      totalResearchSummary.AverageReturn24HoursPercent == 10 && totalResearchSummary.GrossProfitFactor24Hours == 999999m,
+    "Research summary aggregates candidate outcomes without changing the candidate data");
 intradaySetupCandles = Enumerable.Range(0, 22).Select(i => new Candle
 {
     OpenTime = day.AddHours(i), Open = 105m, Close = 105m, High = 110m, Low = 100m, Volume = 100m

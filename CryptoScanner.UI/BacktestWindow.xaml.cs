@@ -1074,7 +1074,21 @@ public partial class BacktestWindow : Window
                         candidate.MaximumFavorable24HoursPercent.ToString("F4", culture), candidate.MaximumAdverse24HoursPercent.ToString("F4", culture)));
                 }
                 File.WriteAllText(researchPath, research.ToString(), new UTF8Encoding(true));
-                researchInfo = $"\nBase de pesquisa: {researchPath}";
+                string researchSummaryPath = System.IO.Path.Combine(
+                    System.IO.Path.GetDirectoryName(dialog.FileName)!,
+                    System.IO.Path.GetFileNameWithoutExtension(dialog.FileName) + "_pesquisa_resumo.csv");
+                var researchSummary = new StringBuilder();
+                researchSummary.AppendLine("Dimension;Bucket;Count;Positive24HoursPercent;AverageReturn6HoursPercent;AverageReturn24HoursPercent;GrossProfitFactor24Hours;AverageMaximumFavorable24HoursPercent;AverageMaximumAdverse24HoursPercent");
+                foreach (var summary in CandidateResearchSummaryBuilder.Build(_lastResearchCandidates))
+                {
+                    researchSummary.AppendLine(string.Join(";",
+                        summary.Dimension, summary.Bucket, summary.Count,
+                        summary.Positive24HoursPercent.ToString("F2", culture), summary.AverageReturn6HoursPercent.ToString("F4", culture),
+                        summary.AverageReturn24HoursPercent.ToString("F4", culture), summary.GrossProfitFactor24Hours.ToString("F4", culture),
+                        summary.AverageMaximumFavorable24HoursPercent.ToString("F4", culture), summary.AverageMaximumAdverse24HoursPercent.ToString("F4", culture)));
+                }
+                File.WriteAllText(researchSummaryPath, researchSummary.ToString(), new UTF8Encoding(true));
+                researchInfo = $"\nBase de pesquisa: {researchPath}\nResumo walk-forward: {researchSummaryPath}";
             }
             if(_exportDiagnostics is not null)
                 File.WriteAllText(System.IO.Path.ChangeExtension(dialog.FileName,"diagnosticos.json"),System.Text.Json.JsonSerializer.Serialize(new { EngineVersion=StrategyBacktester.EngineVersion, Diagnostics=_exportDiagnostics },new System.Text.Json.JsonSerializerOptions{WriteIndented=true}),new UTF8Encoding(true));
