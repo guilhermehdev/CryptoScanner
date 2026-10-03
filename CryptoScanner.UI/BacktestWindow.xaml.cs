@@ -278,6 +278,7 @@ public partial class BacktestWindow : Window
 
     private RiskCalculationMode GetSelectedRiskMode()
     {
+        if (rbRiskBollingerSqueezeBreakout.IsChecked == true) return RiskCalculationMode.BollingerSqueezeBreakout;
         if (rbRiskIntradayLocal.IsChecked == true) return RiskCalculationMode.IntradayLocal;
         if (rbRiskMeanReversion.IsChecked == true) return RiskCalculationMode.MeanReversionScalp;
         if (rbRiskBollingerReversal.IsChecked == true) return RiskCalculationMode.BollingerReversal;
@@ -299,6 +300,7 @@ public partial class BacktestWindow : Window
         1 => TradingStrategyProfile.PullbackTrend,
         2 => TradingStrategyProfile.MeanReversion,
         3 => TradingStrategyProfile.IntradayBreakoutRetest,
+        4 => TradingStrategyProfile.BollingerSqueezeBreakout,
         _ => TradingStrategyProfile.BreakoutTrend
     };
 
@@ -310,6 +312,7 @@ public partial class BacktestWindow : Window
         EntryStrategy.MeanReversionConfirmed => "Mean Reversion V2 (confirmada)",
         EntryStrategy.BollingerLowerReclaim => TradingStrategyProfiles.DisplayName(TradingStrategyProfile.MeanReversion),
         EntryStrategy.IntradayBreakoutRetest => TradingStrategyProfiles.DisplayName(TradingStrategyProfile.IntradayBreakoutRetest),
+        EntryStrategy.BollingerSqueezeBreakout => TradingStrategyProfiles.DisplayName(TradingStrategyProfile.BollingerSqueezeBreakout),
         _ => strategy.ToString()
     };
 
@@ -361,6 +364,14 @@ public partial class BacktestWindow : Window
                 chkBlockMeanReversionInBear.IsChecked = false;
                 chkLimitAtrForMeanReversion.IsChecked = false;
                 break;
+            case TradingStrategyProfile.BollingerSqueezeBreakout:
+                chkEnablePullbackBounce.IsChecked = false;
+                chkEnableMeanReversionScalp.IsChecked = false;
+                chkEnableBollingerReversal.IsChecked = false;
+                chkBlockBollingerLongInSideways.IsChecked = false;
+                chkBlockMeanReversionInBear.IsChecked = false;
+                chkLimitAtrForMeanReversion.IsChecked = false;
+                break;
         }
     }
 
@@ -383,6 +394,10 @@ public partial class BacktestWindow : Window
             case TradingStrategyProfile.IntradayBreakoutRetest:
                 rbBacktestIntraday.IsChecked = true;
                 rbRiskIntradayLocal.IsChecked = true;
+                break;
+            case TradingStrategyProfile.BollingerSqueezeBreakout:
+                rbBacktestIntraday.IsChecked = true;
+                rbRiskBollingerSqueezeBreakout.IsChecked = true;
                 break;
         }
     }
@@ -723,6 +738,12 @@ public partial class BacktestWindow : Window
             (profile.Name != ScanProfile.Intraday.Name || selectedRiskMode != RiskCalculationMode.IntradayLocal))
         {
             MessageBox.Show("Rompimento + Reteste Intraday é experimental e só pode ser testado com o perfil Intraday (1h) e o risco Intraday local.", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        if (strategyProfile == TradingStrategyProfile.BollingerSqueezeBreakout &&
+            (profile.Name != ScanProfile.Intraday.Name || selectedRiskMode != RiskCalculationMode.BollingerSqueezeBreakout))
+        {
+            MessageBox.Show("EAB é uma pesquisa e só pode ser testado no perfil Intraday (1h) com o risco EAB: squeeze Bollinger.", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         if (thresholds.MaximumAtrPercent is not null &&

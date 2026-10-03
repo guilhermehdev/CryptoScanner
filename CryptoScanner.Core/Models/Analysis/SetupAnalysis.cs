@@ -30,6 +30,10 @@ public sealed record SetupAnalysis
     // Usado somente pelo perfil experimental de backtest Intraday.
     public bool IsIntradayBreakoutRetestSetup { get; init; }
 
+    // Bandas estreitas no candle anterior, expansão e fechamento fora da banda no atual.
+    // Usado exclusivamente pelo perfil EAB de pesquisa no Backtest.
+    public bool IsBollingerSqueezeBreakoutSetup { get; init; }
+
     // Reversão de Bollinger (Fase A do lado de venda) — banda superior + resistência como
     // zona de gatilho, com rejeição confirmada e filtro contra "andar na banda" (momentum
     // de alta forte demais pra brigar). Ver AssetAnalyzer.cs pros detalhes de cada condição.

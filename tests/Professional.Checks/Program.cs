@@ -289,7 +289,8 @@ Check(shortBreakoutProfile.MaxStopDistancePercent == 15 && shortBreakoutProfile.
 Check(TradingStrategyProfiles.EntryStrategyFor(TradingStrategyProfile.BreakoutTrend) == EntryStrategy.Breakout &&
       TradingStrategyProfiles.EntryStrategyFor(TradingStrategyProfile.PullbackTrend) == EntryStrategy.Pullback &&
       TradingStrategyProfiles.EntryStrategyFor(TradingStrategyProfile.MeanReversion) == EntryStrategy.BollingerLowerReclaim &&
-      TradingStrategyProfiles.EntryStrategyFor(TradingStrategyProfile.IntradayBreakoutRetest) == EntryStrategy.IntradayBreakoutRetest,
+      TradingStrategyProfiles.EntryStrategyFor(TradingStrategyProfile.IntradayBreakoutRetest) == EntryStrategy.IntradayBreakoutRetest &&
+      TradingStrategyProfiles.EntryStrategyFor(TradingStrategyProfile.BollingerSqueezeBreakout) == EntryStrategy.BollingerSqueezeBreakout,
     "Independent strategy profiles map to their own entry rules");
 Check(shortExperimentalProfile.MinVolumeSpike == ScannerSettings.ShortBalancedMinVolumeSpike &&
       shortExperimentalProfile.MinResistanceDistancePartialExits == ScannerSettings.ShortBalancedMinResistanceDistancePartialExits,
@@ -387,6 +388,18 @@ intradaySetupCandles[^2] = new Candle { Open = 100m, Close = 98m, High = 101m, L
 intradaySetupCandles[^1] = new Candle { Open = 99.5m, Close = 99m, High = 100m, Low = 97m, Volume = 120m };
 Check(IntradayBreakoutRetestIndicator.IsConfirmed(intradaySetupCandles, 2m, TradeDirection.Short),
     "Intraday Short espelha rompimento fechado e reteste confirmado");
+var squeezeCandles = Enumerable.Range(0, 81).Select(i => new Candle
+{
+    OpenTime = day.AddHours(i), Open = 100m, Close = 100m, High = 100.1m, Low = 99.9m, Volume = 100m
+}).ToList();
+squeezeCandles[^1] = new Candle { OpenTime = day.AddHours(80), Open = 100m, Close = 102m, High = 102.2m, Low = 99.8m, Volume = 200m };
+var squeezeBands = BollingerBandsIndicator.Calculate(squeezeCandles);
+Check(BollingerSqueezeBreakoutIndicator.IsConfirmed(squeezeCandles, squeezeBands.Upper, squeezeBands.Lower, squeezeBands.BandWidthPercent, TradeDirection.Long),
+    "EAB requires a tight prior Bollinger width, expansion, and Long close beyond the upper band");
+squeezeCandles[^1] = new Candle { OpenTime = day.AddHours(80), Open = 100m, Close = 100m, High = 100.2m, Low = 99.8m, Volume = 200m };
+squeezeBands = BollingerBandsIndicator.Calculate(squeezeCandles);
+Check(!BollingerSqueezeBreakoutIndicator.IsConfirmed(squeezeCandles, squeezeBands.Upper, squeezeBands.Lower, squeezeBands.BandWidthPercent, TradeDirection.Long),
+    "EAB rejects expansion without a closed breakout beyond the band");
 var isolatedCandles=Enumerable.Range(0,60).Select(i=>new Candle{OpenTime=day.AddHours(i*4),Open=101,Close=101,High=102,Low=100}).ToList();
 isolatedCandles[20]=new Candle{Open=80,Close=80,High=81,Low=70};
 isolatedCandles[^1]=new Candle{Open=102,Close=103,High=104,Low=101};

@@ -21,7 +21,7 @@ public sealed class AssetAnalyzer
         // Bandas de Bollinger — só calculadas quando o modo realmente usa (Reversão de
         // Bollinger), pra não pagar esse custo em todos os outros modos que não precisam.
         (List<decimal?> Middle, List<decimal?> Upper, List<decimal?> Lower, List<decimal?> BandWidthPercent)? bollinger =
-            riskMode == RiskCalculationMode.BollingerReversal
+            riskMode is RiskCalculationMode.BollingerReversal or RiskCalculationMode.BollingerSqueezeBreakout
                 ? BollingerBandsIndicator.Calculate(candles)
                 : null;
 
@@ -395,6 +395,15 @@ public sealed class AssetAnalyzer
         bool isIntradayBreakoutRetestSetup = mode == RiskCalculationMode.IntradayLocal &&
             IntradayBreakoutRetestIndicator.IsConfirmed(candles, trend.Atr, direction);
 
+        bool isBollingerSqueezeBreakoutSetup = mode == RiskCalculationMode.BollingerSqueezeBreakout &&
+            bollinger.HasValue &&
+            BollingerSqueezeBreakoutIndicator.IsConfirmed(
+                candles,
+                bollinger.Value.Upper,
+                bollinger.Value.Lower,
+                bollinger.Value.BandWidthPercent,
+                direction);
+
         // Reversão de Bollinger (Fase A do lado de venda) — banda superior + resistência
         // como ZONA DE GATILHO (não fechamento obrigatório acima, nem alvo — o alvo é a
         // volta pra banda média). Exige rejeição confirmada e um filtro contra "andar na
@@ -461,6 +470,7 @@ public sealed class AssetAnalyzer
             IsMeanReversionConfirmedSetup = isMeanReversionConfirmedSetup,
             IsBollingerLowerReclaimSetup = isBollingerLowerReclaimSetup,
             IsIntradayBreakoutRetestSetup = isIntradayBreakoutRetestSetup,
+            IsBollingerSqueezeBreakoutSetup = isBollingerSqueezeBreakoutSetup,
             IsBollingerReversalSetup = isBollingerReversalSetup,
             IsLowRsiSetup = isLowRsiSetup
         };
@@ -583,7 +593,7 @@ public sealed class AssetAnalyzer
             };
         }
 
-        if (mode == RiskCalculationMode.IntradayLocal)
+        if (mode is RiskCalculationMode.IntradayLocal or RiskCalculationMode.BollingerSqueezeBreakout)
         {
             // Invalidação local: o stop fica além do extremo do reteste recente,
             // com uma folga pequena de ATR. O alvo é 2R, igual para Long e Short,
@@ -613,7 +623,7 @@ public sealed class AssetAnalyzer
                 RiskReward = direction == TradeDirection.Long
                     ? (supportDistance > 0 ? resistanceDistance / supportDistance : 0)
                     : (resistanceDistance > 0 ? supportDistance / resistanceDistance : 0),
-                Mode = RiskCalculationMode.IntradayLocal
+                Mode = mode
             };
         }
 

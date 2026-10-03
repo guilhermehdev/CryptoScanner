@@ -62,6 +62,8 @@ public static class AssetScoreFactory
 
     internal static string DetermineBreakoutSource(AssetAnalysis analysis)
     {
+        if (analysis.EntryStrategy == EntryStrategy.BollingerSqueezeBreakout &&
+            analysis.Setup.IsBollingerSqueezeBreakoutSetup) return "EAB";
         if(analysis.EntryStrategy==EntryStrategy.Pullback && analysis.Setup.IsPullbackBounce)return "Repique";
         if (analysis.Setup.IsBreakout) return "Clássico";
         if (analysis.Setup.IsShortTermBreakout) return "Curto Prazo";

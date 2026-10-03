@@ -14,8 +14,9 @@ public enum RiskCalculationMode
     MeanReversionScalp, // estratégia nova pro perfil Scalp — alvo é a volta pra EMA21, não
                         // resistência estrutural (mal calibrada em janelas de 15min, como
                         // identificado na investigação do Scalp com rompimento clássico)
-    BollingerReversal // Fase A do lado de venda — banda superior + resistência como zona de
+    BollingerReversal, // Fase A do lado de venda — banda superior + resistência como zona de
                       // gatilho (não alvo), exige rejeição confirmada. TP1 = banda média.
                       // V1: só TP1 (fechamento único) — TP2/TP3 (suporte estrutural, próximo
                       // suporte) ficam pra quando a engine de saída parcial reconhecer direção.
+    BollingerSqueezeBreakout // EAB: invalidação local e alvo 2R; gatilho permanece separado.
 }

@@ -13,5 +13,8 @@ public enum EntryStrategy
     BollingerLowerReclaim,
     // Hipótese independente para pesquisa: rompimento fechado e reteste confirmado
     // no candle seguinte. Disponível apenas no backtest Intraday.
-    IntradayBreakoutRetest
+    IntradayBreakoutRetest,
+    // Estreitamento e abertura das Bandas de Bollinger. Disponível somente na pesquisa
+    // do Backtest até a validação cronológica concluir.
+    BollingerSqueezeBreakout
 }

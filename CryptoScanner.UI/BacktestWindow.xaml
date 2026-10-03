@@ -35,6 +35,7 @@
                         <ComboBoxItem Content="Pullback Trend"/>
                         <ComboBoxItem Content="Reversão Bollinger Long (V3)"/>
                         <ComboBoxItem Content="Rompimento + Reteste Intraday (experimental)"/>
+                        <ComboBoxItem Content="EAB — Bollinger Squeeze (pesquisa)"/>
                     </ComboBox>
                     <TextBlock Text="Perfil:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <RadioButton x:Name="rbBacktestIntraday" Content="Intraday (1h / 24h)" GroupName="BacktestProfile" Margin="0,0,12,0" VerticalAlignment="Center"/>
@@ -141,6 +142,7 @@
                         <RadioButton x:Name="rbRiskIntradayLocal" Content="Intraday: rompimento + reteste (experimental)" GroupName="RiskMode" Margin="0,0,0,8" ToolTip="Exclusivo do perfil Intraday. Exige rompimento confirmado no candle anterior, reteste no candle atual, stop por invalidação local e alvo 2R. Ainda não validado para uso ao vivo."/>
                         <RadioButton x:Name="rbRiskMeanReversion" Content="Reversão à Média (Scalp, não validado)" GroupName="RiskMode" Margin="0,0,0,8"/>
                         <RadioButton x:Name="rbRiskBollingerReversal" Content="Reversão de Bollinger (não validada)" GroupName="RiskMode" Margin="0,0,0,10"/>
+                        <RadioButton x:Name="rbRiskBollingerSqueezeBreakout" Content="EAB: squeeze Bollinger (pesquisa)" GroupName="RiskMode" Margin="0,0,0,10"/>
                         <Separator Margin="0,0,0,8"/>
                         <TextBlock Text="Experimentos" FontWeight="Bold" Margin="0,0,0,6"/>
                         <CheckBox x:Name="chkEnableVolatilityScoringPhaseB" Content="Volatility Scoring — Fase B" Margin="0,0,0,8"/>

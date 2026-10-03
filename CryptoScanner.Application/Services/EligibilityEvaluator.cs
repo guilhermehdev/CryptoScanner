@@ -147,6 +147,7 @@ public static class EligibilityEvaluator
                     EntryStrategy.MeanReversionConfirmed => !asset.Setup.IsMeanReversionConfirmedSetup,
                     EntryStrategy.BollingerLowerReclaim => !asset.Setup.IsBollingerLowerReclaimSetup,
                     EntryStrategy.IntradayBreakoutRetest => !asset.Setup.IsIntradayBreakoutRetestSetup,
+                    EntryStrategy.BollingerSqueezeBreakout => !asset.Setup.IsBollingerSqueezeBreakoutSetup,
                     _ => failedBreakout
                 };
                 failedConsolidation = strategy == EntryStrategy.Breakout && !asset.Setup.IsConsolidating;

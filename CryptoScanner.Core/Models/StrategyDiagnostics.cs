@@ -4,7 +4,7 @@ public sealed class StrategyDiagnostics
 {
     public static string Label(string key) => key switch
     {
-        "Breakout" => "Rompimento", "Pullback" => "Repique", "Legacy" => "Legado",
+        "Breakout" => "Rompimento", "Pullback" => "Repique", "BollingerSqueezeBreakout" => "EAB — Bollinger Squeeze", "Legacy" => "Legado",
         "FailedScore" => "Score", "FailedConsolidation" => "Consolidação",
         "FailedVolumeSpike" => "Volume", "FailedResistanceDistance" => "Distância ao alvo",
         "FailedDirection" => "Tendência", "FailedRiskReward" => "R/R baixo",
