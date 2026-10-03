@@ -137,6 +137,7 @@ public sealed class ScannerService
             if (eligibility.FailedShortSideways) diagnostics.FailedShortSideways++;
             if (eligibility.FailedShortScoreCeiling) diagnostics.FailedShortScoreCeiling++;
             if (eligibility.FailedShortAdxInBear) diagnostics.FailedShortAdxInBear++;
+            if (eligibility.FailedMaximumAtrPercent) diagnostics.FailedMaximumAtrPercent++;
             if (eligibility.FailedBollingerLongSideways) diagnostics.FailedBollingerLongSideways++;
 
             string type=asset.Setup.IsBreakout?"Rompimento":asset.Setup.IsPullbackBounce?"Repique":"Outros";

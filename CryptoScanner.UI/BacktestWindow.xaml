@@ -100,6 +100,11 @@
                             <TextBlock Text="Múltiplo ATR:" VerticalAlignment="Center"/>
                             <TextBox x:Name="txtTargetAtr" Text="1" Width="50" Margin="8,0,0,0"/>
                         </StackPanel>
+                        <CheckBox x:Name="chkMaximumAtrPercent" Content="Breakout Long: ATR% abaixo de" Margin="0,2,0,2" ToolTip="Variante exclusiva do Backtest. Exige ATR% abaixo do teto e não altera o scanner ao vivo."/>
+                        <StackPanel Orientation="Horizontal" Margin="20,0,0,6">
+                            <TextBlock Text="ATR máximo (%):" VerticalAlignment="Center"/>
+                            <TextBox x:Name="txtMaximumAtrPercent" Text="1,00" Width="70" Margin="8,0,0,0"/>
+                        </StackPanel>
                         <TextBlock Text="Volume Spike mínimo"/>
                         <TextBox x:Name="txtMinVolumeSpike" Width="70" HorizontalAlignment="Left" Margin="0,2,0,6"/>
                         <TextBlock Text="Risk/Reward mínimo"/>

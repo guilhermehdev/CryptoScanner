@@ -78,6 +78,7 @@ public partial class BacktestWindow : Window
         txtMaxRiskReward.Text = "999"; // efetivamente sem teto
 
         chkTargetAtr.IsChecked = false;
+        chkMaximumAtrPercent.IsChecked = false;
         chkDisableTimeout.IsChecked = false;
         cmbStructureExperiment.SelectedIndex = 0;
         chkEnablePullbackBounce.IsChecked = false;
@@ -176,6 +177,7 @@ public partial class BacktestWindow : Window
         sb.Append(thresholds.MinResistanceDistanceAtrMode).Append('|');
         sb.Append(thresholds.MinResistanceDistancePartialExits).Append('|');
         sb.Append(thresholds.MinimumTargetAtr).Append('|');
+        sb.Append(thresholds.MaximumAtrPercent).Append('|');
         sb.Append(thresholds.MinVolumeSpike).Append('|');
         sb.Append(thresholds.MinRiskReward).Append('|');
         sb.Append(thresholds.MinimumBollingerTargetPercent).Append('|');
@@ -228,6 +230,7 @@ public partial class BacktestWindow : Window
                 SavedAt = DateTime.UtcNow,
                 Label = label + (thresholds.StructuralEntryExperiment ? " | Estrutura experimental v1" :  $" | Experimento isolado {thresholds.IsolatedEntryExperiment}") + $" | {StrategyDisplayName(thresholds.EntryStrategy)} | Alvo mín.: " + (thresholds.MinimumTargetAtr is decimal atrFloor ? $"{atrFloor:G} ATR" : $"{thresholds.MinResistanceDistancePartialExits:G}% (parciais)") +
                     (thresholds.EntryStrategy == EntryStrategy.BollingerLowerReclaim ? $" | Alvo Bollinger ≥ {thresholds.MinimumBollingerTargetPercent:G}%" : string.Empty) +
+                    (thresholds.MaximumAtrPercent is decimal maximumAtr ? $" | ATR < {maximumAtr:G}%" : string.Empty) +
                     $" | Short momentum={(thresholds.RequireBearishMomentumConfirmed ? "sim" : "não")}, lateral={(thresholds.BlockShortInSideways ? "bloqueado" : "aceito")}, Bollinger Long lateral={(thresholds.BlockBollingerLongInSideways ? "bloqueado" : "aceito")}, score máx.={thresholds.MaxShortOpportunityScore:F0}, ADX BEAR máx.={thresholds.MaxShortAdxInBear:F0}",
                 Profile = profile.Name,
                 StrategyProfile = StrategyDisplayName(thresholds.EntryStrategy),
@@ -239,6 +242,7 @@ public partial class BacktestWindow : Window
                 MinScore = thresholds.BuyOpportunityScore,
                 MaxShortOpportunityScore = thresholds.MaxShortOpportunityScore,
                 MaxShortAdxInBear = thresholds.MaxShortAdxInBear,
+                MaximumAtrPercent = thresholds.MaximumAtrPercent,
                 MinResistanceDistanceSwing = thresholds.MinResistanceDistance,
                 MinResistanceDistanceAtr = thresholds.MinResistanceDistanceAtrMode,
                 MinVolumeSpike = thresholds.MinVolumeSpike,
@@ -515,6 +519,7 @@ public partial class BacktestWindow : Window
         txtMaxStopDistance.Text = t.MaxStopDistancePercent.ToString();
         txtMaxRiskReward.Text = t.MaxRiskReward.ToString();
         chkTargetAtr.IsChecked = false;
+        chkMaximumAtrPercent.IsChecked = false;
         cmbStructureExperiment.SelectedIndex = 0;
         chkEnablePullbackBounce.IsChecked = t.EnablePullbackBounce;
         chkEnableMultiTimeframe.IsChecked = t.EnableMultiTimeframe;
@@ -558,6 +563,7 @@ public partial class BacktestWindow : Window
         txtMaxStopDistance.Text = "40";
         txtMaxRiskReward.Text = "999";
         chkTargetAtr.IsChecked = false;
+        chkMaximumAtrPercent.IsChecked = false;
         cmbStructureExperiment.SelectedIndex = 0;
         chkEnablePullbackBounce.IsChecked = true;
         chkEnableMultiTimeframe.IsChecked = false;
@@ -585,6 +591,7 @@ public partial class BacktestWindow : Window
         txtMaxStopDistance.Text = "100";
         txtMaxRiskReward.Text = "999";
         chkTargetAtr.IsChecked = false;
+        chkMaximumAtrPercent.IsChecked = false;
         cmbStructureExperiment.SelectedIndex = 0;
         chkEnablePullbackBounce.IsChecked = true;
         chkEnableMultiTimeframe.IsChecked = false;
@@ -630,6 +637,17 @@ public partial class BacktestWindow : Window
         if (chkTargetAtr.IsChecked == true && (!decimal.TryParse(txtTargetAtr.Text, out targetAtr) || targetAtr <= 0))
         { MessageBox.Show("Informe um múltiplo de ATR positivo."); return false; }
 
+        decimal? maximumAtrPercent = null;
+        if (chkMaximumAtrPercent.IsChecked == true)
+        {
+            if (!decimal.TryParse(txtMaximumAtrPercent.Text, out var parsedMaximumAtrPercent) || parsedMaximumAtrPercent <= 0)
+            {
+                MessageBox.Show("Informe um ATR% máximo positivo.", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+            maximumAtrPercent = parsedMaximumAtrPercent;
+        }
+
         thresholds = new EligibilityThresholds
         {
             EntryStrategy=TradingStrategyProfiles.EntryStrategyFor(GetSelectedStrategyProfile()),
@@ -637,6 +655,7 @@ public partial class BacktestWindow : Window
             IsolatedEntryExperiment=cmbStructureExperiment.SelectedIndex is 1 or 2 ? cmbStructureExperiment.SelectedIndex : 0,
             TargetZoneExperiment=cmbStructureExperiment.SelectedIndex is >= 4 and <= 6 ? cmbStructureExperiment.SelectedIndex - 3 : 0,
             MinimumTargetAtr=chkTargetAtr.IsChecked == true ? targetAtr : null,
+            MaximumAtrPercent = maximumAtrPercent,
             BuyOpportunityScore = minScore,
             MaxShortOpportunityScore = maxShortScore,
             MaxShortAdxInBear = maxShortAdxBear,
@@ -704,6 +723,13 @@ public partial class BacktestWindow : Window
             (profile.Name != ScanProfile.Intraday.Name || selectedRiskMode != RiskCalculationMode.IntradayLocal))
         {
             MessageBox.Show("Rompimento + Reteste Intraday é experimental e só pode ser testado com o perfil Intraday (1h) e o risco Intraday local.", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        if (thresholds.MaximumAtrPercent is not null &&
+            (strategyProfile != TradingStrategyProfile.BreakoutTrend || direction != TradeDirection.Long ||
+             profile.Name != ScanProfile.Intraday.Name || selectedRiskMode != RiskCalculationMode.IntradayLocal))
+        {
+            MessageBox.Show("O filtro ATR% máximo é exclusivo do Backtest Breakout Trend em Compra, perfil Intraday e risco Intraday local.", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -796,6 +822,7 @@ public partial class BacktestWindow : Window
             txtSummaryResult.Text =
                 $"Modo: {SelectedTestModeLabel} | Risco: {selectedRiskMode} | Direção: {(direction == TradeDirection.Short ? "VENDA (Short)" : "Compra")} | " +
                 $"Score≥{thresholds.BuyOpportunityScore:F0} | RR mín.={thresholds.MinRiskReward:F1} | Stop mín.={thresholds.MinStopDistancePercent:F0}% | Stop máx.={maxStopText}" +
+                (thresholds.MaximumAtrPercent is decimal maximumAtr ? $" | ATR%<{maximumAtr:F2}" : "") +
                 (disableTimeout ? " | Timeout=DESATIVADO (só TP/SL)" : "") + "\n\n" +
                 $"Operações: {summary.TotalTrades}   |   " +
                 $"Win Rate: {summary.WinRate:F1}%   |   " +

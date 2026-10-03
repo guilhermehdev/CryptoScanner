@@ -11,7 +11,7 @@ public sealed class StrategyDiagnostics
         "FailedInvalidLevels" => "Níveis inválidos", "FailedStopDistance" => "Stop próximo",
         "FailedStopDistanceTooHigh" => "Stop distante", "FailedRiskRewardTooHigh" => "R/R acima do teto",
         "FailedBullTrap" => "Armadilha", "FailedMomentumFilter" => "Momentum", "FailedShortSideways" => "Short lateral", "FailedShortScoreCeiling" => "Score Short máx.", "FailedShortAdxInBear" => "ADX Short BEAR máx.",
-        "FailedTrendConfirmation" => "Tendência (EMA)", "FailedMeanReversionRegimeFilter" => "Regime MeanRev", "FailedMeanReversionAtrFilter" => "ATR MeanRev", "FailedBollingerLongSideways" => "Bollinger Long lateral", _ => key
+        "FailedTrendConfirmation" => "Tendência (EMA)", "FailedMeanReversionRegimeFilter" => "Regime MeanRev", "FailedMeanReversionAtrFilter" => "ATR MeanRev", "FailedMaximumAtrPercent" => "ATR máx. Breakout Long", "FailedBollingerLongSideways" => "Bollinger Long lateral", _ => key
     };
     public int Evaluated { get; set; }
     public int Triggered { get; set; }

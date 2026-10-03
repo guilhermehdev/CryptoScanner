@@ -43,6 +43,7 @@
                 <DataGridTextColumn Header="Score min." Binding="{Binding MinScore, StringFormat=F0}" Width="70"/>
                 <DataGridTextColumn Header="RR min." Binding="{Binding MinRiskReward, StringFormat=F1}" Width="60"/>
                 <DataGridTextColumn Header="RR max." Binding="{Binding MaxRiskReward, StringFormat=F0}" Width="60"/>
+                <DataGridTextColumn Header="ATR máx. %" Binding="{Binding MaximumAtrPercent, StringFormat=F2}" Width="75"/>
                 <DataGridCheckBoxColumn Header="Bollinger" Binding="{Binding EnableBollingerScoring}" Width="65"/>
                 <DataGridCheckBoxColumn Header="Vol. Fase B" Binding="{Binding EnableVolatilityScoringPhaseB}" Width="75"/>
                 <DataGridTextColumn Header="Timeout(h)" Binding="{Binding EvaluationHoursOverride}" Width="80"/>

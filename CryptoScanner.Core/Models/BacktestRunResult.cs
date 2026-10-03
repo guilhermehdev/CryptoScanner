@@ -38,5 +38,6 @@ public sealed class BacktestRunResult
     public decimal? MaxStopDistancePercent { get; set; }
     public decimal MaxShortOpportunityScore { get; set; } = 100m;
     public decimal MaxShortAdxInBear { get; set; } = 999m;
+    public decimal? MaximumAtrPercent { get; set; }
     public bool DisableTimeout { get; set; }
 }

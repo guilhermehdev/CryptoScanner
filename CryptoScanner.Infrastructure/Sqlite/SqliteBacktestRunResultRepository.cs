@@ -129,6 +129,13 @@ public sealed class SqliteBacktestRunResultRepository : IBacktestRunResultReposi
                 "ALTER TABLE BacktestRunResults ADD COLUMN StrategyProfile TEXT DEFAULT ''", connection);
             await alterCommand.ExecuteNonQueryAsync(cancellationToken);
         }
+
+        if (!existingColumns.Contains("MaximumAtrPercent"))
+        {
+            await using var alterCommand = new SqliteCommand(
+                "ALTER TABLE BacktestRunResults ADD COLUMN MaximumAtrPercent REAL", connection);
+            await alterCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
     }
 
     public async Task<bool> ExistsAsync(string signatureHash, CancellationToken cancellationToken = default)
@@ -152,13 +159,13 @@ public sealed class SqliteBacktestRunResultRepository : IBacktestRunResultReposi
              MinScore, MinResistanceDistanceSwing, MinResistanceDistanceAtr, MinVolumeSpike, MinRiskReward,
              MinStopDistancePercent, MaxRiskReward, EnablePullbackBounce, EnableBollingerScoring, EnableVolatilityScoringPhaseB, EvaluationHoursOverride,
              TotalTrades, WinRate, TotalReturnPercent, MaxDrawdownPercent, ProfitFactor,
-             AvgRiskRewardAtEntry, BreakEvenWinRate, Edge, Diagnostics, Tp1Fraction, Tp2Fraction, MaxStopDistancePercent, DisableTimeout, MaxShortOpportunityScore, MaxShortAdxInBear)
+             AvgRiskRewardAtEntry, BreakEvenWinRate, Edge, Diagnostics, Tp1Fraction, Tp2Fraction, MaxStopDistancePercent, DisableTimeout, MaxShortOpportunityScore, MaxShortAdxInBear, MaximumAtrPercent)
             VALUES
             (@SignatureHash, @SavedAt, @Label, @Profile, @StrategyProfile, @RiskMode, @StartDate, @EndDate, @Symbols, @SymbolCount,
              @MinScore, @MinResistanceDistanceSwing, @MinResistanceDistanceAtr, @MinVolumeSpike, @MinRiskReward,
              @MinStopDistancePercent, @MaxRiskReward, @EnablePullbackBounce, @EnableBollingerScoring, @EnableVolatilityScoringPhaseB, @EvaluationHoursOverride,
              @TotalTrades, @WinRate, @TotalReturnPercent, @MaxDrawdownPercent, @ProfitFactor,
-             @AvgRiskRewardAtEntry, @BreakEvenWinRate, @Edge, @Diagnostics, @Tp1Fraction, @Tp2Fraction, @MaxStopDistancePercent, @DisableTimeout, @MaxShortOpportunityScore, @MaxShortAdxInBear)
+             @AvgRiskRewardAtEntry, @BreakEvenWinRate, @Edge, @Diagnostics, @Tp1Fraction, @Tp2Fraction, @MaxStopDistancePercent, @DisableTimeout, @MaxShortOpportunityScore, @MaxShortAdxInBear, @MaximumAtrPercent)
             """;
         await using var command = new SqliteCommand(sql, connection);
         command.Parameters.AddWithValue("@SignatureHash", result.SignatureHash);
@@ -188,6 +195,7 @@ public sealed class SqliteBacktestRunResultRepository : IBacktestRunResultReposi
         command.Parameters.AddWithValue("@DisableTimeout", result.DisableTimeout ? 1 : 0);
         command.Parameters.AddWithValue("@MaxShortOpportunityScore", (double)result.MaxShortOpportunityScore);
         command.Parameters.AddWithValue("@MaxShortAdxInBear", (double)result.MaxShortAdxInBear);
+        command.Parameters.AddWithValue("@MaximumAtrPercent", (object?)result.MaximumAtrPercent ?? DBNull.Value);
         command.Parameters.AddWithValue("@EvaluationHoursOverride", (object?)result.EvaluationHoursOverride ?? DBNull.Value);
         command.Parameters.AddWithValue("@TotalTrades", result.TotalTrades);
         command.Parameters.AddWithValue("@WinRate", result.WinRate);
@@ -239,6 +247,7 @@ public sealed class SqliteBacktestRunResultRepository : IBacktestRunResultReposi
                 DisableTimeout = !reader.IsDBNull(reader.GetOrdinal("DisableTimeout")) && reader.GetInt32(reader.GetOrdinal("DisableTimeout")) == 1,
                 MaxShortOpportunityScore = GetDecimalSafe(reader, "MaxShortOpportunityScore"),
                 MaxShortAdxInBear = GetDecimalSafe(reader, "MaxShortAdxInBear"),
+                MaximumAtrPercent = reader.IsDBNull(reader.GetOrdinal("MaximumAtrPercent")) ? null : (decimal?)reader.GetDouble(reader.GetOrdinal("MaximumAtrPercent")),
                 EvaluationHoursOverride = reader.IsDBNull(reader.GetOrdinal("EvaluationHoursOverride")) ? null : reader.GetInt32(reader.GetOrdinal("EvaluationHoursOverride")),
                 TotalTrades = reader.GetInt32(reader.GetOrdinal("TotalTrades")),
                 WinRate = reader.GetDouble(reader.GetOrdinal("WinRate")),

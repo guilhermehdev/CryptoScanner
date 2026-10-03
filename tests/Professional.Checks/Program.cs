@@ -362,6 +362,15 @@ var totalResearchSummary = researchSummary.Single(summary => summary.Dimension =
 Check(totalResearchSummary.Count == 1 && totalResearchSummary.Positive24HoursPercent == 100 &&
       totalResearchSummary.AverageReturn24HoursPercent == 10 && totalResearchSummary.GrossProfitFactor24Hours == 999999m,
     "Research summary aggregates candidate outcomes without changing the candidate data");
+var atrCapNode = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(retestThresholds))!;
+atrCapNode["MaximumAtrPercent"] = 1m;
+atrCapNode["EntryStrategy"] = (int)EntryStrategy.Breakout;
+var atrCapThresholds = JsonSerializer.Deserialize<EligibilityThresholds>(atrCapNode.ToJsonString())!;
+var lowAtrBreakout = new AssetAnalysis { Symbol = "LOWATR", Direction = TradeDirection.Long, EntryStrategy = EntryStrategy.Breakout, OpportunityScore = 80, Trend = new() { Close = 100, Direction = "ALTA", AtrPercent = .99m }, Volume = new() { Spike = 2 }, Structure = new(), Candle = new(), Setup = new() { IsBreakout = true, IsConsolidating = true }, Risk = new() { Mode = RiskCalculationMode.IntradayLocal, Support = 95, Resistance = 110, SupportDistancePercent = 5, ResistanceDistancePercent = 10, RiskReward = 2 } };
+var highAtrBreakout = new AssetAnalysis { Symbol = "HIGHATR", Direction = TradeDirection.Long, EntryStrategy = EntryStrategy.Breakout, OpportunityScore = 80, Trend = new() { Close = 100, Direction = "ALTA", AtrPercent = 1m }, Volume = new() { Spike = 2 }, Structure = new(), Candle = new(), Setup = new() { IsBreakout = true, IsConsolidating = true }, Risk = new() { Mode = RiskCalculationMode.IntradayLocal, Support = 95, Resistance = 110, SupportDistancePercent = 5, ResistanceDistancePercent = 10, RiskReward = 2 } };
+Check(EligibilityEvaluator.Evaluate(lowAtrBreakout, "BULL", atrCapThresholds, TradeDirection.Long).IsEligible &&
+      EligibilityEvaluator.Evaluate(highAtrBreakout, "BULL", atrCapThresholds, TradeDirection.Long).FailedMaximumAtrPercent,
+    "Breakout Long ATR research variant accepts only values strictly below the configured ceiling");
 var walkForward = CandidateResearchWalkForwardComparer.Compare(new List<(string Period, IEnumerable<ResearchCandidateSummary> Summaries)>
 {
     ("2023-2024", new[] { new ResearchCandidateSummary { Dimension = "ATR%", Bucket = "<1%", Count = 10, Positive24HoursPercent = 60, AverageReturn6HoursPercent = .1m, AverageReturn24HoursPercent = .2m, GrossProfitFactor24Hours = 1.2m, AverageMaximumFavorable24HoursPercent = 1, AverageMaximumAdverse24HoursPercent = .5m } }),

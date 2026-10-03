@@ -441,6 +441,7 @@ public sealed class StrategyBacktester
             if (eligibility.FailedShortAdxInBear) diagnostics.FailedShortAdxInBear++;
             if (eligibility.FailedMeanReversionRegimeFilter) diagnostics.FailedMeanReversionRegimeFilter++;
             if (eligibility.FailedMeanReversionAtrFilter) diagnostics.FailedMeanReversionAtrFilter++;
+            if (eligibility.FailedMaximumAtrPercent) diagnostics.FailedMaximumAtrPercent++;
             if (eligibility.FailedBollingerLongSideways) diagnostics.FailedBollingerLongSideways++;
 
             if (!eligibility.IsEligible)
@@ -641,6 +642,7 @@ public sealed class StrategyBacktester
         target.FailedShortAdxInBear += source.FailedShortAdxInBear;
         target.FailedMeanReversionRegimeFilter += source.FailedMeanReversionRegimeFilter;
         target.FailedMeanReversionAtrFilter += source.FailedMeanReversionAtrFilter;
+        target.FailedMaximumAtrPercent += source.FailedMaximumAtrPercent;
         target.FailedBollingerLongSideways += source.FailedBollingerLongSideways;
     }
 

@@ -98,6 +98,10 @@ public sealed class EligibilityThresholds
     // Zero preserva o comportamento diagnóstico aberto.
     public decimal MinimumBollingerTargetPercent { get; init; } = 0m;
 
+    // Variante de pesquisa exclusiva do Backtest: Breakout Trend Long com ATR% abaixo
+    // do teto. Nulo preserva integralmente todos os perfis existentes e o scanner ao vivo.
+    public decimal? MaximumAtrPercent { get; init; }
+
     public static readonly EligibilityThresholds Default = new()
     {
         BuyOpportunityScore = ScannerSettings.BuyOpportunityScore,

@@ -92,6 +92,7 @@ public partial class BacktestHistoryWindow : Window
                        $"Dist.Resist.Swing={r.MinResistanceDistanceSwing:F0}% | Dist.Resist.ATR={r.MinResistanceDistanceAtr:F0}% | " +
                        $"Vol.Spike={r.MinVolumeSpike:F2} | Stop min={r.MinStopDistancePercent:F0}% | Score máx. Short={r.MaxShortOpportunityScore:F0} | ADX máx. Short BEAR={r.MaxShortAdxInBear:F0} | " +
                        (r.MaxStopDistancePercent.HasValue ? $"Stop máx={r.MaxStopDistancePercent:F0}% | " : "") +
+                       (r.MaximumAtrPercent.HasValue ? $"ATR máx={r.MaximumAtrPercent:F2}% | " : "") +
                        $"Caminho A={(r.EnablePullbackBounce ? "sim" : "não")} | Bollinger Scoring={(r.EnableBollingerScoring ? "sim" : "não")} | " +
                        $"Volatility Fase B={(r.EnableVolatilityScoringPhaseB ? "sim" : "não")} | " +
                        $"Timeout override={(r.EvaluationHoursOverride?.ToString() ?? "padrão")}" +

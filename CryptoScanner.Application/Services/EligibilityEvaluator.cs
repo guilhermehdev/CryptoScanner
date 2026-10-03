@@ -33,6 +33,7 @@ public static class EligibilityEvaluator
 
         // Filtro experimental (28/08/2026) — ver EligibilityThresholds.LimitAtrForMeanReversion.
         public bool FailedMeanReversionAtrFilter { get; init; }
+        public bool FailedMaximumAtrPercent { get; init; }
 
         public bool IsEligible =>
             !FailedScore && !FailedBreakout && !FailedConsolidation &&
@@ -40,7 +41,7 @@ public static class EligibilityEvaluator
             !FailedDirection && !FailedInvalidLevels && !FailedRiskReward && !FailedStopDistance &&
             !FailedStopDistanceTooHigh && !FailedRiskRewardTooHigh && !FailedBullTrap &&
             !FailedTrendConfirmation && !FailedMomentumFilter && !FailedShortSideways && !FailedShortScoreCeiling && !FailedShortAdxInBear && !FailedMeanReversionRegimeFilter &&
-            !FailedMeanReversionAtrFilter && !FailedBollingerLongSideways;
+            !FailedMeanReversionAtrFilter && !FailedMaximumAtrPercent && !FailedBollingerLongSideways;
     }
 
     public static string Describe(AssetAnalysis asset, string regime, EligibilityThresholds? thresholds = null)
@@ -74,6 +75,7 @@ public static class EligibilityEvaluator
         if(result.FailedShortAdxInBear) reasons.Add($"ADX Short em BEAR acima do teto {t.MaxShortAdxInBear:F0}.");
         if(result.FailedMeanReversionRegimeFilter) reasons.Add("Regime bloqueia reversão à média.");
         if(result.FailedMeanReversionAtrFilter) reasons.Add("ATR bloqueia reversão à média.");
+        if(result.FailedMaximumAtrPercent) reasons.Add($"ATR% precisa estar abaixo de {t.MaximumAtrPercent:F2}% para esta variante de Breakout Long.");
         if(result.FailedBollingerLongSideways) reasons.Add("Mercado lateral bloqueia a Reversão Bollinger Long V3.");
         return reasons.Count==0 ? "Critérios de entrada atendidos no candle fechado analisado." : string.Join("\n",reasons);
     }
@@ -252,6 +254,15 @@ public static class EligibilityEvaluator
             asset.Risk.Mode == RiskCalculationMode.BollingerReversal &&
             marketRegime == "LATERAL";
 
+        // Hipótese walk-forward: o Breakout Trend Long só mostrou repetição em ATR abaixo
+        // de 1%. O teto é opcional e só se aplica quando a própria estratégia é Breakout
+        // Long; demais estratégias e o scanner ao vivo mantêm o comportamento original.
+        bool failedMaximumAtrPercent =
+            thresholds.MaximumAtrPercent is > 0 &&
+            direction == TradeDirection.Long &&
+            thresholds.EntryStrategy == EntryStrategy.Breakout &&
+            (asset.Trend.AtrPercent <= 0 || asset.Trend.AtrPercent >= thresholds.MaximumAtrPercent.Value);
+
         return new EligibilityResult
         {
             FailedScore = failedScore,
@@ -273,6 +284,7 @@ public static class EligibilityEvaluator
             FailedShortAdxInBear = failedShortAdxInBear,
             FailedMeanReversionRegimeFilter = failedMeanReversionRegimeFilter,
             FailedMeanReversionAtrFilter = failedMeanReversionAtrFilter,
+            FailedMaximumAtrPercent = failedMaximumAtrPercent,
             FailedBollingerLongSideways = failedBollingerLongSideways
         };
     }
