@@ -18,6 +18,7 @@ public sealed class AssetAnalysis
     public decimal ScoreVariation { get; set; }
     public decimal RetailFlowScore { get; set; } = 50m;
     public BuyingPressureResult BuyingPressure { get; set; } = BuyingPressureResult.Unavailable("aguardando atualização.");
+    public IReadOnlyList<string> ObservedSetups { get; init; } = Array.Empty<string>();
 
     public string Signal => Direction == TradeDirection.Short
         ? (OpportunityScore >= 70 ? "VENDA+" : OpportunityScore >= 55 ? "VENDA" : OpportunityScore >= 40 ? "MONITORAR" : "IGNORAR")

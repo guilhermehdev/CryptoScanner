@@ -32,6 +32,7 @@ public static class AssetScoreFactory
         IsEliteSetup = analysis.IsEliteSetup,
         HasExhaustion = analysis.Volume.HasExhaustion,
         PatternName = analysis.Candle.PatternName,
+        ObservedSetups = string.Join(" · ", analysis.ObservedSetups),
         BreakoutSource = DetermineBreakoutSource(analysis),
         MarketRegime = marketRegime,
         SmartMoneyLabel = analysis.Structure.SmartMoneyLabel,

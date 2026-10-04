@@ -400,6 +400,15 @@ squeezeCandles[^1] = new Candle { OpenTime = day.AddHours(80), Open = 100m, Clos
 squeezeBands = BollingerBandsIndicator.Calculate(squeezeCandles);
 Check(!BollingerSqueezeBreakoutIndicator.IsConfirmed(squeezeCandles, squeezeBands.Upper, squeezeBands.Lower, squeezeBands.BandWidthPercent, TradeDirection.Long),
     "EAB rejects expansion without a closed breakout beyond the band");
+var fffdCandles = Enumerable.Range(0, 80).Select(i => new Candle
+{
+    OpenTime = day.AddHours(i), Open = 100m, Close = 100m, High = 101m, Low = 99m, Volume = 100m
+}).ToList();
+fffdCandles[^2] = new Candle { OpenTime = day.AddHours(78), Open = 100m, Close = 95m, High = 101m, Low = 94m, Volume = 100m };
+fffdCandles[^1] = new Candle { OpenTime = day.AddHours(79), Open = 95m, Close = 99m, High = 100m, Low = 94m, Volume = 150m };
+var fffdBands = BollingerBandsIndicator.Calculate(fffdCandles);
+Check(TechnicalSetupAlertDetector.Detect(fffdCandles, fffdBands.Upper, fffdBands.Lower, fffdBands.BandWidthPercent, 2m, 1m, TradeDirection.Long).Contains("FFFD compra"),
+    "Observational alerts identify a closed FFFD return inside the lower band");
 var isolatedCandles=Enumerable.Range(0,60).Select(i=>new Candle{OpenTime=day.AddHours(i*4),Open=101,Close=101,High=102,Low=100}).ToList();
 isolatedCandles[20]=new Candle{Open=80,Close=80,High=81,Low=70};
 isolatedCandles[^1]=new Candle{Open=102,Close=103,High=104,Low=101};

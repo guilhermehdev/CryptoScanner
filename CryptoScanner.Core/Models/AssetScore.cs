@@ -48,6 +48,8 @@ public sealed class AssetScore : ObservableModel
     public bool IsEliteSetup { get; init; }
     public bool HasExhaustion { get; init; }
     public string PatternName { get; init; } = "";
+    public string ObservedSetups { get; init; } = "";
+    public bool HasObservedSetups => !string.IsNullOrWhiteSpace(ObservedSetups);
     public string BreakoutSource { get; init; } = "";
     public string MarketRegime { get; init; } = "";
     public decimal Rsi { get; init; }
@@ -90,6 +92,8 @@ public sealed class AssetScore : ObservableModel
 
     [System.Text.Json.Serialization.JsonIgnore]
     public string CompactContext => BreakoutSource switch { "Curto Prazo" => "Curto", "Força Rel." => "F. rel.", _ => BreakoutSource };
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string CompactObservedSetups => ObservedSetups;
     [System.Text.Json.Serialization.JsonIgnore]
     public string CompactRelativeStrength => RelativeStrength >= 0 ? $"+{RelativeStrength:F2}%" : $"{RelativeStrength:F2}%";
 

@@ -18,12 +18,9 @@ public sealed class AssetAnalyzer
         var volume = AnalyzeVolume(candles, direction);
         var candle = AnalyzeCandle(candles);
 
-        // Bandas de Bollinger — só calculadas quando o modo realmente usa (Reversão de
-        // Bollinger), pra não pagar esse custo em todos os outros modos que não precisam.
-        (List<decimal?> Middle, List<decimal?> Upper, List<decimal?> Lower, List<decimal?> BandWidthPercent)? bollinger =
-            riskMode is RiskCalculationMode.BollingerReversal or RiskCalculationMode.BollingerSqueezeBreakout
-                ? BollingerBandsIndicator.Calculate(candles)
-                : null;
+        // As bandas também abastecem alertas observacionais. Os alertas não mudam a
+        // estratégia selecionada, a elegibilidade, o score ou a geometria de risco.
+        var bollinger = BollingerBandsIndicator.Calculate(candles);
 
         var risk = AnalyzeRisk(candles, trend.Close, trend.Atr, trend.Ema21, riskMode, trend.TrendStrengthScore, direction, bollinger, symbolDailyCandles, targetZoneExperiment);
         var setup = AnalyzeSetup(candles, trend, risk, structure, candle, volume, btcCandles, profile, direction, riskMode, bollinger);
@@ -95,6 +92,16 @@ public sealed class AssetAnalyzer
                 TakeProfit3 = risk.TakeProfit3
             };
         }
+        var observedSetups = TechnicalSetupAlertDetector.Detect(
+            candles, bollinger.Upper, bollinger.Lower, bollinger.BandWidthPercent,
+            trend.Atr, volume.Spike, direction).ToList();
+        if (setup.IsBreakout && setup.IsConsolidating)
+            observedSetups.Insert(0, direction == TradeDirection.Long ? "Rompimento de congestão" : "Rompimento de congestão venda");
+        if (setup.IsPullbackBounce)
+            observedSetups.Insert(0, direction == TradeDirection.Long ? "Pullback em tendência" : "Pullback em tendência venda");
+        if (setup.IsMeanReversionConfirmedSetup || setup.IsBollingerLowerReclaimSetup)
+            observedSetups.Insert(0, "Retorno à média confirmado");
+
         var analysis = new AssetAnalysis
         {
             Direction = direction,
@@ -105,7 +112,8 @@ public sealed class AssetAnalyzer
             Structure = structure,
             Risk = risk,
             Candle = candle,
-            Setup = setup
+            Setup = setup,
+            ObservedSetups = observedSetups
         };
 
         analysis.OpportunityScore = OpportunityScoreCalculator.Calculate(analysis, direction);
