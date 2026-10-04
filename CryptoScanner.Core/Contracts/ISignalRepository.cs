@@ -12,6 +12,8 @@ public interface ISignalRepository
     Task UpdateExecutionAsync(int id, string expectedJson, LabTrade trade, CancellationToken cancellationToken = default);
     Task SaveScanRunAsync(string profile, FilterDiagnostics diagnostics, CancellationToken cancellationToken = default);
     Task UpdateSignalResultAsync(int id, decimal outcomePrice, decimal outcomePercent, string exitReason, CancellationToken cancellationToken = default);
+    Task SaveTechnicalSetupAlertsAsync(IReadOnlyList<TechnicalSetupAlert> alerts, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TechnicalSetupAlert>> GetTechnicalSetupAlertsAsync(int limit = 500, CancellationToken cancellationToken = default);
     Task<double> GetWinRateAsync(CancellationToken cancellationToken = default);
     Task<double> GetAverageReturnAsync(CancellationToken cancellationToken = default);
 }

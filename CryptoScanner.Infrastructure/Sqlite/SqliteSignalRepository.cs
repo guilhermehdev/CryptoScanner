@@ -21,6 +21,21 @@ public sealed class SqliteSignalRepository : ISignalRepository
         await connection.OpenAsync(cancellationToken);
         const string sql = """
             CREATE TABLE IF NOT EXISTS ScanRuns(Id TEXT PRIMARY KEY, Profile TEXT NOT NULL, CompletedUtc TEXT NOT NULL, DiagnosticsJson TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS TechnicalSetupAlerts
+            (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                CandleOpenUtc TEXT NOT NULL,
+                RecordedUtc TEXT NOT NULL,
+                Symbol TEXT NOT NULL,
+                Direction TEXT NOT NULL,
+                Setup TEXT NOT NULL,
+                Price REAL NOT NULL,
+                Score REAL NOT NULL,
+                Profile TEXT NOT NULL,
+                MarketRegime TEXT NOT NULL,
+                UNIQUE(Symbol, Direction, Setup, Profile, CandleOpenUtc)
+            );
+            CREATE INDEX IF NOT EXISTS IX_TechnicalSetupAlerts_RecordedUtc ON TechnicalSetupAlerts (RecordedUtc DESC);
             CREATE TABLE IF NOT EXISTS Signals
             (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -180,6 +195,81 @@ public sealed class SqliteSignalRepository : ISignalRepository
     public Task UpdateSignalResultAsync(int id, decimal outcomePrice, decimal outcomePercent, string exitReason, CancellationToken cancellationToken = default) =>
         ExecuteAsync("UPDATE Signals SET OutcomePrice = @OutcomePrice, OutcomePercent = @OutcomePercent, Evaluated = 1, ExitReason = @ExitReason WHERE Id = @Id", cancellationToken,
             ("@Id", id), ("@OutcomePrice", (double)outcomePrice), ("@OutcomePercent", (double)outcomePercent), ("@ExitReason", exitReason));
+
+    public async Task SaveTechnicalSetupAlertsAsync(IReadOnlyList<TechnicalSetupAlert> alerts, CancellationToken cancellationToken = default)
+    {
+        if (alerts.Count == 0)
+            return;
+
+        await InitializeAsync(cancellationToken);
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            INSERT OR IGNORE INTO TechnicalSetupAlerts
+            (CandleOpenUtc, RecordedUtc, Symbol, Direction, Setup, Price, Score, Profile, MarketRegime)
+            VALUES (@CandleOpenUtc, @RecordedUtc, @Symbol, @Direction, @Setup, @Price, @Score, @Profile, @MarketRegime)
+            """;
+
+        var candleOpenUtc = command.CreateParameter(); candleOpenUtc.ParameterName = "@CandleOpenUtc"; command.Parameters.Add(candleOpenUtc);
+        var recordedUtc = command.CreateParameter(); recordedUtc.ParameterName = "@RecordedUtc"; command.Parameters.Add(recordedUtc);
+        var symbol = command.CreateParameter(); symbol.ParameterName = "@Symbol"; command.Parameters.Add(symbol);
+        var direction = command.CreateParameter(); direction.ParameterName = "@Direction"; command.Parameters.Add(direction);
+        var setup = command.CreateParameter(); setup.ParameterName = "@Setup"; command.Parameters.Add(setup);
+        var price = command.CreateParameter(); price.ParameterName = "@Price"; command.Parameters.Add(price);
+        var score = command.CreateParameter(); score.ParameterName = "@Score"; command.Parameters.Add(score);
+        var profile = command.CreateParameter(); profile.ParameterName = "@Profile"; command.Parameters.Add(profile);
+        var marketRegime = command.CreateParameter(); marketRegime.ParameterName = "@MarketRegime"; command.Parameters.Add(marketRegime);
+
+        foreach (var alert in alerts)
+        {
+            candleOpenUtc.Value = alert.CandleOpenUtc.ToUniversalTime().ToString("O");
+            recordedUtc.Value = alert.RecordedUtc.ToUniversalTime().ToString("O");
+            symbol.Value = alert.Symbol;
+            direction.Value = alert.Direction.ToString();
+            setup.Value = alert.Setup;
+            price.Value = (double)alert.Price;
+            score.Value = (double)alert.Score;
+            profile.Value = alert.Profile;
+            marketRegime.Value = alert.MarketRegime;
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<TechnicalSetupAlert>> GetTechnicalSetupAlertsAsync(int limit = 500, CancellationToken cancellationToken = default)
+    {
+        await InitializeAsync(cancellationToken);
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new SqliteCommand("""
+            SELECT Id, CandleOpenUtc, RecordedUtc, Symbol, Direction, Setup, Price, Score, Profile, MarketRegime
+            FROM TechnicalSetupAlerts ORDER BY CandleOpenUtc DESC, Id DESC LIMIT @Limit
+            """, connection);
+        command.Parameters.AddWithValue("@Limit", Math.Clamp(limit, 1, 5_000));
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var alerts = new List<TechnicalSetupAlert>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            alerts.Add(new TechnicalSetupAlert
+            {
+                Id = reader.GetInt32(0),
+                CandleOpenUtc = DateTime.Parse(reader.GetString(1), null, System.Globalization.DateTimeStyles.RoundtripKind),
+                RecordedUtc = DateTime.Parse(reader.GetString(2), null, System.Globalization.DateTimeStyles.RoundtripKind),
+                Symbol = reader.GetString(3),
+                Direction = Enum.TryParse<TradeDirection>(reader.GetString(4), true, out var direction) ? direction : TradeDirection.Long,
+                Setup = reader.GetString(5),
+                Price = Convert.ToDecimal(reader.GetDouble(6)),
+                Score = Convert.ToDecimal(reader.GetDouble(7)),
+                Profile = reader.GetString(8),
+                MarketRegime = reader.GetString(9)
+            });
+        }
+        return alerts;
+    }
 
     public async Task<double> GetWinRateAsync(CancellationToken cancellationToken = default)
     {

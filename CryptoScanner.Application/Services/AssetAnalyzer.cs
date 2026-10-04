@@ -106,6 +106,7 @@ public sealed class AssetAnalyzer
         {
             Direction = direction,
             Symbol = symbol,
+            CandleOpenUtc = candles[^1].OpenTime,
             EntryStrategy = entryStrategy,
             Trend = trend,
             Volume = volume,

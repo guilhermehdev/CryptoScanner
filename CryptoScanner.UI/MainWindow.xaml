@@ -78,6 +78,7 @@
                 <Button Content="Backtest" Click="BtnFullBacktest_Click" Padding="8,2" Margin="0,3,6,0"/>
                 <Button Content="Histórico" Click="BtnBacktestHistory_Click" Padding="8,2" Margin="0,3,6,0"/>
                 <Button Content="Alertas" Click="BtnAlertSettings_Click" Padding="8,2" Margin="0,3,6,0"/>
+                <Button Content="Setups" Click="BtnTechnicalSetupHistory_Click" Padding="8,2" Margin="0,3,6,0" ToolTip="Histórico das situações técnicas observadas; não são sinais de trade."/>
                 <Button Content="Análise da pressão" Click="BtnPressureAnalysis_Click" Padding="8,2" Margin="0,3,6,0"/>
                 <Button Content="Laboratório" Click="BtnStrategyLab_Click" Padding="8,2" Margin="0,3,6,0"/>
                 <Button Content="Histórico LLM" Click="BtnLlmHistory_Click" Padding="8,2" Margin="0,3,6,0"/>

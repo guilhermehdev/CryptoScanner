@@ -7,6 +7,7 @@ public sealed class AssetAnalysis
     public TradeDirection Direction { get; init; } = TradeDirection.Long;
     public CryptoScanner.Core.Configuration.EntryStrategy EntryStrategy { get; init; }
     public required string Symbol { get; init; }
+    public DateTime CandleOpenUtc { get; init; }
     public required TrendAnalysis Trend { get; init; }
     public required VolumeAnalysis Volume { get; init; }
     public required StructureAnalysis Structure { get; init; }

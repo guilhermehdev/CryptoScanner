@@ -61,6 +61,22 @@ public sealed class ScannerService
         var analyses = symbols.Select(symbol => AnalyzeSymbolAsync(symbol, btcCandles, profile, direction, shortBreakoutOnly, throttle, errors, cancellationToken));
         var allAnalyzed = (await Task.WhenAll(analyses)).OfType<AssetAnalysis>().ToList();
 
+        var technicalSetupAlerts = allAnalyzed
+            .SelectMany(asset => asset.ObservedSetups.Select(setup => new TechnicalSetupAlert
+            {
+                CandleOpenUtc = asset.CandleOpenUtc,
+                RecordedUtc = DateTime.UtcNow,
+                Symbol = asset.Symbol,
+                Direction = asset.Direction,
+                Setup = setup,
+                Price = asset.Trend.Close,
+                Score = asset.OpportunityScore,
+                Profile = profile.Name,
+                MarketRegime = marketRegime
+            }))
+            .ToList();
+        await _signals.SaveTechnicalSetupAlertsAsync(technicalSetupAlerts, cancellationToken);
+
         var top30 = allAnalyzed.OrderByDescending(a => a.OpportunityScore).Take(30).ToList();
         var missingFavorites = allAnalyzed.Where(a => favoriteSet.Contains(a.Symbol) && !top30.Any(t => t.Symbol == a.Symbol));
         var analysesResult = top30.Concat(missingFavorites).OrderByDescending(a => a.OpportunityScore).ToList();
@@ -86,6 +102,9 @@ public sealed class ScannerService
 
     public Task<ScannerRunResult> RunAsync(ScanProfile profile, CancellationToken cancellationToken) =>
         RunAsync(profile, TradeDirection.Long, cancellationToken);
+
+    public Task<IReadOnlyList<TechnicalSetupAlert>> GetTechnicalSetupAlertsAsync(int limit = 500, CancellationToken cancellationToken = default) =>
+        _signals.GetTechnicalSetupAlertsAsync(limit, cancellationToken);
 
     // Compatibilidade com os checks e integrações que exercitam o caminho Long antigo.
     private Task<(FilterDiagnostics Diagnostics, List<NewSignalAlert> NewSignals)> PersistEligibleSignalsAsync(
