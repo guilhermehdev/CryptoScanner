@@ -7,6 +7,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Resource Include="Assets\CryptoScanner.png" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\CryptoScanner.Backtest\CryptoScanner.Backtest.csproj" />
     <ProjectReference Include="..\CryptoScanner.Application\CryptoScanner.Application.csproj" />
     <ProjectReference Include="..\CryptoScanner.Core\CryptoScanner.Core.csproj" />
