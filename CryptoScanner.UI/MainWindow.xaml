@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:CryptoScanner.UI"
         mc:Ignorable="d" Loaded="SetupAlertNotifications_Loaded" Closed="SetupAlertNotifications_Closed"
-        Title="ScannerCripto" Height="800" Width="1300"
+        Title="ScannerCripto" Icon="Assets/CryptoScanner.png" Height="800" Width="1300"
         WindowStartupLocation="CenterScreen"
         Background="#1E1E1E"
         Foreground="White">
