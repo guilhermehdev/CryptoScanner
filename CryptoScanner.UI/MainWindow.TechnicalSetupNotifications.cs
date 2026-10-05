@@ -7,6 +7,8 @@ namespace CryptoScanner.UI;
 
 public partial class MainWindow
 {
+    private readonly List<TechnicalSetupAlert> _potentialStrategies = [];
+
     private async void SetupAlertNotifications_Loaded(object sender, RoutedEventArgs e)
     {
         ApplyCryptoScannerTrayIcon();
@@ -34,25 +36,36 @@ public partial class MainWindow
     {
         try
         {
-            dgPotentialStrategies.ItemsSource = await _scanner.GetTechnicalSetupAlertsAsync(500);
+            var storedAlerts = await _scanner.GetTechnicalSetupAlertsAsync(500);
+            if (storedAlerts.Count > 0 || _potentialStrategies.Count == 0)
+                SetPotentialStrategies(storedAlerts);
         }
-        catch
+        catch (Exception ex)
         {
-            // O painel é informativo. Uma falha de leitura não interrompe o scanner.
+            txtPotentialStrategiesSummary.Text = $"Não foi possível carregar as estratégias: {ex.Message}";
         }
     }
 
     private void ShowPotentialStrategies(IReadOnlyList<TechnicalSetupAlert> newAlerts)
     {
-        var existing = dgPotentialStrategies.ItemsSource as IEnumerable<TechnicalSetupAlert>
-                       ?? Array.Empty<TechnicalSetupAlert>();
-        dgPotentialStrategies.ItemsSource = newAlerts
-            .Concat(existing)
+        SetPotentialStrategies(newAlerts.Concat(_potentialStrategies));
+    }
+
+    private void SetPotentialStrategies(IEnumerable<TechnicalSetupAlert> alerts)
+    {
+        var orderedAlerts = alerts
             .GroupBy(alert => $"{alert.Symbol}|{alert.Direction}|{alert.Setup}|{alert.Profile}|{alert.CandleOpenUtc:O}", StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
             .OrderByDescending(alert => alert.CandleOpenUtc)
             .Take(500)
             .ToList();
+
+        _potentialStrategies.Clear();
+        _potentialStrategies.AddRange(orderedAlerts);
+        dgPotentialStrategies.ItemsSource = orderedAlerts;
+        txtPotentialStrategiesSummary.Text = orderedAlerts.Count == 0
+            ? "Nenhuma estratégia potencial detectada ainda. O grid será preenchido quando o scanner identificar um setup em candle fechado."
+            : $"{orderedAlerts.Count} estratégia(s) potencial(is) detectada(s). Atualização automática a cada nova detecção.";
     }
 
     private async void BtnRefreshPotentialStrategies_Click(object sender, RoutedEventArgs e) =>
