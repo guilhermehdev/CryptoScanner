@@ -27,6 +27,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>Assets\CryptoScanner.ico</ApplicationIcon>
   </PropertyGroup>
 
 </Project>
