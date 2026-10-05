@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <Resource Include="Assets\CryptoScanner.png" />
+    <Resource Include="Assets\CryptoScanner.ico" />
   </ItemGroup>
 
   <ItemGroup>

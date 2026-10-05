@@ -9,6 +9,7 @@ public partial class MainWindow
 {
     private async void SetupAlertNotifications_Loaded(object sender, RoutedEventArgs e)
     {
+        ApplyCryptoScannerTrayIcon();
         _scanner.TechnicalSetupsDetected += OnTechnicalSetupsDetected;
         await RefreshPotentialStrategiesAsync();
     }
@@ -23,6 +24,7 @@ public partial class MainWindow
 
         _ = Dispatcher.InvokeAsync(async () =>
         {
+            ShowPotentialStrategies(alerts);
             await RefreshPotentialStrategiesAsync();
             await DispatchTechnicalSetupAlertsAsync(alerts);
         });
@@ -37,6 +39,44 @@ public partial class MainWindow
         catch
         {
             // O painel é informativo. Uma falha de leitura não interrompe o scanner.
+        }
+    }
+
+    private void ShowPotentialStrategies(IReadOnlyList<TechnicalSetupAlert> newAlerts)
+    {
+        var existing = dgPotentialStrategies.ItemsSource as IEnumerable<TechnicalSetupAlert>
+                       ?? Array.Empty<TechnicalSetupAlert>();
+        dgPotentialStrategies.ItemsSource = newAlerts
+            .Concat(existing)
+            .GroupBy(alert => $"{alert.Symbol}|{alert.Direction}|{alert.Setup}|{alert.Profile}|{alert.CandleOpenUtc:O}", StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .OrderByDescending(alert => alert.CandleOpenUtc)
+            .Take(500)
+            .ToList();
+    }
+
+    private async void BtnRefreshPotentialStrategies_Click(object sender, RoutedEventArgs e) =>
+        await RefreshPotentialStrategiesAsync();
+
+    private void ApplyCryptoScannerTrayIcon()
+    {
+        if (_trayIcon is null)
+            return;
+
+        try
+        {
+            var resource = System.Windows.Application.GetResourceStream(new Uri(
+                "pack://application:,,,/CryptoScanner.UI;component/Assets/CryptoScanner.ico",
+                UriKind.Absolute));
+            if (resource is null)
+                return;
+
+            using (resource.Stream)
+                _trayIcon.Icon = new System.Drawing.Icon(resource.Stream);
+        }
+        catch
+        {
+            // Mantém o ícone padrão caso o recurso não possa ser carregado.
         }
     }
 

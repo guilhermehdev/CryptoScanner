@@ -203,7 +203,10 @@
             <TabItem Header="Estratégias Potenciais">
                 <Grid>
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Margin="5,3" Foreground="#D0D0D0" Text="Setups detectados em candles fechados. São observações técnicas; não significam entrada, sinal elegível ou trade aberto." TextWrapping="Wrap"/>
+                    <DockPanel Grid.Row="0" Margin="5,3">
+                        <Button DockPanel.Dock="Right" Content="Atualizar" Padding="8,2" Click="BtnRefreshPotentialStrategies_Click"/>
+                        <TextBlock Margin="0,0,8,0" Foreground="#D0D0D0" Text="Setups detectados em candles fechados. São observações técnicas; não significam entrada, sinal elegível ou trade aberto." TextWrapping="Wrap"/>
+                    </DockPanel>
                     <DataGrid x:Name="dgPotentialStrategies" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#686868" VerticalGridLinesBrush="#686868" CellStyle="{StaticResource LightTradeGridCell}">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Candle" Width="125" Binding="{Binding CandleLocal, StringFormat=dd/MM HH:mm}"/>
