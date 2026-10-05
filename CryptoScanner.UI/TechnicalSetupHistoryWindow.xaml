@@ -10,7 +10,9 @@
         </Grid.RowDefinitions>
         <TextBlock Text="Situações observadas em candles fechados. Não são sinais de trade e não representam recomendação de entrada."
                    Foreground="#D0D0D0" TextWrapping="Wrap" Margin="0,0,0,10"/>
-        <DataGrid Grid.Row="1" x:Name="dgSetups" AutoGenerateColumns="False" IsReadOnly="True"
+        <TabControl Grid.Row="1" Background="#1E1E1E" Foreground="#F5F5F5">
+            <TabItem Header="Histórico">
+        <DataGrid x:Name="dgSetups" AutoGenerateColumns="False" IsReadOnly="True"
                   Background="#252525" Foreground="#F5F5F5" RowBackground="#252525" AlternatingRowBackground="#1E1E1E"
                   GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#454545" VerticalGridLinesBrush="#454545">
             <DataGrid.ColumnHeaderStyle>
@@ -25,8 +27,37 @@
                 <DataGridTextColumn Header="Score" Binding="{Binding Score, StringFormat=F2}" Width="75"/>
                 <DataGridTextColumn Header="Perfil" Binding="{Binding Profile}" Width="90"/>
                 <DataGridTextColumn Header="Regime" Binding="{Binding MarketRegime}" Width="90"/>
+                <DataGridTextColumn Header="1h %" Binding="{Binding ReturnAfter1HourPercent, StringFormat=F2, TargetNullValue=—}" Width="65"/>
+                <DataGridTextColumn Header="6h %" Binding="{Binding ReturnAfter6HoursPercent, StringFormat=F2, TargetNullValue=—}" Width="65"/>
+                <DataGridTextColumn Header="24h %" Binding="{Binding ReturnAfter24HoursPercent, StringFormat=F2, TargetNullValue=—}" Width="70"/>
                 <DataGridTextColumn Header="Registrado" Binding="{Binding RecordedUtc, StringFormat=dd/MM HH:mm}" Width="110"/>
             </DataGrid.Columns>
         </DataGrid>
+            </TabItem>
+            <TabItem Header="Evolução">
+                <DataGrid x:Name="dgEvolution" AutoGenerateColumns="False" IsReadOnly="True"
+                          Background="#252525" Foreground="#F5F5F5" RowBackground="#252525" AlternatingRowBackground="#1E1E1E"
+                          GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#454545" VerticalGridLinesBrush="#454545">
+                    <DataGrid.ColumnHeaderStyle>
+                        <Style TargetType="DataGridColumnHeader"><Setter Property="Background" Value="#282828"/><Setter Property="Foreground" Value="#00D7D7"/><Setter Property="Padding" Value="5,3"/></Style>
+                    </DataGrid.ColumnHeaderStyle>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Setup" Binding="{Binding Setup}" Width="220"/>
+                        <DataGridTextColumn Header="Lado" Binding="{Binding Direction}" Width="70"/>
+                        <DataGridTextColumn Header="Perfil" Binding="{Binding Profile}" Width="90"/>
+                        <DataGridTextColumn Header="Regime" Binding="{Binding MarketRegime}" Width="90"/>
+                        <DataGridTextColumn Header="Ocorrências" Binding="{Binding Occurrences}" Width="90"/>
+                        <DataGridTextColumn Header="Avaliados" Binding="{Binding Evaluated}" Width="80"/>
+                        <DataGridTextColumn Header="Positivas 24h %" Binding="{Binding Positive24HoursPercent, StringFormat=F1}" Width="115"/>
+                        <DataGridTextColumn Header="Média 1h %" Binding="{Binding AverageReturn1HourPercent, StringFormat=F2}" Width="90"/>
+                        <DataGridTextColumn Header="Média 6h %" Binding="{Binding AverageReturn6HoursPercent, StringFormat=F2}" Width="90"/>
+                        <DataGridTextColumn Header="Média 24h %" Binding="{Binding AverageReturn24HoursPercent, StringFormat=F2}" Width="100"/>
+                        <DataGridTextColumn Header="PF 24h" Binding="{Binding GrossProfitFactor24Hours, StringFormat=F2}" Width="75"/>
+                        <DataGridTextColumn Header="MFE 24h %" Binding="{Binding AverageMaximumFavorable24HoursPercent, StringFormat=F2}" Width="95"/>
+                        <DataGridTextColumn Header="MAE 24h %" Binding="{Binding AverageMaximumAdverse24HoursPercent, StringFormat=F2}" Width="95"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+        </TabControl>
     </Grid>
 </Window>

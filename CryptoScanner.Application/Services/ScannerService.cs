@@ -3,6 +3,7 @@ using CryptoScanner.Core.Configuration;
 using CryptoScanner.Core.Contracts;
 using CryptoScanner.Core.Models;
 using CryptoScanner.Core.Models.Analysis;
+using CryptoScanner.Core.Utilities;
 using CryptoScanner.Indicators.Indicators;
 using CryptoScanner.Strategies;
 
@@ -19,6 +20,7 @@ public sealed class ScannerService
     private readonly IWatchlistRepository _watchlist;
     private readonly AssetAnalyzer _assetAnalyzer;
     private readonly BuyingPressureHistoryService? _pressureHistory;
+    private readonly TechnicalSetupOutcomeEvaluator _technicalSetupOutcomeEvaluator;
     public event Action<string>? PressureHistoryError;
 
     public ScannerService(IMarketDataService marketData, ISignalRepository signals, IWatchlistRepository watchlist, AssetAnalyzer assetAnalyzer,
@@ -29,6 +31,7 @@ public sealed class ScannerService
         _watchlist = watchlist;
         _assetAnalyzer = assetAnalyzer;
         _pressureHistory = pressureHistory;
+        _technicalSetupOutcomeEvaluator = new TechnicalSetupOutcomeEvaluator(_signals, _marketData);
     }
 
     public async Task<ScannerRunResult> RunAsync(
@@ -43,6 +46,8 @@ public sealed class ScannerService
         var errors = new System.Collections.Concurrent.ConcurrentDictionary<string,string>();
         await _signals.InitializeAsync(cancellationToken);
         await _watchlist.InitializeAsync(cancellationToken);
+        try { await _technicalSetupOutcomeEvaluator.EvaluateDueAsync(cancellationToken); }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested) { errors["[avaliação de setups]"] = ex.Message; }
 
         var btcDailyCandles = await _marketData.GetCandlesAsync("BTCUSDT", "1d", 300, cancellationToken);
         decimal btcEma200 = EmaIndicator.Calculate(btcDailyCandles, 200)[^1] ?? 0;
@@ -65,6 +70,7 @@ public sealed class ScannerService
             .SelectMany(asset => asset.ObservedSetups.Select(setup => new TechnicalSetupAlert
             {
                 CandleOpenUtc = asset.CandleOpenUtc,
+                EntryUtc = asset.CandleOpenUtc + CandleIntervalHelper.ToTimeSpan(profile.CandleInterval),
                 RecordedUtc = DateTime.UtcNow,
                 Symbol = asset.Symbol,
                 Direction = asset.Direction,

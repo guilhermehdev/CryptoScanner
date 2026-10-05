@@ -8,7 +8,7 @@ public partial class MainWindow
     {
         try
         {
-            var alerts = await _scanner.GetTechnicalSetupAlertsAsync();
+            var alerts = await _scanner.GetTechnicalSetupAlertsAsync(5_000);
             new TechnicalSetupHistoryWindow(alerts).Show();
         }
         catch (Exception ex)

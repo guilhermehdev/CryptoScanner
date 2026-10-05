@@ -411,10 +411,16 @@ Check(TechnicalSetupAlertDetector.Detect(fffdCandles, fffdBands.Upper, fffdBands
     "Observational alerts identify a closed FFFD return inside the lower band");
 var technicalAlertDatabase = Path.Combine(Path.GetTempPath(), $"crypto-scanner-technical-alerts-{Guid.NewGuid():N}.db");
 var technicalAlertRepository = new SqliteSignalRepository(technicalAlertDatabase);
-var technicalAlert = new TechnicalSetupAlert { CandleOpenUtc = day, RecordedUtc = day.AddMinutes(1), Symbol = "ALERTUSDT", Direction = TradeDirection.Long, Setup = "FFFD compra", Price = 100m, Score = 60m, Profile = "Intraday", MarketRegime = "BULL" };
+var technicalAlert = new TechnicalSetupAlert { CandleOpenUtc = day, EntryUtc = day.AddHours(1), RecordedUtc = day.AddMinutes(1), Symbol = "ALERTUSDT", Direction = TradeDirection.Long, Setup = "FFFD compra", Price = 100m, Score = 60m, Profile = "Intraday", MarketRegime = "BULL" };
 await technicalAlertRepository.SaveTechnicalSetupAlertsAsync([technicalAlert, technicalAlert]);
 Check((await technicalAlertRepository.GetTechnicalSetupAlertsAsync()).Count == 1,
     "Technical setup history keeps one record per candle, setup, profile, symbol and direction");
+var savedTechnicalAlert = (await technicalAlertRepository.GetTechnicalSetupAlertsAsync()).Single();
+await technicalAlertRepository.UpdateTechnicalSetupAlertOutcomeAsync(savedTechnicalAlert.Id, 1m, 2m, 3m, 5m, 1m);
+var evaluatedTechnicalAlert = (await technicalAlertRepository.GetTechnicalSetupAlertsAsync()).Single();
+Check(evaluatedTechnicalAlert.IsEvaluated && evaluatedTechnicalAlert.ReturnAfter24HoursPercent == 3m &&
+      TechnicalSetupPerformanceAnalyzer.Build([evaluatedTechnicalAlert]).Single().GrossProfitFactor24Hours == 999999m,
+    "Technical setup outcome persists and feeds the evolution summary");
 SqliteConnection.ClearAllPools();
 File.Delete(technicalAlertDatabase);
 var isolatedCandles=Enumerable.Range(0,60).Select(i=>new Candle{OpenTime=day.AddHours(i*4),Open=101,Close=101,High=102,Low=100}).ToList();

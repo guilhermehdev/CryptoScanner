@@ -25,6 +25,7 @@ public sealed class SqliteSignalRepository : ISignalRepository
             (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
                 CandleOpenUtc TEXT NOT NULL,
+                EntryUtc TEXT,
                 RecordedUtc TEXT NOT NULL,
                 Symbol TEXT NOT NULL,
                 Direction TEXT NOT NULL,
@@ -33,6 +34,11 @@ public sealed class SqliteSignalRepository : ISignalRepository
                 Score REAL NOT NULL,
                 Profile TEXT NOT NULL,
                 MarketRegime TEXT NOT NULL,
+                ReturnAfter1HourPercent REAL,
+                ReturnAfter6HoursPercent REAL,
+                ReturnAfter24HoursPercent REAL,
+                MaximumFavorable24HoursPercent REAL,
+                MaximumAdverse24HoursPercent REAL,
                 UNIQUE(Symbol, Direction, Setup, Profile, CandleOpenUtc)
             );
             CREATE INDEX IF NOT EXISTS IX_TechnicalSetupAlerts_RecordedUtc ON TechnicalSetupAlerts (RecordedUtc DESC);
@@ -105,6 +111,23 @@ public sealed class SqliteSignalRepository : ISignalRepository
             catch (SqliteException)
             {
                 // Coluna já existe — ignora.
+            }
+        }
+        var technicalAlertColumns = new[]
+        {
+            "EntryUtc TEXT", "ReturnAfter1HourPercent REAL", "ReturnAfter6HoursPercent REAL",
+            "ReturnAfter24HoursPercent REAL", "MaximumFavorable24HoursPercent REAL", "MaximumAdverse24HoursPercent REAL"
+        };
+        foreach (var column in technicalAlertColumns)
+        {
+            try
+            {
+                await using var alter = new SqliteCommand($"ALTER TABLE TechnicalSetupAlerts ADD COLUMN {column}", connection);
+                await alter.ExecuteNonQueryAsync(cancellationToken);
+            }
+            catch (SqliteException)
+            {
+                // Coluna já existe ou a tabela foi criada com ela.
             }
         }
         _initialized=true;
@@ -209,11 +232,12 @@ public sealed class SqliteSignalRepository : ISignalRepository
         command.Transaction = transaction;
         command.CommandText = """
             INSERT OR IGNORE INTO TechnicalSetupAlerts
-            (CandleOpenUtc, RecordedUtc, Symbol, Direction, Setup, Price, Score, Profile, MarketRegime)
-            VALUES (@CandleOpenUtc, @RecordedUtc, @Symbol, @Direction, @Setup, @Price, @Score, @Profile, @MarketRegime)
+            (CandleOpenUtc, EntryUtc, RecordedUtc, Symbol, Direction, Setup, Price, Score, Profile, MarketRegime)
+            VALUES (@CandleOpenUtc, @EntryUtc, @RecordedUtc, @Symbol, @Direction, @Setup, @Price, @Score, @Profile, @MarketRegime)
             """;
 
         var candleOpenUtc = command.CreateParameter(); candleOpenUtc.ParameterName = "@CandleOpenUtc"; command.Parameters.Add(candleOpenUtc);
+        var entryUtc = command.CreateParameter(); entryUtc.ParameterName = "@EntryUtc"; command.Parameters.Add(entryUtc);
         var recordedUtc = command.CreateParameter(); recordedUtc.ParameterName = "@RecordedUtc"; command.Parameters.Add(recordedUtc);
         var symbol = command.CreateParameter(); symbol.ParameterName = "@Symbol"; command.Parameters.Add(symbol);
         var direction = command.CreateParameter(); direction.ParameterName = "@Direction"; command.Parameters.Add(direction);
@@ -226,6 +250,7 @@ public sealed class SqliteSignalRepository : ISignalRepository
         foreach (var alert in alerts)
         {
             candleOpenUtc.Value = alert.CandleOpenUtc.ToUniversalTime().ToString("O");
+            entryUtc.Value = alert.EntryUtc.ToUniversalTime().ToString("O");
             recordedUtc.Value = alert.RecordedUtc.ToUniversalTime().ToString("O");
             symbol.Value = alert.Symbol;
             direction.Value = alert.Direction.ToString();
@@ -246,10 +271,41 @@ public sealed class SqliteSignalRepository : ISignalRepository
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
         await using var command = new SqliteCommand("""
-            SELECT Id, CandleOpenUtc, RecordedUtc, Symbol, Direction, Setup, Price, Score, Profile, MarketRegime
+            SELECT Id, CandleOpenUtc, COALESCE(EntryUtc, CandleOpenUtc), RecordedUtc, Symbol, Direction, Setup, Price, Score, Profile, MarketRegime,
+                   ReturnAfter1HourPercent, ReturnAfter6HoursPercent, ReturnAfter24HoursPercent, MaximumFavorable24HoursPercent, MaximumAdverse24HoursPercent
             FROM TechnicalSetupAlerts ORDER BY CandleOpenUtc DESC, Id DESC LIMIT @Limit
             """, connection);
         command.Parameters.AddWithValue("@Limit", Math.Clamp(limit, 1, 5_000));
+        return await ReadTechnicalSetupAlertsAsync(command, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<TechnicalSetupAlert>> GetTechnicalSetupAlertsDueForEvaluationAsync(DateTime dueBeforeUtc, int limit = 25, CancellationToken cancellationToken = default)
+    {
+        await InitializeAsync(cancellationToken);
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new SqliteCommand("""
+            SELECT Id, CandleOpenUtc, COALESCE(EntryUtc, CandleOpenUtc), RecordedUtc, Symbol, Direction, Setup, Price, Score, Profile, MarketRegime,
+                   ReturnAfter1HourPercent, ReturnAfter6HoursPercent, ReturnAfter24HoursPercent, MaximumFavorable24HoursPercent, MaximumAdverse24HoursPercent
+            FROM TechnicalSetupAlerts
+            WHERE ReturnAfter24HoursPercent IS NULL AND COALESCE(EntryUtc, CandleOpenUtc) <= @DueBefore
+            ORDER BY COALESCE(EntryUtc, CandleOpenUtc) ASC, Id ASC LIMIT @Limit
+            """, connection);
+        command.Parameters.AddWithValue("@DueBefore", dueBeforeUtc.ToUniversalTime().ToString("O"));
+        command.Parameters.AddWithValue("@Limit", Math.Clamp(limit, 1, 200));
+        return await ReadTechnicalSetupAlertsAsync(command, cancellationToken);
+    }
+
+    public Task UpdateTechnicalSetupAlertOutcomeAsync(int id, decimal returnAfter1HourPercent, decimal returnAfter6HoursPercent, decimal returnAfter24HoursPercent, decimal maximumFavorable24HoursPercent, decimal maximumAdverse24HoursPercent, CancellationToken cancellationToken = default) =>
+        ExecuteAsync("""
+            UPDATE TechnicalSetupAlerts SET ReturnAfter1HourPercent=@Return1, ReturnAfter6HoursPercent=@Return6,
+            ReturnAfter24HoursPercent=@Return24, MaximumFavorable24HoursPercent=@MaximumFavorable,
+            MaximumAdverse24HoursPercent=@MaximumAdverse WHERE Id=@Id
+            """, cancellationToken, ("@Id", id), ("@Return1", (double)returnAfter1HourPercent), ("@Return6", (double)returnAfter6HoursPercent),
+            ("@Return24", (double)returnAfter24HoursPercent), ("@MaximumFavorable", (double)maximumFavorable24HoursPercent), ("@MaximumAdverse", (double)maximumAdverse24HoursPercent));
+
+    private static async Task<IReadOnlyList<TechnicalSetupAlert>> ReadTechnicalSetupAlertsAsync(SqliteCommand command, CancellationToken cancellationToken)
+    {
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var alerts = new List<TechnicalSetupAlert>();
         while (await reader.ReadAsync(cancellationToken))
@@ -258,14 +314,17 @@ public sealed class SqliteSignalRepository : ISignalRepository
             {
                 Id = reader.GetInt32(0),
                 CandleOpenUtc = DateTime.Parse(reader.GetString(1), null, System.Globalization.DateTimeStyles.RoundtripKind),
-                RecordedUtc = DateTime.Parse(reader.GetString(2), null, System.Globalization.DateTimeStyles.RoundtripKind),
-                Symbol = reader.GetString(3),
-                Direction = Enum.TryParse<TradeDirection>(reader.GetString(4), true, out var direction) ? direction : TradeDirection.Long,
-                Setup = reader.GetString(5),
-                Price = Convert.ToDecimal(reader.GetDouble(6)),
-                Score = Convert.ToDecimal(reader.GetDouble(7)),
-                Profile = reader.GetString(8),
-                MarketRegime = reader.GetString(9)
+                EntryUtc = DateTime.Parse(reader.GetString(2), null, System.Globalization.DateTimeStyles.RoundtripKind),
+                RecordedUtc = DateTime.Parse(reader.GetString(3), null, System.Globalization.DateTimeStyles.RoundtripKind),
+                Symbol = reader.GetString(4),
+                Direction = Enum.TryParse<TradeDirection>(reader.GetString(5), true, out var direction) ? direction : TradeDirection.Long,
+                Setup = reader.GetString(6), Price = Convert.ToDecimal(reader.GetDouble(7)), Score = Convert.ToDecimal(reader.GetDouble(8)),
+                Profile = reader.GetString(9), MarketRegime = reader.GetString(10),
+                ReturnAfter1HourPercent = reader.IsDBNull(11) ? null : Convert.ToDecimal(reader.GetDouble(11)),
+                ReturnAfter6HoursPercent = reader.IsDBNull(12) ? null : Convert.ToDecimal(reader.GetDouble(12)),
+                ReturnAfter24HoursPercent = reader.IsDBNull(13) ? null : Convert.ToDecimal(reader.GetDouble(13)),
+                MaximumFavorable24HoursPercent = reader.IsDBNull(14) ? null : Convert.ToDecimal(reader.GetDouble(14)),
+                MaximumAdverse24HoursPercent = reader.IsDBNull(15) ? null : Convert.ToDecimal(reader.GetDouble(15))
             });
         }
         return alerts;
