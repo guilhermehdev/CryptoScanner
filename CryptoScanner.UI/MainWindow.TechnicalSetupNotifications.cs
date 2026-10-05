@@ -7,8 +7,11 @@ namespace CryptoScanner.UI;
 
 public partial class MainWindow
 {
-    private void SetupAlertNotifications_Loaded(object sender, RoutedEventArgs e) =>
+    private async void SetupAlertNotifications_Loaded(object sender, RoutedEventArgs e)
+    {
         _scanner.TechnicalSetupsDetected += OnTechnicalSetupsDetected;
+        await RefreshPotentialStrategiesAsync();
+    }
 
     private void SetupAlertNotifications_Closed(object? sender, EventArgs e) =>
         _scanner.TechnicalSetupsDetected -= OnTechnicalSetupsDetected;
@@ -18,7 +21,23 @@ public partial class MainWindow
         if (!IsLoaded)
             return;
 
-        _ = Dispatcher.InvokeAsync(() => DispatchTechnicalSetupAlertsAsync(alerts));
+        _ = Dispatcher.InvokeAsync(async () =>
+        {
+            await RefreshPotentialStrategiesAsync();
+            await DispatchTechnicalSetupAlertsAsync(alerts);
+        });
+    }
+
+    private async Task RefreshPotentialStrategiesAsync()
+    {
+        try
+        {
+            dgPotentialStrategies.ItemsSource = await _scanner.GetTechnicalSetupAlertsAsync(500);
+        }
+        catch
+        {
+            // O painel é informativo. Uma falha de leitura não interrompe o scanner.
+        }
     }
 
     private async Task DispatchTechnicalSetupAlertsAsync(IReadOnlyList<TechnicalSetupAlert> alerts)

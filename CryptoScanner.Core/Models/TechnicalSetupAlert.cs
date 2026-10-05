@@ -26,4 +26,6 @@ public sealed class TechnicalSetupAlert
     public decimal? MaximumAdverse24HoursPercent { get; init; }
     public bool IsEvaluated => ReturnAfter24HoursPercent.HasValue;
     public DateTime CandleLocal => CandleOpenUtc.ToLocalTime();
+    public string DirectionText => Direction == TradeDirection.Short ? "Venda" : "Compra";
+    public string EvaluationStatus => IsEvaluated ? "Avaliado" : "Aguardando 24h";
 }

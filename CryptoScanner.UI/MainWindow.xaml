@@ -200,6 +200,28 @@
                     <DataGrid.Columns><DataGridTextColumn Header="Data" Width="100" Binding="{Binding Timestamp, StringFormat=dd/MM HH:mm}"/><DataGridTextColumn Header="Moeda" Width="105" Binding="{Binding Symbol}"/><DataGridTextColumn Header="Lado" Width="65" Binding="{Binding Direction}"/><DataGridTextColumn Header="Entrada" Width="110" Binding="{Binding Price}"/><DataGridTextColumn Header="Atual" Width="110" Binding="{Binding DisplayedPriceFormatted}"/><DataGridTextColumn Header="L/P" Width="80" Binding="{Binding DisplayedPnLPercentFormatted}"><DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{Binding DisplayedPnLPercent, Converter={StaticResource PnLColorConverter}}"/><Setter Property="FontWeight" Value="Bold"/></Style></DataGridTextColumn.ElementStyle></DataGridTextColumn><DataGridTextColumn Header="Score" Width="80" Binding="{Binding FinalScore}"/><DataGridTextColumn Header="Resultado %" Width="110" Binding="{Binding OutcomePercent, StringFormat=F2}"/><DataGridTextColumn Header="Motivo" Width="*" Binding="{Binding ExitReason}"/><DataGridCheckBoxColumn Header="Avaliado" Width="85" Binding="{Binding Evaluated}"/></DataGrid.Columns>
                 </DataGrid>
             </TabItem>
+            <TabItem Header="Estratégias Potenciais">
+                <Grid>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Margin="5,3" Foreground="#D0D0D0" Text="Setups detectados em candles fechados. São observações técnicas; não significam entrada, sinal elegível ou trade aberto." TextWrapping="Wrap"/>
+                    <DataGrid x:Name="dgPotentialStrategies" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#686868" VerticalGridLinesBrush="#686868" CellStyle="{StaticResource LightTradeGridCell}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Candle" Width="125" Binding="{Binding CandleLocal, StringFormat=dd/MM HH:mm}"/>
+                            <DataGridTextColumn Header="Moeda" Width="105" Binding="{Binding Symbol}"/>
+                            <DataGridTextColumn Header="Lado" Width="70" Binding="{Binding DirectionText}"/>
+                            <DataGridTextColumn Header="Estratégia" Width="220" Binding="{Binding Setup}"/>
+                            <DataGridTextColumn Header="Preço" Width="115" Binding="{Binding Price, StringFormat=0.########}"/>
+                            <DataGridTextColumn Header="Score" Width="75" Binding="{Binding Score, StringFormat=F2}"/>
+                            <DataGridTextColumn Header="Perfil" Width="85" Binding="{Binding Profile}"/>
+                            <DataGridTextColumn Header="Regime" Width="80" Binding="{Binding MarketRegime}"/>
+                            <DataGridTextColumn Header="24h %" Width="75" Binding="{Binding ReturnAfter24HoursPercent, StringFormat=F2, TargetNullValue=—}">
+                                <DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{Binding ReturnAfter24HoursPercent, Converter={StaticResource PnLColorConverter}}"/><Setter Property="FontWeight" Value="Bold"/></Style></DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Situação" Width="115" Binding="{Binding EvaluationStatus}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
         </TabControl>
 
         <Popup x:Name="popupBreakdown" StaysOpen="False" AllowsTransparency="True" Placement="Bottom" PopupAnimation="Fade">

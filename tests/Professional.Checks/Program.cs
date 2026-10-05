@@ -422,7 +422,8 @@ await technicalAlertRepository.UpdateTechnicalSetupAlertOutcomeAsync(savedTechni
 var evaluatedTechnicalAlert = (await technicalAlertRepository.GetTechnicalSetupAlertsAsync()).Single();
 Check(evaluatedTechnicalAlert.IsEvaluated && evaluatedTechnicalAlert.ReturnAfter24HoursPercent == 3m &&
       TechnicalSetupPerformanceAnalyzer.Build([evaluatedTechnicalAlert]).Single().GrossProfitFactor24Hours == 999999m &&
-      TechnicalSetupPerformanceAnalyzer.Build([evaluatedTechnicalAlert]).Single().EvidenceStatus == "Coletando (1/30)",
+      TechnicalSetupPerformanceAnalyzer.Build([evaluatedTechnicalAlert]).Single().EvidenceStatus == "Coletando (1/30)" &&
+      evaluatedTechnicalAlert.DirectionText == "Compra" && evaluatedTechnicalAlert.EvaluationStatus == "Avaliado",
     "Technical setup outcome persists and feeds the evolution summary");
 SqliteConnection.ClearAllPools();
 File.Delete(technicalAlertDatabase);
