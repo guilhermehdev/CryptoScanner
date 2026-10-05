@@ -38,7 +38,16 @@
                 <StackPanel Margin="0,0,28,0" VerticalAlignment="Center"><TextBlock Text="DOMINÂNCIA BTC" FontSize="9" Foreground="Gray"/><TextBlock x:Name="txtDashboardBtcDominance" Text="—" FontWeight="Bold" FontSize="14" Foreground="Black"/></StackPanel>
                 <StackPanel Margin="0,0,28,0" VerticalAlignment="Center"><TextBlock Text="SINAIS ELEGÍVEIS AGORA" FontSize="9" Foreground="Gray"/><TextBlock x:Name="txtDashboardEligible" Text="—" FontWeight="Bold" FontSize="14" Foreground="Black"/></StackPanel>
                 <StackPanel Margin="0,0,28,0" VerticalAlignment="Center"><TextBlock Text="TOP CANDIDATOS" FontSize="9" Foreground="Gray"/><TextBlock x:Name="txtDashboardTopCandidates" Text="—" FontWeight="Bold" FontSize="14" Foreground="Black"/></StackPanel>
-                <StackPanel VerticalAlignment="Center"><TextBlock Text="DIÁRIO DE TRADES SIMULADOS" FontSize="9" Foreground="Gray"/><TextBlock x:Name="txtDashboardSimulated" Text="—" FontWeight="Bold" FontSize="14" Foreground="Black"/></StackPanel>
+                <StackPanel Width="360" VerticalAlignment="Center">
+                    <TextBlock Text="HISTÓRICO DE SINAIS" FontSize="9" Foreground="Gray"/>
+                    <WrapPanel>
+                        <TextBlock x:Name="txtWinRate" Text="Sem resultados avaliados" FontWeight="Bold" FontSize="13" Foreground="Black"/>
+                        <TextBlock x:Name="txtAvgReturn" Margin="10,0,0,0" FontWeight="Bold" FontSize="13" Foreground="Black"/>
+                        <TextBlock x:Name="txtPending" Margin="10,0,0,0" FontWeight="Bold" FontSize="13" Foreground="Black"/>
+                        <TextBlock x:Name="txtEvaluated" Margin="10,0,0,0" FontWeight="Bold" FontSize="13" Foreground="Black"/>
+                    </WrapPanel>
+                    <TextBlock x:Name="txtDashboardSimulated" Visibility="Collapsed"/>
+                </StackPanel>
             </StackPanel>
         </Border>
 
@@ -48,13 +57,6 @@
                 <Button DockPanel.Dock="Right" Content="Ver motivos" Padding="10,3" Margin="10,0,0,0" Click="BtnScanReasons_Click"/>
                 <TextBlock x:Name="txtDiagnostics" Text="Os motivos de bloqueio aparecerão após a análise." Foreground="#D0D0D0" TextWrapping="Wrap" VerticalAlignment="Center"/>
             </DockPanel>
-            <WrapPanel Margin="0,0,0,5">
-                <TextBlock Text="Histórico de sinais · " Foreground="#B8B8B8"/>
-                <TextBlock x:Name="txtWinRate" Text="Sem resultados avaliados"/>
-                <TextBlock x:Name="txtAvgReturn" Margin="12,0,0,0"/>
-                <TextBlock x:Name="txtPending" Margin="12,0,0,0"/>
-                <TextBlock x:Name="txtEvaluated" Margin="12,0,0,0"/>
-            </WrapPanel>
             <WrapPanel VerticalAlignment="Center">
                 <TextBlock Text="Perfil:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                 <RadioButton x:Name="rbIntraday" Content="Intraday (1h / 24h)" GroupName="Profile" Margin="0,3,12,3" VerticalAlignment="Center" Checked="ProfileChanged"/>
