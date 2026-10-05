@@ -26,6 +26,13 @@
             <Setter Property="BorderThickness" Value="0,0,0,1"/>
             <Setter Property="Padding" Value="3,1"/>
         </Style>
+        <Style x:Key="PotentialStrategyGridCell" TargetType="DataGridCell">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#F5F5F5"/>
+            <Setter Property="BorderBrush" Value="#454545"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="Padding" Value="3,1"/>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -207,7 +214,7 @@
                         <Button DockPanel.Dock="Right" Content="Atualizar" Padding="8,2" Click="BtnRefreshPotentialStrategies_Click"/>
                         <TextBlock x:Name="txtPotentialStrategiesSummary" Margin="0,0,8,0" Foreground="#D0D0D0" Text="Carregando estratégias potenciais..." TextWrapping="Wrap"/>
                     </DockPanel>
-                    <DataGrid x:Name="dgPotentialStrategies" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#686868" VerticalGridLinesBrush="#686868" CellStyle="{StaticResource LightTradeGridCell}">
+                    <DataGrid x:Name="dgPotentialStrategies" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True" Background="#252525" Foreground="#F5F5F5" RowBackground="#252525" AlternatingRowBackground="#1E1E1E" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#454545" VerticalGridLinesBrush="#454545" CellStyle="{StaticResource PotentialStrategyGridCell}">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Candle" Width="125" Binding="{Binding CandleLocal, StringFormat=dd/MM HH:mm}"/>
                             <DataGridTextColumn Header="Moeda" Width="105" Binding="{Binding Symbol}"/>
