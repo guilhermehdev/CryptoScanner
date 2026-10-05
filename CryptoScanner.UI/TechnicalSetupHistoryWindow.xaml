@@ -8,7 +8,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <TextBlock Text="Situações observadas em candles fechados. Não são sinais de trade e não representam recomendação de entrada."
+        <TextBlock Text="Situações observadas em candles fechados. Não são sinais de trade. A evolução só classifica uma observação após 30 resultados em 24h e não altera o scanner."
                    Foreground="#D0D0D0" TextWrapping="Wrap" Margin="0,0,0,10"/>
         <TabControl Grid.Row="1" Background="#1E1E1E" Foreground="#F5F5F5">
             <TabItem Header="Histórico">
@@ -48,6 +48,7 @@
                         <DataGridTextColumn Header="Regime" Binding="{Binding MarketRegime}" Width="90"/>
                         <DataGridTextColumn Header="Ocorrências" Binding="{Binding Occurrences}" Width="90"/>
                         <DataGridTextColumn Header="Avaliados" Binding="{Binding Evaluated}" Width="80"/>
+                        <DataGridTextColumn Header="Evidência" Binding="{Binding EvidenceStatus}" Width="155"/>
                         <DataGridTextColumn Header="Positivas 24h %" Binding="{Binding Positive24HoursPercent, StringFormat=F1}" Width="115"/>
                         <DataGridTextColumn Header="Média 1h %" Binding="{Binding AverageReturn1HourPercent, StringFormat=F2}" Width="90"/>
                         <DataGridTextColumn Header="Média 6h %" Binding="{Binding AverageReturn6HoursPercent, StringFormat=F2}" Width="90"/>

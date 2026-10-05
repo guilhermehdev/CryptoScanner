@@ -421,7 +421,8 @@ var savedTechnicalAlert = (await technicalAlertRepository.GetTechnicalSetupAlert
 await technicalAlertRepository.UpdateTechnicalSetupAlertOutcomeAsync(savedTechnicalAlert.Id, 1m, 2m, 3m, 5m, 1m);
 var evaluatedTechnicalAlert = (await technicalAlertRepository.GetTechnicalSetupAlertsAsync()).Single();
 Check(evaluatedTechnicalAlert.IsEvaluated && evaluatedTechnicalAlert.ReturnAfter24HoursPercent == 3m &&
-      TechnicalSetupPerformanceAnalyzer.Build([evaluatedTechnicalAlert]).Single().GrossProfitFactor24Hours == 999999m,
+      TechnicalSetupPerformanceAnalyzer.Build([evaluatedTechnicalAlert]).Single().GrossProfitFactor24Hours == 999999m &&
+      TechnicalSetupPerformanceAnalyzer.Build([evaluatedTechnicalAlert]).Single().EvidenceStatus == "Coletando (1/30)",
     "Technical setup outcome persists and feeds the evolution summary");
 SqliteConnection.ClearAllPools();
 File.Delete(technicalAlertDatabase);
