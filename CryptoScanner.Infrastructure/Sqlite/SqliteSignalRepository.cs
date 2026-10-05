@@ -219,10 +219,10 @@ public sealed class SqliteSignalRepository : ISignalRepository
         ExecuteAsync("UPDATE Signals SET OutcomePrice = @OutcomePrice, OutcomePercent = @OutcomePercent, Evaluated = 1, ExitReason = @ExitReason WHERE Id = @Id", cancellationToken,
             ("@Id", id), ("@OutcomePrice", (double)outcomePrice), ("@OutcomePercent", (double)outcomePercent), ("@ExitReason", exitReason));
 
-    public async Task SaveTechnicalSetupAlertsAsync(IReadOnlyList<TechnicalSetupAlert> alerts, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<TechnicalSetupAlert>> SaveTechnicalSetupAlertsAsync(IReadOnlyList<TechnicalSetupAlert> alerts, CancellationToken cancellationToken = default)
     {
         if (alerts.Count == 0)
-            return;
+            return Array.Empty<TechnicalSetupAlert>();
 
         await InitializeAsync(cancellationToken);
         await using var connection = new SqliteConnection(_connectionString);
@@ -247,6 +247,7 @@ public sealed class SqliteSignalRepository : ISignalRepository
         var profile = command.CreateParameter(); profile.ParameterName = "@Profile"; command.Parameters.Add(profile);
         var marketRegime = command.CreateParameter(); marketRegime.ParameterName = "@MarketRegime"; command.Parameters.Add(marketRegime);
 
+        var inserted = new List<TechnicalSetupAlert>();
         foreach (var alert in alerts)
         {
             candleOpenUtc.Value = alert.CandleOpenUtc.ToUniversalTime().ToString("O");
@@ -259,10 +260,12 @@ public sealed class SqliteSignalRepository : ISignalRepository
             score.Value = (double)alert.Score;
             profile.Value = alert.Profile;
             marketRegime.Value = alert.MarketRegime;
-            await command.ExecuteNonQueryAsync(cancellationToken);
+            if (await command.ExecuteNonQueryAsync(cancellationToken) > 0)
+                inserted.Add(alert);
         }
 
         await transaction.CommitAsync(cancellationToken);
+        return inserted;
     }
 
     public async Task<IReadOnlyList<TechnicalSetupAlert>> GetTechnicalSetupAlertsAsync(int limit = 500, CancellationToken cancellationToken = default)

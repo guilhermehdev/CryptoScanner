@@ -412,7 +412,9 @@ Check(TechnicalSetupAlertDetector.Detect(fffdCandles, fffdBands.Upper, fffdBands
 var technicalAlertDatabase = Path.Combine(Path.GetTempPath(), $"crypto-scanner-technical-alerts-{Guid.NewGuid():N}.db");
 var technicalAlertRepository = new SqliteSignalRepository(technicalAlertDatabase);
 var technicalAlert = new TechnicalSetupAlert { CandleOpenUtc = day, EntryUtc = day.AddHours(1), RecordedUtc = day.AddMinutes(1), Symbol = "ALERTUSDT", Direction = TradeDirection.Long, Setup = "FFFD compra", Price = 100m, Score = 60m, Profile = "Intraday", MarketRegime = "BULL" };
-await technicalAlertRepository.SaveTechnicalSetupAlertsAsync([technicalAlert, technicalAlert]);
+var insertedTechnicalAlerts = await technicalAlertRepository.SaveTechnicalSetupAlertsAsync([technicalAlert, technicalAlert]);
+Check(insertedTechnicalAlerts.Count == 1,
+    "Technical setup persistence returns only the newly recorded alerts");
 Check((await technicalAlertRepository.GetTechnicalSetupAlertsAsync()).Count == 1,
     "Technical setup history keeps one record per candle, setup, profile, symbol and direction");
 var savedTechnicalAlert = (await technicalAlertRepository.GetTechnicalSetupAlertsAsync()).Single();

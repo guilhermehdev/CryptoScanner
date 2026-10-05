@@ -22,6 +22,7 @@ public sealed class ScannerService
     private readonly BuyingPressureHistoryService? _pressureHistory;
     private readonly TechnicalSetupOutcomeEvaluator _technicalSetupOutcomeEvaluator;
     public event Action<string>? PressureHistoryError;
+    public event Action<IReadOnlyList<TechnicalSetupAlert>>? TechnicalSetupsDetected;
 
     public ScannerService(IMarketDataService marketData, ISignalRepository signals, IWatchlistRepository watchlist, AssetAnalyzer assetAnalyzer,
         BuyingPressureHistoryService? pressureHistory = null)
@@ -81,7 +82,9 @@ public sealed class ScannerService
                 MarketRegime = marketRegime
             }))
             .ToList();
-        await _signals.SaveTechnicalSetupAlertsAsync(technicalSetupAlerts, cancellationToken);
+        var newTechnicalSetups = await _signals.SaveTechnicalSetupAlertsAsync(technicalSetupAlerts, cancellationToken);
+        if (newTechnicalSetups.Count > 0)
+            TechnicalSetupsDetected?.Invoke(newTechnicalSetups);
 
         var top30 = allAnalyzed.OrderByDescending(a => a.OpportunityScore).Take(30).ToList();
         var missingFavorites = allAnalyzed.Where(a => favoriteSet.Contains(a.Symbol) && !top30.Any(t => t.Symbol == a.Symbol));

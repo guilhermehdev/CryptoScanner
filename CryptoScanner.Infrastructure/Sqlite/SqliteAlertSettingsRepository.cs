@@ -19,6 +19,7 @@ public sealed class SqliteAlertSettingsRepository : IAlertSettingsRepository
             (
                 Id INTEGER PRIMARY KEY CHECK (Id = 1),
                 DesktopEnabled INTEGER DEFAULT 0,
+                TechnicalSetupAlertsEnabled INTEGER DEFAULT 1,
                 TelegramEnabled INTEGER DEFAULT 0,
                 TelegramBotToken TEXT DEFAULT '',
                 TelegramChatId TEXT DEFAULT '',
@@ -36,6 +37,15 @@ public sealed class SqliteAlertSettingsRepository : IAlertSettingsRepository
             """;
         await using var command = new SqliteCommand(sql, connection);
         await command.ExecuteNonQueryAsync(cancellationToken);
+        try
+        {
+            await using var alter = new SqliteCommand("ALTER TABLE AlertSettings ADD COLUMN TechnicalSetupAlertsEnabled INTEGER DEFAULT 1", connection);
+            await alter.ExecuteNonQueryAsync(cancellationToken);
+        }
+        catch (SqliteException)
+        {
+            // Banco já contém a coluna.
+        }
     }
 
     public async Task<AlertSettings> LoadAsync(CancellationToken cancellationToken = default)
@@ -51,6 +61,7 @@ public sealed class SqliteAlertSettingsRepository : IAlertSettingsRepository
         return new AlertSettings
         {
             DesktopEnabled = reader.GetInt32(reader.GetOrdinal("DesktopEnabled")) == 1,
+            TechnicalSetupAlertsEnabled = reader.GetInt32(reader.GetOrdinal("TechnicalSetupAlertsEnabled")) == 1,
             TelegramEnabled = reader.GetInt32(reader.GetOrdinal("TelegramEnabled")) == 1,
             TelegramBotToken = reader.GetString(reader.GetOrdinal("TelegramBotToken")),
             TelegramChatId = reader.GetString(reader.GetOrdinal("TelegramChatId")),
@@ -73,15 +84,16 @@ public sealed class SqliteAlertSettingsRepository : IAlertSettingsRepository
         await connection.OpenAsync(cancellationToken);
         const string sql = """
             INSERT INTO AlertSettings
-            (Id, DesktopEnabled, TelegramEnabled, TelegramBotToken, TelegramChatId,
+            (Id, DesktopEnabled, TechnicalSetupAlertsEnabled, TelegramEnabled, TelegramBotToken, TelegramChatId,
              DiscordEnabled, DiscordWebhookUrl,
              EmailEnabled, EmailSmtpHost, EmailSmtpPort, EmailUsername, EmailPassword, EmailFrom, EmailTo, EmailUseSsl)
             VALUES
-            (1, @DesktopEnabled, @TelegramEnabled, @TelegramBotToken, @TelegramChatId,
+            (1, @DesktopEnabled, @TechnicalSetupAlertsEnabled, @TelegramEnabled, @TelegramBotToken, @TelegramChatId,
              @DiscordEnabled, @DiscordWebhookUrl,
              @EmailEnabled, @EmailSmtpHost, @EmailSmtpPort, @EmailUsername, @EmailPassword, @EmailFrom, @EmailTo, @EmailUseSsl)
             ON CONFLICT(Id) DO UPDATE SET
                 DesktopEnabled = excluded.DesktopEnabled,
+                TechnicalSetupAlertsEnabled = excluded.TechnicalSetupAlertsEnabled,
                 TelegramEnabled = excluded.TelegramEnabled,
                 TelegramBotToken = excluded.TelegramBotToken,
                 TelegramChatId = excluded.TelegramChatId,
@@ -98,6 +110,7 @@ public sealed class SqliteAlertSettingsRepository : IAlertSettingsRepository
             """;
         await using var command = new SqliteCommand(sql, connection);
         command.Parameters.AddWithValue("@DesktopEnabled", settings.DesktopEnabled ? 1 : 0);
+        command.Parameters.AddWithValue("@TechnicalSetupAlertsEnabled", settings.TechnicalSetupAlertsEnabled ? 1 : 0);
         command.Parameters.AddWithValue("@TelegramEnabled", settings.TelegramEnabled ? 1 : 0);
         command.Parameters.AddWithValue("@TelegramBotToken", settings.TelegramBotToken);
         command.Parameters.AddWithValue("@TelegramChatId", settings.TelegramChatId);

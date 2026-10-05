@@ -37,6 +37,7 @@ public partial class AlertSettingsWindow : Window
         var settings = await _repository.LoadAsync();
 
         chkDesktop.IsChecked = settings.DesktopEnabled;
+        chkTechnicalSetups.IsChecked = settings.TechnicalSetupAlertsEnabled;
 
         chkTelegram.IsChecked = settings.TelegramEnabled;
         txtTelegramToken.Text = settings.TelegramBotToken;
@@ -62,6 +63,7 @@ public partial class AlertSettingsWindow : Window
         return new AlertSettings
         {
             DesktopEnabled = chkDesktop.IsChecked == true,
+            TechnicalSetupAlertsEnabled = chkTechnicalSetups.IsChecked == true,
             TelegramEnabled = chkTelegram.IsChecked == true,
             TelegramBotToken = txtTelegramToken.Text.Trim(),
             TelegramChatId = txtTelegramChatId.Text.Trim(),

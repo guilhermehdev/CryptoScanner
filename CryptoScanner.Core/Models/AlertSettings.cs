@@ -3,6 +3,7 @@
 public sealed class AlertSettings
 {
     public bool DesktopEnabled { get; set; }
+    public bool TechnicalSetupAlertsEnabled { get; set; } = true;
 
     public bool TelegramEnabled { get; set; }
     public string TelegramBotToken { get; set; } = "";

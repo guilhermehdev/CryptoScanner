@@ -11,6 +11,14 @@
             <TextBlock Text="Você é avisado sempre que o scanner registrar um sinal elegível de verdade (não a cada scan)." 
                        Foreground="Gray" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,15"/>
 
+            <GroupBox Header="Alertas de Setup Técnico" Padding="10" Margin="0,0,0,12">
+                <StackPanel>
+                    <CheckBox x:Name="chkTechnicalSetups" Content="Avisar quando um setup técnico novo for identificado"/>
+                    <TextBlock Text="Usa os mesmos canais abaixo, mas não abre trade nem muda o score. Um aviso agrupa os setups novos da varredura para evitar spam."
+                               Foreground="Gray" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                </StackPanel>
+            </GroupBox>
+
             <!-- Desktop -->
             <GroupBox Header="Notificação de Desktop (Push)" Padding="10" Margin="0,0,0,12">
                 <CheckBox x:Name="chkDesktop" Content="Mostrar balão de notificação na bandeja do sistema"/>
