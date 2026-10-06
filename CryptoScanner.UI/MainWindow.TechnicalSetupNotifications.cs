@@ -82,6 +82,22 @@ public partial class MainWindow
         new ChartWindow(alert.Symbol, interval) { Owner = this }.Show();
     }
 
+    private void BtnSimulatePotentialStrategy_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button button || button.DataContext is not TechnicalSetupAlert alert)
+            return;
+
+        var window = new SimulateTradeWindow(_simulatedTradeRepository, alert,
+            () => _priceCheckService.GetCurrentPriceAsync(alert.Symbol))
+        {
+            Owner = this
+        };
+        window.ShowDialog();
+
+        if (window.Saved)
+            _ = LoadSimulatedTradesAsync();
+    }
+
     private void ApplyCryptoScannerTrayIcon()
     {
         if (_trayIcon is null)

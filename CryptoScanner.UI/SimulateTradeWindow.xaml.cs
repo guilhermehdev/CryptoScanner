@@ -34,6 +34,26 @@ public partial class SimulateTradeWindow : Window
         txtStopLoss.Text = asset.Support.ToString("0.########");
     }
 
+    public SimulateTradeWindow(ISimulatedTradeRepository repository, TechnicalSetupAlert alert,
+        Func<Task<decimal>> getCurrentPrice)
+        : this(repository, CreateAssetFromSetup(alert), alert.Profile, getCurrentPrice)
+    {
+        txtTakeProfit.Clear();
+        txtStopLoss.Clear();
+        txtNote.Text = $"Setup potencial: {alert.Setup}.";
+    }
+
+    private static AssetScore CreateAssetFromSetup(TechnicalSetupAlert alert) => new()
+    {
+        Symbol = alert.Symbol,
+        Direction = alert.Direction,
+        Close = alert.Price,
+        Score = alert.Score,
+        OpportunityScore = alert.Score,
+        ObservedSetups = alert.Setup,
+        MarketRegime = alert.MarketRegime
+    };
+
     private async void BtnSave_Click(object sender, RoutedEventArgs e)
     {
         if (_saving)
