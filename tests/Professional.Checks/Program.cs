@@ -455,6 +455,28 @@ Check(zoneRoundtrip.TargetPosition=="Dentro da zona" && zoneRoundtrip.TargetZone
 var zoneBucket=new StrategyDiagnostics();zoneBucket.TargetPositions["Dentro da zona"]=2;
 var zoneMerged=new StrategyDiagnostics();zoneMerged.Merge(zoneBucket);
 Check(zoneMerged.TargetPositions["Dentro da zona"]==2,"Zone counters merge across symbols");
+var llmOutcomePath=Path.Combine(Path.GetTempPath(),$"cryptoscanner-llm-outcomes-{Guid.NewGuid():N}.db");
+try
+{
+ var llmOpinions=new SqliteLlmOpinionRepository(llmOutcomePath);await llmOpinions.InitializeAsync();
+ var evaluatedAt=DateTime.UtcNow.AddDays(-3);
+ var targetId=await llmOpinions.AddAsync(new LlmOpinionRecord{CreatedAt=evaluatedAt,Symbol="LLMTARGET",Profile="Intraday",AnalysisPrice=100,Decision="AGUARDAR",Direction="LONG",Confidence=70,Entry=100,Stop=95,Tp1=104,Tp2=108,ValidationStatus="VALIDA"});
+ var timeoutId=await llmOpinions.AddAsync(new LlmOpinionRecord{CreatedAt=evaluatedAt,Symbol="LLMTIMEOUT",Profile="Intraday",AnalysisPrice=100,Decision="AGUARDAR",Direction="LONG",Confidence=70,Entry=100,Stop=95,Tp1=104,Tp2=120,ValidationStatus="VALIDA"});
+ var neutralId=await llmOpinions.AddAsync(new LlmOpinionRecord{CreatedAt=evaluatedAt,Symbol="LLMNEUTRAL",Profile="Intraday",AnalysisPrice=100,Decision="AGUARDAR",Direction="NEUTRA",Confidence=0,ValidationStatus="VALIDA"});
+ var outcomeMarket=new LlmOutcomeMarket();
+ outcomeMarket.Candles["LLMTARGET"]=[new(){OpenTime=evaluatedAt.AddHours(1),Open=100,High=109,Low=99,Close=108}];
+ outcomeMarket.Candles["LLMTIMEOUT"]=[new(){OpenTime=evaluatedAt.AddHours(23),Open=100,High=105,Low=99,Close=102}];
+ var llmEvaluator=new LlmOpinionOutcomeEvaluator(llmOpinions,outcomeMarket);
+ Check(await llmEvaluator.EvaluateDueAsync()==2,"LLM evaluator includes directional AGUARDAR hypotheses with complete levels");
+ var llmRows=await llmOpinions.GetRecentAsync(10);
+ var targetOpinion=llmRows.Single(row=>row.Id==targetId);
+ var timeoutOpinion=llmRows.Single(row=>row.Id==timeoutId);
+ var neutralOpinion=llmRows.Single(row=>row.Id==neutralId);
+ Check(targetOpinion.OutcomeEvaluated&&targetOpinion.OutcomeReason=="TP2"&&targetOpinion.OutcomePercent==8,"LLM evaluator records historic target before its deadline");
+ Check(timeoutOpinion.OutcomeEvaluated&&timeoutOpinion.OutcomeReason=="TIMEOUT"&&timeoutOpinion.OutcomePercent==2,"LLM evaluator times out using the historical deadline close");
+ Check(!neutralOpinion.OutcomeEvaluated&&outcomeMarket.CurrentPriceCalls==0,"Neutral LLM opinions stay outside outcome evaluation and current price is not used");
+}
+finally{SqliteConnection.ClearAllPools();File.Delete(llmOutcomePath);}
 Console.WriteLine($"PASS: {count} professional checks");
 sealed class Watchlist:IWatchlistRepository
 {
@@ -469,5 +491,14 @@ sealed class Market:IMarketDataService
  public Task<List<Candle>> GetCandlesAsync(string symbol,string interval,int limit=1000,CancellationToken cancellationToken=default)=>throw new NotImplementedException();
  public Task<List<string>> GetUsdtSymbolsAsync(CancellationToken cancellationToken=default)=>throw new NotImplementedException();
  public Task<List<Candle>> GetHistoricalCandlesAsync(string symbol,string interval,DateTime startUtc,DateTime endUtc,CancellationToken cancellationToken=default)=>throw new NotImplementedException();
+ public Task<MarketFlowData> GetMarketFlowDataAsync(string symbol,CancellationToken cancellationToken=default)=>throw new NotImplementedException();
+}
+sealed class LlmOutcomeMarket:IMarketDataService
+{
+ public Dictionary<string,List<Candle>> Candles=new(StringComparer.OrdinalIgnoreCase);public int CurrentPriceCalls;
+ public Task<decimal> GetCurrentPriceAsync(string symbol,CancellationToken cancellationToken=default){CurrentPriceCalls++;return Task.FromResult(0m);}
+ public Task<List<Candle>> GetCandlesAsync(string symbol,string interval,int limit=1000,CancellationToken cancellationToken=default)=>throw new NotImplementedException();
+ public Task<List<string>> GetUsdtSymbolsAsync(CancellationToken cancellationToken=default)=>throw new NotImplementedException();
+ public Task<List<Candle>> GetHistoricalCandlesAsync(string symbol,string interval,DateTime startUtc,DateTime endUtc,CancellationToken cancellationToken=default)=>Task.FromResult(Candles.GetValueOrDefault(symbol,[]).Where(c=>c.OpenTime>=startUtc&&c.OpenTime<=endUtc).ToList());
  public Task<MarketFlowData> GetMarketFlowDataAsync(string symbol,CancellationToken cancellationToken=default)=>throw new NotImplementedException();
 }

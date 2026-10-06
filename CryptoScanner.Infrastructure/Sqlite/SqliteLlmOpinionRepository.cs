@@ -122,7 +122,18 @@ public sealed class SqliteLlmOpinionRepository : ILlmOpinionRepository
             WHERE OutcomeEvaluated = 0
               AND SimulatedTradeId IS NULL
               AND ValidationStatus = 'VALIDA'
-              AND Decision IN ('COMPRA', 'VENDA')
+              -- "AGUARDAR" continua sendo consultivo para o usuário, mas quando a
+              -- LLM informou uma direção operacional e todos os níveis coerentes,
+              -- ele é uma hipótese válida para a medição histórica.
+              AND Decision IN ('COMPRA', 'VENDA', 'AGUARDAR')
+              AND Direction IN ('LONG', 'SHORT')
+              AND Entry IS NOT NULL
+              AND Stop IS NOT NULL
+              AND Tp2 IS NOT NULL
+              AND (
+                    (Direction = 'LONG' AND Stop < Entry AND Tp2 > Entry)
+                 OR (Direction = 'SHORT' AND Stop > Entry AND Tp2 < Entry)
+              )
             ORDER BY CreatedAt ASC
             """;
         await using var command = new SqliteCommand(sql, connection);
