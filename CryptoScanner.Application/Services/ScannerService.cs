@@ -115,6 +115,9 @@ public sealed class ScannerService
     public Task<IReadOnlyList<TechnicalSetupAlert>> GetTechnicalSetupAlertsAsync(int limit = 500, CancellationToken cancellationToken = default) =>
         _signals.GetTechnicalSetupAlertsAsync(limit, cancellationToken);
 
+    public Task<IReadOnlyList<TechnicalSetupAlert>> GetAllTechnicalSetupAlertsAsync(CancellationToken cancellationToken = default) =>
+        _signals.GetAllTechnicalSetupAlertsAsync(cancellationToken);
+
     // Compatibilidade com os checks e integrações que exercitam o caminho Long antigo.
     private Task<(FilterDiagnostics Diagnostics, List<NewSignalAlert> NewSignals)> PersistEligibleSignalsAsync(
         IReadOnlyList<AssetAnalysis> ranking, string marketRegime, ScanProfile profile, CancellationToken cancellationToken) =>

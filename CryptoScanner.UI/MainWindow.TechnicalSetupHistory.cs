@@ -9,7 +9,7 @@ public partial class MainWindow
         try
         {
             var alerts = await _scanner.GetTechnicalSetupAlertsAsync(5_000);
-            new TechnicalSetupHistoryWindow(alerts).Show();
+            new TechnicalSetupHistoryWindow(alerts, token => _scanner.GetAllTechnicalSetupAlertsAsync(token)).Show();
         }
         catch (Exception ex)
         {

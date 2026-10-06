@@ -455,6 +455,20 @@ Check(zoneRoundtrip.TargetPosition=="Dentro da zona" && zoneRoundtrip.TargetZone
 var zoneBucket=new StrategyDiagnostics();zoneBucket.TargetPositions["Dentro da zona"]=2;
 var zoneMerged=new StrategyDiagnostics();zoneMerged.Merge(zoneBucket);
 Check(zoneMerged.TargetPositions["Dentro da zona"]==2,"Zone counters merge across symbols");
+var pressureExportPath=Path.Combine(Path.GetTempPath(),$"cryptoscanner-pressure-export-{Guid.NewGuid():N}.db");
+try
+{
+ var pressureRepository=new SqliteBuyingPressureRepository(pressureExportPath);
+ long windowEnd=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()/300_000*300_000;
+ await pressureRepository.SaveAsync(new BuyingPressureSnapshot("PRESSUREUSDT",windowEnd,windowEnd+1_000,
+     new BuyingPressureResult(72,"Dados para exportação") { Measurements=new(windowEnd,100,.62m,.8m,1.2m,1.5m,.4m,.1m,99,2) },new MarketFlowData()));
+ var pressureAnalysis=new SqlitePressureAnalysisRepository(pressureExportPath);
+ await using var pressureStream=new MemoryStream();
+ await pressureAnalysis.ExportCsvAsync(new PressureAnalysisFilter(windowEnd,windowEnd+2_000,"PRESSUREUSDT",30,BuyingPressureSnapshot.FormulaVersion),pressureStream);
+ string pressureCsv=System.Text.Encoding.UTF8.GetString(pressureStream.ToArray());
+ Check(pressureCsv.Contains("BuyRatio")&&pressureCsv.Contains("PRESSUREUSDT")&&pressureCsv.Contains("0.62"),"Pressure export includes the formula components and all filtered readings");
+}
+finally{SqliteConnection.ClearAllPools();File.Delete(pressureExportPath);}
 var llmOutcomePath=Path.Combine(Path.GetTempPath(),$"cryptoscanner-llm-outcomes-{Guid.NewGuid():N}.db");
 try
 {

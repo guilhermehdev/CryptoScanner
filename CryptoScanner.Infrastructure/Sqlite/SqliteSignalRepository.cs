@@ -282,6 +282,19 @@ public sealed class SqliteSignalRepository : ISignalRepository
         return await ReadTechnicalSetupAlertsAsync(command, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<TechnicalSetupAlert>> GetAllTechnicalSetupAlertsAsync(CancellationToken cancellationToken = default)
+    {
+        await InitializeAsync(cancellationToken);
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new SqliteCommand("""
+            SELECT Id, CandleOpenUtc, COALESCE(EntryUtc, CandleOpenUtc), RecordedUtc, Symbol, Direction, Setup, Price, Score, Profile, MarketRegime,
+                   ReturnAfter1HourPercent, ReturnAfter6HoursPercent, ReturnAfter24HoursPercent, MaximumFavorable24HoursPercent, MaximumAdverse24HoursPercent
+            FROM TechnicalSetupAlerts ORDER BY CandleOpenUtc DESC, Id DESC
+            """, connection);
+        return await ReadTechnicalSetupAlertsAsync(command, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<TechnicalSetupAlert>> GetTechnicalSetupAlertsDueForEvaluationAsync(DateTime dueBeforeUtc, int limit = 25, CancellationToken cancellationToken = default)
     {
         await InitializeAsync(cancellationToken);

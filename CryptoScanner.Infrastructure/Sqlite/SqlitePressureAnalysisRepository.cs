@@ -1,5 +1,7 @@
 using CryptoScanner.Core.Models;
 using Microsoft.Data.Sqlite;
+using System.Globalization;
+using System.Text;
 
 namespace CryptoScanner.Infrastructure.Sqlite;
 
@@ -10,7 +12,7 @@ public sealed class SqlitePressureAnalysisRepository(string databasePath)
     private readonly string _connectionString = new SqliteConnectionStringBuilder { DataSource = databasePath, DefaultTimeout = 30 }.ToString();
     private const string Filtered = """
         WITH filtered AS (
-            SELECT s.*,o.ReturnPercent,o.Reconstructed,
+            SELECT s.*,o.Price AS OutcomePrice,o.ReturnPercent,o.Reconstructed,
                 COALESCE(o.TargetTimeMs,s.WindowEndMs+$horizon*60000) AS DueMs
             FROM BuyingPressureSnapshots s LEFT JOIN BuyingPressureOutcomes o
                 ON o.SnapshotId=s.Id AND o.HorizonMinutes=$horizon
@@ -68,5 +70,53 @@ public sealed class SqlitePressureAnalysisRepository(string databasePath)
         return new(total,unavailable,bands,history);
     }
 
+    public async Task<long> ExportCsvAsync(PressureAnalysisFilter filter, Stream destination, CancellationToken cancellationToken = default)
+    {
+        if (filter.FromMs >= filter.ToMs || !new[] { 30, 60, 240, 1440 }.Contains(filter.HorizonMinutes) ||
+            string.IsNullOrWhiteSpace(filter.FormulaVersion)) throw new ArgumentException("Filtros inválidos.");
+        await _schema.InitializeAsync(cancellationToken);
+        await using var db = new SqliteConnection(_connectionString);
+        await db.OpenAsync(cancellationToken);
+        await using var writer = new StreamWriter(destination, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true), leaveOpen: true);
+        await writer.WriteLineAsync("Id;Ativo;JanelaFimUtc;ColetadaUtc;Formula;HorizonteMin;Nota;PrecoReferencia;BuyRatio;Persistencia;AlteracaoPrecoPercent;VolumeRelativo;OpenInterestAlteracaoPercent;PenalidadeExtensao;RetornoPercent;PrecoResultado;PrazoUtc;Situacao;Origem;Detalhes");
+
+        await using var command = db.CreateCommand();
+        command.Parameters.AddWithValue("$from", filter.FromMs); command.Parameters.AddWithValue("$to", filter.ToMs);
+        command.Parameters.AddWithValue("$symbol", filter.Symbol.Trim()); command.Parameters.AddWithValue("$version", filter.FormulaVersion);
+        command.Parameters.AddWithValue("$horizon", filter.HorizonMinutes);
+        command.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        command.CommandText = Filtered + """
+            SELECT Id,Symbol,WindowEndMs,CollectedAtMs,FormulaVersion,Score,ReferencePrice,BuyRatio,Persistence,
+                   PriceChangePercent,RelativeVolume,OpenInterestChangePercent,ExtensionPenalty,ReturnPercent,
+                   OutcomePrice,DueMs,Reconstructed,Details
+            FROM filtered ORDER BY CollectedAtMs ASC,Id ASC;
+            """;
+
+        long exported = 0;
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            decimal? score = Number(reader, 5);
+            decimal? returned = Number(reader, 13);
+            long dueMs = reader.GetInt64(15);
+            string status = score is null ? "Sem dados" : returned is not null ? "Avaliada" : dueMs > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() ? "Aguardando prazo" : "Aguardando recuperação";
+            string source = returned is null ? "" : reader.GetInt64(16) == 1 ? "Histórico recuperado" : "Coleta regular";
+            await writer.WriteLineAsync(string.Join(';',
+                Csv(reader.GetInt64(0).ToString(CultureInfo.InvariantCulture)), Csv(reader.GetString(1)),
+                Csv(Utc(reader.GetInt64(2))), Csv(Utc(reader.GetInt64(3))), Csv(reader.GetString(4)),
+                Csv(filter.HorizonMinutes.ToString(CultureInfo.InvariantCulture)), Decimal(score), Decimal(Number(reader, 6)),
+                Decimal(Number(reader, 7)), Decimal(Number(reader, 8)), Decimal(Number(reader, 9)), Decimal(Number(reader, 10)),
+                Decimal(Number(reader, 11)), Decimal(Number(reader, 12)), Decimal(returned), Decimal(Number(reader, 14)),
+                Csv(Utc(dueMs)), Csv(status), Csv(source), Csv(reader.GetString(17))));
+            exported++;
+        }
+        await writer.FlushAsync(cancellationToken);
+        return exported;
+    }
+
     private static decimal? Number(SqliteDataReader reader,int column) => reader.IsDBNull(column) ? null : Convert.ToDecimal(reader.GetDouble(column));
+    private static string Decimal(decimal? value) => value?.ToString("G29", CultureInfo.InvariantCulture) ?? "";
+    private static string Utc(long unixMs) => DateTimeOffset.FromUnixTimeMilliseconds(unixMs).UtcDateTime.ToString("O", CultureInfo.InvariantCulture);
+    private static string Csv(string value) => $"\"{value.Replace("\"", "\"\"")}\"";
 }

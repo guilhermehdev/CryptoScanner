@@ -14,6 +14,7 @@ public interface ISignalRepository
     Task UpdateSignalResultAsync(int id, decimal outcomePrice, decimal outcomePercent, string exitReason, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TechnicalSetupAlert>> SaveTechnicalSetupAlertsAsync(IReadOnlyList<TechnicalSetupAlert> alerts, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TechnicalSetupAlert>> GetTechnicalSetupAlertsAsync(int limit = 500, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TechnicalSetupAlert>> GetAllTechnicalSetupAlertsAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TechnicalSetupAlert>> GetTechnicalSetupAlertsDueForEvaluationAsync(DateTime dueBeforeUtc, int limit = 25, CancellationToken cancellationToken = default);
     Task UpdateTechnicalSetupAlertOutcomeAsync(int id, decimal returnAfter1HourPercent, decimal returnAfter6HoursPercent, decimal returnAfter24HoursPercent, decimal maximumFavorable24HoursPercent, decimal maximumAdverse24HoursPercent, CancellationToken cancellationToken = default);
     Task<double> GetWinRateAsync(CancellationToken cancellationToken = default);

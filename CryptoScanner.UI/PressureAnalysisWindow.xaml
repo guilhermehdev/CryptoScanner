@@ -27,6 +27,7 @@
                 <ComboBoxItem Content="4 horas" Tag="240"/><ComboBoxItem Content="24 horas" Tag="1440"/>
             </ComboBox>
             <Button Content="Atualizar" Padding="14,4" Margin="16,0,0,0" Click="Refresh_Click"/>
+            <Button x:Name="export" Content="Exportar CSV" Padding="14,4" Margin="8,0,0,0" Click="Export_Click"/>
         </WrapPanel>
         <TextBlock x:Name="summary" Grid.Row="2" FontWeight="SemiBold" Margin="0,0,0,10" TextWrapping="Wrap"/>
         <TextBlock Grid.Row="3" Text="Resultados por faixa de nota · todas as leituras do filtro" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,6"/>

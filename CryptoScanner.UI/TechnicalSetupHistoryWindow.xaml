@@ -8,8 +8,11 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <TextBlock Text="Situações observadas em candles fechados. Não são sinais de trade. A evolução só classifica uma observação após 30 resultados em 24h e não altera o scanner."
-                   Foreground="#D0D0D0" TextWrapping="Wrap" Margin="0,0,0,10"/>
+        <DockPanel Margin="0,0,0,10">
+            <Button x:Name="btnExport" DockPanel.Dock="Right" Content="Exportar CSV" Padding="12,4" Click="Export_Click"/>
+            <TextBlock Text="Situações observadas em candles fechados. Não são sinais de trade. A evolução só classifica uma observação após 30 resultados em 24h e não altera o scanner."
+                       Foreground="#D0D0D0" TextWrapping="Wrap" Margin="0,0,12,0"/>
+        </DockPanel>
         <TabControl Grid.Row="1" Background="#1E1E1E" Foreground="#F5F5F5">
             <TabItem Header="Histórico">
         <DataGrid x:Name="dgSetups" AutoGenerateColumns="False" IsReadOnly="True"
