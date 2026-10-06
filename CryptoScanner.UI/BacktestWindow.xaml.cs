@@ -623,6 +623,28 @@ public partial class BacktestWindow : Window
     {
         thresholds = EligibilityThresholds.Default;
 
+        // A referência não é um conjunto de campos sugeridos: é a hipótese que
+        // será validada. Ignora qualquer edição manual e impede misturar o
+        // rompimento clássico com reteste Intraday ou com o lado Short.
+        if (cmbTestMode.SelectedIndex == 0 &&
+            GetSelectedStrategyProfile() == TradingStrategyProfile.BreakoutTrend)
+        {
+            bool isClassicBreakoutLong = rbBacktestSwing.IsChecked == true &&
+                GetSelectedDirection() == TradeDirection.Long &&
+                GetSelectedRiskMode() == RiskCalculationMode.SwingWithPartialExits;
+            if (!isClassicBreakoutLong)
+            {
+                MessageBox.Show(
+                    "A Base fixa da estratégia Breakout Trend é somente Swing (4h), Compra (Long) e risco Swing + Resistência Pontuada. " +
+                    "Use um perfil de pesquisa separado para reteste Intraday, Short ou outra geometria.",
+                    "Backtest", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            thresholds = ScannerProfiles.BreakoutTrendLongBaseline;
+            return true;
+        }
+
         if (!decimal.TryParse(txtMinScore.Text, out decimal minScore) ||
             !decimal.TryParse(txtMaxShortScore.Text, out decimal maxShortScore) ||
             !decimal.TryParse(txtMaxShortAdxBear.Text, out decimal maxShortAdxBear) ||

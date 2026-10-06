@@ -281,6 +281,7 @@ var breakoutLongBaseline = ScannerProfiles.BreakoutTrendLongBaseline;
 Check(breakoutLongBaseline.EntryStrategy == EntryStrategy.Breakout &&
       breakoutLongBaseline.MinRiskReward == 2m &&
       breakoutLongBaseline.MinResistanceDistancePartialExits == 4m &&
+      breakoutLongBaseline.MaxStopDistancePercent == 25m &&
       !breakoutLongBaseline.EnablePullbackBounce,
     "Breakout Trend Long baseline is fixed independently from live automatic selection");
 var shortExperimentalProfile = ScannerProfiles.For(ScanProfile.Swing, TradeDirection.Short, true);
