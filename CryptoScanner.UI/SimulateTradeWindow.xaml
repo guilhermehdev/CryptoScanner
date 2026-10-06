@@ -4,13 +4,19 @@
         Title="Simular Trade" Height="400" Width="380"
         WindowStartupLocation="CenterOwner" Background="#1E1E1E" Foreground="White">
 
-    <StackPanel Margin="15">
-        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-            <TextBlock x:Name="txtSymbolHeader" FontWeight="Bold" FontSize="16"/>
-            <TextBlock x:Name="txtDirectionHeader" Margin="12,0,0,0" FontWeight="SemiBold" VerticalAlignment="Center"/>
-        </StackPanel>
+        <StackPanel Margin="15">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                <TextBlock x:Name="txtSymbolHeader" FontWeight="Bold" FontSize="16"/>
+                <TextBlock x:Name="txtDirectionHeader" Margin="12,0,0,0" FontWeight="SemiBold" VerticalAlignment="Center"/>
+            </StackPanel>
 
-        <TextBlock Text="Preço de Entrada (atualizado ao salvar):" FontSize="11" Foreground="Gray"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                <TextBlock Text="Lado do trade:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <RadioButton x:Name="rbLong" Content="Compra (Long)" GroupName="TradeDirection" Margin="0,0,12,0" Checked="TradeDirection_Changed"/>
+                <RadioButton x:Name="rbShort" Content="Venda (Short)" GroupName="TradeDirection" Checked="TradeDirection_Changed"/>
+            </StackPanel>
+
+            <TextBlock Text="Preço de Entrada (atualizado ao salvar):" FontSize="11" Foreground="Gray"/>
         <TextBox x:Name="txtEntryPrice" IsReadOnly="True" Margin="0,2,0,10"/>
 
         <TextBlock Text="Take Profit (alvo único):" FontSize="11" Foreground="Gray"/>

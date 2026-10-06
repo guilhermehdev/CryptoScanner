@@ -13,6 +13,8 @@ public partial class SimulateTradeWindow : Window
     private readonly AssetScore _asset;
     private readonly string _profileName;
     private readonly Func<Task<decimal>> _getCurrentPrice;
+    private TradeDirection _direction;
+    private bool _directionSelectionReady;
     private bool _saving;
 
     public bool Saved { get; private set; }
@@ -26,9 +28,13 @@ public partial class SimulateTradeWindow : Window
         _asset = asset;
         _profileName = profileName;
         _getCurrentPrice = getCurrentPrice;
+        _direction = asset.Direction;
 
         txtSymbolHeader.Text = asset.Symbol;
-        txtDirectionHeader.Text = asset.Direction == TradeDirection.Short ? "VENDA (Short)" : "COMPRA (Long)";
+        rbLong.IsChecked = _direction == TradeDirection.Long;
+        rbShort.IsChecked = _direction == TradeDirection.Short;
+        _directionSelectionReady = true;
+        UpdateDirectionHeader();
         txtEntryPrice.Text = asset.Close.ToString("0.########");
         txtTakeProfit.Text = asset.Resistance.ToString("0.########");
         txtStopLoss.Text = asset.Support.ToString("0.########");
@@ -42,6 +48,22 @@ public partial class SimulateTradeWindow : Window
         txtStopLoss.Clear();
         txtNote.Text = $"Setup potencial: {alert.Setup}.";
     }
+
+    private void TradeDirection_Changed(object sender, RoutedEventArgs e)
+    {
+        TradeDirection selectedDirection = rbShort.IsChecked == true ? TradeDirection.Short : TradeDirection.Long;
+        if (_directionSelectionReady && selectedDirection != _direction)
+        {
+            _direction = selectedDirection;
+            txtTakeProfit.Clear();
+            txtStopLoss.Clear();
+        }
+
+        UpdateDirectionHeader();
+    }
+
+    private void UpdateDirectionHeader() =>
+        txtDirectionHeader.Text = _direction == TradeDirection.Short ? "VENDA (Short)" : "COMPRA (Long)";
 
     private static AssetScore CreateAssetFromSetup(TechnicalSetupAlert alert) => new()
     {
@@ -74,12 +96,12 @@ public partial class SimulateTradeWindow : Window
             decimal entryPrice = await _getCurrentPrice();
             txtEntryPrice.Text = entryPrice.ToString("0.########");
 
-            bool invalidGeometry = _asset.Direction == TradeDirection.Short
+            bool invalidGeometry = _direction == TradeDirection.Short
                 ? entryPrice <= 0 || stopLoss <= entryPrice || takeProfit >= entryPrice
                 : entryPrice <= 0 || stopLoss <= 0 || stopLoss >= entryPrice || takeProfit <= entryPrice;
             if (invalidGeometry)
             {
-                MessageBox.Show(_asset.Direction == TradeDirection.Short
+                MessageBox.Show(_direction == TradeDirection.Short
                     ? "Trade não aberto: no Short o stop deve ficar acima da cotação atual e o alvo abaixo."
                     : "Trade não aberto: no Long o stop deve ficar abaixo da cotação atual e o alvo acima.",
                     "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -89,7 +111,7 @@ public partial class SimulateTradeWindow : Window
             var trade = new SimulatedTrade
             {
                 Symbol = _asset.Symbol,
-                Direction = _asset.Direction,
+                Direction = _direction,
                 EntryTime = DateTime.UtcNow,
                 EntryPrice = entryPrice,
                 TakeProfit = takeProfit,
