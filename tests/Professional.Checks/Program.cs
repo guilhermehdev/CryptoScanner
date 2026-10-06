@@ -277,6 +277,12 @@ structuralCandles[^1]=new Candle{Open=101,Close=100.6m,High=101,Low=100};
 Check(!StructuralEntryExperiment.Evaluate(structuralCandles,2,true).Pullback,"Past recovery cannot authorize bearish current candle");
 Check(!StructuralEntryExperiment.Evaluate(structuralCandles,0,true).Pullback,"Missing ATR cannot authorize experiment");
 Check(!ScannerProfiles.For(ScanProfile.Swing).StructuralEntryExperiment,"Live scanner keeps reference strategy");
+var breakoutLongBaseline = ScannerProfiles.BreakoutTrendLongBaseline;
+Check(breakoutLongBaseline.EntryStrategy == EntryStrategy.Breakout &&
+      breakoutLongBaseline.MinRiskReward == 2m &&
+      breakoutLongBaseline.MinResistanceDistancePartialExits == 4m &&
+      !breakoutLongBaseline.EnablePullbackBounce,
+    "Breakout Trend Long baseline is fixed independently from live automatic selection");
 var shortExperimentalProfile = ScannerProfiles.For(ScanProfile.Swing, TradeDirection.Short, true);
 Check(shortExperimentalProfile.MaxShortOpportunityScore == 80 && shortExperimentalProfile.MaxShortAdxInBear == 30,
     "Short experimental profile applies the calibrated score and ADX ceilings");

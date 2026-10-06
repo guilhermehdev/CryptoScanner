@@ -1,6 +1,33 @@
 namespace CryptoScanner.Core.Configuration;
 public static class ScannerProfiles
 {
+    /// <summary>
+    /// Referência fixa para validar Breakout Trend Long. Mantém o rompimento clássico
+    /// em candles de 4h: fechamento acima da máxima anterior, consolidação prévia,
+    /// stop estrutural e saídas parciais. Não é aplicada ao scanner ao vivo.
+    /// </summary>
+    public static readonly EligibilityThresholds BreakoutTrendLongBaseline = new()
+    {
+        EntryStrategy = EntryStrategy.Breakout,
+        BuyOpportunityScore = ScannerSettings.BuyOpportunityScore,
+        BearRegimePenalty = ScannerSettings.BearRegimePenalty,
+        SidewaysRegimePenalty = ScannerSettings.SidewaysRegimePenalty,
+        MinVolumeSpike = ScannerSettings.MinVolumeSpike,
+        DefensiveMinVolumeSpike = ScannerSettings.DefensiveMinVolumeSpike,
+        MinResistanceDistance = ScannerSettings.MinResistanceDistance,
+        MinResistanceDistanceAtrMode = ScannerSettings.MinResistanceDistance,
+        MinResistanceDistancePartialExits = 4m,
+        MinRiskReward = 2m,
+        MinRelativeStrengthPercent = ScannerSettings.MinRelativeStrengthPercent,
+        MinStopDistancePercent = 0m,
+        MaxStopDistancePercent = 25m,
+        MaxRiskReward = 999m,
+        EnablePullbackBounce = false,
+        EnableBollingerScoring = true,
+        EnableVolatilityScoringPhaseB = false,
+        EnableMultiTimeframe = false
+    };
+
     public static readonly EligibilityThresholds SwingValidatedThresholds = new()
     {
         EntryStrategy = EntryStrategy.Auto,

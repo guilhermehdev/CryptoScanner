@@ -48,34 +48,22 @@ public partial class BacktestWindow : Window
         dpValidationStart.SelectedDate = today.AddYears(-1);
         chkChronologicalSplit.IsChecked = true;
 
-        // Baseline auditável: validação cronológica do Breakout Trend Long.
+        // Baseline auditável: validação cronológica do Breakout Trend Long clássico.
         // Estes defaults afetam somente a janela de Backtest; o scanner ao vivo
         // continua usando sua própria configuração.
-        rbBacktestIntraday.IsChecked = true;
-        rbBacktestSwing.IsChecked = false;
+        rbBacktestIntraday.IsChecked = false;
+        rbBacktestSwing.IsChecked = true;
         rbBacktestScalp.IsChecked = false;
         rbDirectionShort.IsChecked = false;
         rbDirectionLong.IsChecked = true;
         cmbStrategyProfile.SelectedIndex = 0; // Breakout Trend
-        rbRiskIntradayLocal.IsChecked = true;
-        rbRiskPartialExits.IsChecked = false;
+        rbRiskIntradayLocal.IsChecked = false;
+        rbRiskPartialExits.IsChecked = true;
         rbRiskMeanReversion.IsChecked = false;
         rbRiskBollingerReversal.IsChecked = false;
         txtEvaluationHoursOverride.Text = "";
 
-        txtMinScore.Text = ScannerSettings.BuyOpportunityScore.ToString("F0");
-        txtMaxShortScore.Text = "100";
-        txtMaxShortAdxBear.Text = "999"; // não se aplica à Compra; mantém o limite padrão
-        txtMinResistDistance.Text = ScannerSettings.MinResistanceDistance.ToString("F0");
-        txtMinResistDistanceAtr.Text = "8";
-        txtMinResistDistancePartialExits.Text = "15";
-        txtMinVolumeSpike.Text = ScannerSettings.MinVolumeSpike.ToString("F2");
-        // O risco local do Breakout Intraday usa alvo fixo de 2R; exigir mais que
-        // isso elimina matematicamente todos os gatilhos antes da simulação.
-        txtMinRiskReward.Text = 2.0m.ToString("F1");
-        txtMinStopDistance.Text = "0"; // 0 = sem piso, reproduz o comportamento atual do app ao vivo
-        txtMaxStopDistance.Text = "25";
-        txtMaxRiskReward.Text = "999"; // efetivamente sem teto
+        ApplyValidatedThresholdFields(ScannerProfiles.BreakoutTrendLongBaseline);
 
         chkTargetAtr.IsChecked = false;
         chkMaximumAtrPercent.IsChecked = false;
@@ -413,7 +401,7 @@ public partial class BacktestWindow : Window
     }
 
     /// <summary>
-    /// Config validada REAL por perfil (16/08/2026) — corrige o método antigo
+    /// Configuração vigente por perfil — corrige o método antigo
     /// (BuildDefaultThresholdsWithCurrentAtrDistance), que usava os genéricos do
     /// ScannerSettings (RR=3, sem Caminho A) em vez dos valores calibrados por perfil que
     /// ScannerService.cs realmente usa ao vivo hoje (SwingValidatedThresholds/
@@ -426,6 +414,10 @@ public partial class BacktestWindow : Window
 
     private EligibilityThresholds GetValidatedThresholdsForSelectedStrategy(ScanProfile profile, TradeDirection direction)
     {
+        if (GetSelectedStrategyProfile() == TradingStrategyProfile.BreakoutTrend &&
+            direction == TradeDirection.Long && profile.Name == ScanProfile.Swing.Name)
+            return ScannerProfiles.BreakoutTrendLongBaseline;
+
         if (GetSelectedStrategyProfile() == TradingStrategyProfile.BreakoutTrend &&
             direction == TradeDirection.Short && profile.Name == ScanProfile.Intraday.Name)
             return ScannerProfiles.ForShortBreakoutExperimental(profile);

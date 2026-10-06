@@ -2,6 +2,12 @@
 
 Motor histórico 9, diagnósticos scan-funnel-v3. Não altera os gatilhos ou os limiares ao vivo. O objetivo é identificar qual combinação de critérios elimina os rompimentos e caracterizar os repiques antes de escolher mudanças de estratégia.
 
+## Referência atual: Breakout Trend Long
+
+A validação passa a usar uma hipótese única e congelada: **Swing Long em candles de 4h**, com fechamento acima da máxima anterior, consolidação prévia, stop estrutural, saídas parciais, score mínimo 60, volume relativo mínimo 1,30×, alvo pontuado mínimo 4%, R/R mínimo 2 e stop máximo 25%. Repique, reteste Intraday, ATR máximo, multi-timeframe e demais experimentos ficam desligados.
+
+No Backtest, o primeiro perfil abre essa referência como **Breakout Trend Long · base clássica** e separa por padrão dois períodos cronológicos: calibração e validação posterior. O resultado da validação não deve alterar esta configuração. A estratégia não muda o scanner ao vivo até sobreviver às duas janelas e à simulação ao vivo.
+
 O resumo do backtest separa a estratégia efetivamente escolhida pelo analisador. Em Automática, um rompimento tem prioridade sobre repique quando ambos aparecem. Cada grupo apresenta avaliações, gatilhos confirmados, elegíveis antes da cotação de entrada e reprovações apenas entre gatilhos confirmados. Essas reprovações podem se sobrepor. O arquivo também guarda contagens brutas de rompimento e repique; elas podem se sobrepor.
 
 Ao exportar trades, são gravados dois arquivos:
