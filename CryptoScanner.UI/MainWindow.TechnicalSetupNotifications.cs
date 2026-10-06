@@ -71,6 +71,17 @@ public partial class MainWindow
     private async void BtnRefreshPotentialStrategies_Click(object sender, RoutedEventArgs e) =>
         await RefreshPotentialStrategiesAsync();
 
+    private void DgPotentialStrategies_MouseRightButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        var row = FindAncestor<System.Windows.Controls.DataGridRow>(e.OriginalSource as DependencyObject);
+        if (row?.Item is not TechnicalSetupAlert alert)
+            return;
+
+        row.IsSelected = true;
+        string interval = ToTradingViewInterval(GetHistoryCandleInterval(alert.Profile));
+        new ChartWindow(alert.Symbol, interval) { Owner = this }.Show();
+    }
+
     private void ApplyCryptoScannerTrayIcon()
     {
         if (_trayIcon is null)
