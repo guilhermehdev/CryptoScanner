@@ -7,13 +7,13 @@
         <StackPanel>
             <TextBlock Text="Laboratório de estratégias · geração inicial" FontSize="23" FontWeight="SemiBold"/>
             <TextBlock Text="Somente simulação. Cinco variantes recebem os mesmos candidatos do grid visível. Nenhuma substitui os sinais do scanner automaticamente." Foreground="#B8B8B8" TextWrapping="Wrap" Margin="0,8,0,8"/>
-            <TextBlock Text="Cada variante: 10.000 USDT fictícios · 1.000 por entrada · até 5 posições · taxa 0,10% e slippage 0,05% por lado. Cotações a cada 30 s enquanto o app roda." Foreground="#B8B8B8" TextWrapping="Wrap" Margin="0,0,0,10"/>
+            <TextBlock Text="Cada variante: 10.000 USDT fictícios · 1.000 por entrada · até 5 posições · taxa 0,10% e slippage 0,05% por lado. As posições são cotadas em lote a cada 30 s enquanto o app roda." Foreground="#B8B8B8" TextWrapping="Wrap" Margin="0,0,0,10"/>
         </StackPanel>
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
             <Button x:Name="refresh" Content="Atualizar" Padding="14,5" Click="Refresh_Click"/>
             <Button x:Name="export" Content="Exportar para análise" Padding="14,5" Margin="10,0,0,0" Click="Export_Click"/>
             <Button x:Name="pause" Content="Pausar novas entradas" Padding="14,5" Margin="10,0,0,0" Click="Pause_Click"/>
-            <Button x:Name="startControlledExperiment" Content="Iniciar experimento V1 × V5" Padding="14,5" Margin="10,0,0,0" Click="StartControlledExperiment_Click"/>
+            <Button x:Name="startControlledExperiment" Content="Iniciar coorte limpa V1 × V5" Padding="14,5" Margin="10,0,0,0" Click="StartControlledExperiment_Click" ToolTip="Preserva o histórico anterior, reinicia as carteiras fictícias e passa a mostrar apenas os novos resultados. Só inicia sem posições experimentais abertas."/>
         </StackPanel>
         <Border Grid.Row="2" BorderBrush="#D0D4DA" BorderThickness="1" Padding="8" Margin="0,0,0,8">
             <StackPanel>
@@ -49,6 +49,10 @@
                 <DataGridTextColumn Header="Abertas" Binding="{Binding Open}" Width="65"/>
                 <DataGridTextColumn Header="Fechadas (N)" Binding="{Binding Closed}" Width="95"/>
                 <DataGridTextColumn Header="Vitórias %" Binding="{Binding WinPercent, StringFormat=F1, TargetNullValue=—}" Width="80"/>
+                <DataGridTextColumn Header="Fech. confiáveis" Binding="{Binding Reliable.Closed}" Width="115"/>
+                <DataGridTextColumn Header="PF confiável" Binding="{Binding Reliable.ProfitFactorText}" Width="90"/>
+                <DataGridTextColumn Header="Resultado confiável" Binding="{Binding Reliable.NetProfit, StringFormat=F2}" Width="125"/>
+                <DataGridTextColumn Header="Fech. c/ lacuna" Binding="{Binding WithGaps.Closed}" Width="110"/>
                 <DataGridTextColumn Header="Queda máx. observada %" Binding="{Binding Drawdown, StringFormat=F2}" Width="165"/>
                 <DataGridTextColumn Header="Rejeições" Binding="{Binding Rejected}" Width="75"/>
                 <DataGridTextColumn Header="Trades com lacunas" Binding="{Binding Gaps}" Width="140"/>

@@ -130,9 +130,9 @@ public partial class StrategyLabWindow : Window
             await LoadParametersAsync();
             shadowTrades.ItemsSource=report.ShadowTrades;variants.ItemsSource=report.Variants;trades.ItemsSource=report.Trades;decisions.ItemsSource=report.Decisions;
             string experiment=data.Experiment.IsActive
-                ? $"Experimento ativo desde {data.Experiment.StartedAtLocal:dd/MM/yyyy HH:mm}: {data.Experiment.Name}. Avalie somente oportunidades posteriores a este corte."
+                ? $"Coorte limpa ativa desde {data.Experiment.StartedAtLocal:dd/MM/yyyy HH:mm}: {data.Experiment.Name}. A tela mostra somente oportunidades posteriores a este corte."
                 : "Sem experimento controlado ativo; as cinco variantes recebem novas oportunidades.";
-            summary.Text=$"{report.Opportunities:N0} oportunidades registradas · {report.ShadowCount:N0} testes sem vaga (fora das carteiras) · {(_enabled?"Entradas ativas":"Entradas pausadas; posições continuam acompanhadas")}\n{experiment}\nPatrimônio inclui posições abertas na última cotação. Amostras iniciais não definem uma estratégia vencedora. Passe o mouse sobre uma variante para ver sua alteração.";
+            summary.Text=$"{report.Opportunities:N0} oportunidades registradas · {report.ShadowCount:N0} testes sem vaga (fora das carteiras) · {(_enabled?"Entradas ativas":"Entradas pausadas; posições continuam acompanhadas")}\n{experiment}\n'Confiáveis' são operações fechadas sem lacuna de cotação; resultados com lacuna ficam separados. Patrimônio inclui posições abertas na última cotação. Amostras iniciais não definem uma estratégia vencedora. Passe o mouse sobre uma variante para ver sua alteração.";
         }
         catch(OperationCanceledException) when(_closed.IsCancellationRequested){}
         catch(Exception ex){summary.Text=$"Falha ao carregar o laboratório: {ex.Message}";}

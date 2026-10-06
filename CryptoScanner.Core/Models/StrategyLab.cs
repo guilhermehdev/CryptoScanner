@@ -156,8 +156,14 @@ public static class LabSimulation
     }
 }
 
+public sealed record LabOutcomeQuality(long Closed,long Wins,decimal NetProfit,decimal GrossProfit,decimal GrossLoss)
+{
+    public decimal? WinPercent => Closed == 0 ? null : Wins * 100m / Closed;
+    public string ProfitFactorText => GrossLoss > 0 ? (GrossProfit / GrossLoss).ToString("F2") : GrossProfit > 0 ? "∞" : "—";
+}
+
 public sealed record LabVariantReport(string Name,string Mutation,decimal Cash,decimal Equity,decimal Drawdown,
-    long Open,long Closed,long Wins,long Rejected,long Gaps,bool IsEnabled)
+    long Open,long Closed,long Wins,long Rejected,long Gaps,LabOutcomeQuality Reliable,LabOutcomeQuality WithGaps,bool IsEnabled)
 {
     public decimal NetReturnPercent => (Equity/LabParameters.InitialCapital-1)*100;
     public decimal? WinPercent => Closed==0 ? null : Wins*100m/Closed;

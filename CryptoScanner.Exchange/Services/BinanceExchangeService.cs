@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace CryptoScanner.Exchange.Services;
 
-public class BinanceExchangeService : IMarketDataService, IBuyingPressurePriceSource
+public class BinanceExchangeService : IMarketDataService, IBuyingPressurePriceSource, ICurrentPriceBatchSource
 {
     private readonly HttpClient _http;
 
@@ -133,6 +133,34 @@ public class BinanceExchangeService : IMarketDataService, IBuyingPressurePriceSo
         JsonDocument doc = JsonDocument.Parse(json);
         string price = doc.RootElement.GetProperty("price").GetString() ?? "0";
         return decimal.Parse(price, CultureInfo.InvariantCulture);
+    }
+
+    public async Task<IReadOnlyDictionary<string, decimal>> GetCurrentPricesAsync(
+        IReadOnlyCollection<string> symbols,
+        CancellationToken cancellationToken = default)
+    {
+        var requested = symbols
+            .Where(symbol => !string.IsNullOrWhiteSpace(symbol))
+            .Select(symbol => symbol.Trim().ToUpperInvariant())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (requested.Count == 0)
+            return new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+
+        // Sem o parâmetro symbol a Binance devolve todos os últimos preços em uma única chamada.
+        // É mais confiável para o laboratório do que centenas de requisições individuais.
+        string json = await _http.GetStringAsync("https://api.binance.com/api/v3/ticker/price", cancellationToken);
+        using JsonDocument doc = JsonDocument.Parse(json);
+        var prices = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in doc.RootElement.EnumerateArray())
+        {
+            string symbol = item.GetProperty("symbol").GetString() ?? "";
+            if (!requested.Contains(symbol))
+                continue;
+            if (!decimal.TryParse(item.GetProperty("price").GetString(), NumberStyles.Number, CultureInfo.InvariantCulture, out decimal price) || price <= 0)
+                continue;
+            prices[symbol] = price;
+        }
+        return prices;
     }
 
     public async Task<List<Candle>> GetHistoricalCandlesAsync(string symbol, string interval, DateTime startUtc, DateTime endUtc, CancellationToken cancellationToken = default)

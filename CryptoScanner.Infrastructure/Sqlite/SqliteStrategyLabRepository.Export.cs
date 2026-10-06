@@ -26,7 +26,11 @@ public sealed partial class SqliteStrategyLabRepository
                     SUM(CASE WHEN t.Closed=1 AND t.NetProfit>0 THEN 1 ELSE 0 END) AS Wins,
                     SUM(CASE WHEN t.Closed=1 THEN t.NetProfit ELSE 0 END) AS RealizedNetProfit,
                     AVG(CASE WHEN t.Closed=1 THEN t.NetProfit / json_extract(t.StateJson,'$.Cost') * 100 END) AS AverageClosedReturnPercent,
-                    SUM(CASE WHEN json_extract(t.StateJson,'$.HasObservationGap')=1 THEN 1 ELSE 0 END) AS TradesWithGaps
+                    SUM(CASE WHEN json_extract(t.StateJson,'$.HasObservationGap')=1 THEN 1 ELSE 0 END) AS TradesWithGaps,
+                    SUM(CASE WHEN t.Closed=1 AND COALESCE(json_extract(t.StateJson,'$.HasObservationGap'),0)=0 THEN 1 ELSE 0 END) AS ReliableClosedTrades,
+                    SUM(CASE WHEN t.Closed=1 AND COALESCE(json_extract(t.StateJson,'$.HasObservationGap'),0)=0 THEN t.NetProfit ELSE 0 END) AS ReliableNetProfit,
+                    SUM(CASE WHEN t.Closed=1 AND COALESCE(json_extract(t.StateJson,'$.HasObservationGap'),0)=1 THEN 1 ELSE 0 END) AS GapClosedTrades,
+                    SUM(CASE WHEN t.Closed=1 AND COALESCE(json_extract(t.StateJson,'$.HasObservationGap'),0)=1 THEN t.NetProfit ELSE 0 END) AS GapNetProfit
                 FROM LabVariants v LEFT JOIN LabShadowTrades t ON t.VariantId=v.Id GROUP BY v.Id ORDER BY v.Id
                 """),
             ("configuracao", "SELECT * FROM LabSettings ORDER BY Id"),
@@ -45,6 +49,13 @@ public sealed partial class SqliteStrategyLabRepository
                   (SELECT COUNT(*) FROM LabTrades t WHERE t.VariantId=v.Id AND t.Closed=1 AND t.NetProfit>0) AS Wins,
                   (SELECT COALESCE(SUM(t.NetProfit),0) FROM LabTrades t WHERE t.VariantId=v.Id AND t.Closed=1) AS RealizedNetProfit,
                   (SELECT COUNT(*) FROM LabTrades t WHERE t.VariantId=v.Id AND json_extract(t.StateJson,'$.HasObservationGap')=1) AS TradesWithGaps,
+                  (SELECT COUNT(*) FROM LabTrades t WHERE t.VariantId=v.Id AND t.Closed=1 AND COALESCE(json_extract(t.StateJson,'$.HasObservationGap'),0)=0) AS ReliableClosedTrades,
+                  (SELECT COALESCE(SUM(t.NetProfit),0) FROM LabTrades t WHERE t.VariantId=v.Id AND t.Closed=1 AND COALESCE(json_extract(t.StateJson,'$.HasObservationGap'),0)=0) AS ReliableNetProfit,
+                  (SELECT CASE WHEN COALESCE(-SUM(CASE WHEN t.NetProfit<0 THEN t.NetProfit ELSE 0 END),0)>0
+                      THEN COALESCE(SUM(CASE WHEN t.NetProfit>0 THEN t.NetProfit ELSE 0 END),0) / -SUM(CASE WHEN t.NetProfit<0 THEN t.NetProfit ELSE 0 END)
+                      ELSE NULL END FROM LabTrades t WHERE t.VariantId=v.Id AND t.Closed=1 AND COALESCE(json_extract(t.StateJson,'$.HasObservationGap'),0)=0) AS ReliableProfitFactor,
+                  (SELECT COUNT(*) FROM LabTrades t WHERE t.VariantId=v.Id AND t.Closed=1 AND COALESCE(json_extract(t.StateJson,'$.HasObservationGap'),0)=1) AS GapClosedTrades,
+                  (SELECT COALESCE(SUM(t.NetProfit),0) FROM LabTrades t WHERE t.VariantId=v.Id AND t.Closed=1 AND COALESCE(json_extract(t.StateJson,'$.HasObservationGap'),0)=1) AS GapNetProfit,
                   (SELECT COUNT(*) FROM LabDecisions d WHERE d.VariantId=v.Id AND d.Accepted=0) AS RejectedDecisions
                 FROM LabVariants v ORDER BY v.Id
                 """)
@@ -68,7 +79,7 @@ public sealed partial class SqliteStrategyLabRepository
             counts[file] = rows;
         }
         await using (var writer = new StreamWriter(zip.CreateEntry("manifesto.json").Open(), Encoding.UTF8))
-            await writer.WriteAsync(JsonSerializer.Serialize(new { FormatVersion = 3, ExportedAtUtc = DateTimeOffset.UtcNow, Counts = counts }, new JsonSerializerOptions { WriteIndented = true }).AsMemory(), token);
+            await writer.WriteAsync(JsonSerializer.Serialize(new { FormatVersion = 4, ExportedAtUtc = DateTimeOffset.UtcNow, Counts = counts }, new JsonSerializerOptions { WriteIndented = true }).AsMemory(), token);
         await using (var writer = new StreamWriter(zip.CreateEntry("LEIA-ME.txt").Open(), Encoding.UTF8))
             await writer.WriteAsync("""
                 RELATÓRIO COMPLETO DO LABORATÓRIO
@@ -103,6 +114,9 @@ public sealed partial class SqliteStrategyLabRepository
                 NetProfit na tabela trades só vale para operações fechadas; não some o lucro
                 realizado ao caixa: os recebimentos das saídas já estão incluídos no saldo.
                 Wins / ClosedTrades é a taxa de vitórias; com zero trades ela é indefinida.
+                resumo.csv e resumo_sem_vaga.csv separam resultados confiáveis
+                (Reliable* = HasObservationGap igual a 0) dos resultados com lacuna (Gap*).
+                "Confiável" descreve a continuidade da observação; não prova vantagem da estratégia.
                 Operações com HasObservationGap devem ser analisadas separadamente.
                 Rejeições não são trades perdedores e não têm resultado contrafactual registrado.
                 Não existe histórico completo de cada cotação nem curva contínua de patrimônio.

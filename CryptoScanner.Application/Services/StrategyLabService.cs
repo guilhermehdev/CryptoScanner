@@ -51,17 +51,7 @@ public sealed class StrategyLabService(IStrategyLabRepository repository,IMarket
                 .ToArray();
             if(symbols.Length==0)return;
 
-            // Query open positions concurrently. A sequential pass through dozens of
-            // shadow trades can exceed the 90-second observation window by itself.
-            using var throttle=new SemaphoreSlim(EvaluationQuoteConcurrency);
-            var quotes=await Task.WhenAll(symbols.Select(async symbol=>
-            {
-                await throttle.WaitAsync(token);
-                try{return (Symbol:symbol,Price:await QuoteAsync(symbol,token));}
-                finally{throttle.Release();}
-            }));
-            var prices=quotes.Where(quote=>quote.Price is >0).ToDictionary(
-                quote=>quote.Symbol,quote=>quote.Price!.Value,StringComparer.OrdinalIgnoreCase);
+            var prices = await QuotesAsync(symbols, token);
             if(prices.Count>0)
                 // One timestamp and one transaction make the cycle a coherent price snapshot.
                 await repository.TickAsync(prices,DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),token);
@@ -74,5 +64,31 @@ public sealed class StrategyLabService(IStrategyLabRepository repository,IMarket
         using var timeout=CancellationTokenSource.CreateLinkedTokenSource(token);timeout.CancelAfter(TimeSpan.FromSeconds(10));
         try{return await market.GetCurrentPriceAsync(symbol,timeout.Token);}
         catch(Exception) when(!token.IsCancellationRequested){return null;}
+    }
+
+    private async Task<IReadOnlyDictionary<string, decimal>> QuotesAsync(IReadOnlyCollection<string> symbols, CancellationToken token)
+    {
+        if (market is ICurrentPriceBatchSource batchSource)
+        {
+            try
+            {
+                return await batchSource.GetCurrentPricesAsync(symbols, token);
+            }
+            catch (Exception) when (!token.IsCancellationRequested)
+            {
+                // Mantém a compatibilidade com fontes que falhem no endpoint em lote.
+            }
+        }
+
+        // Fallback para fontes de dados antigas. A Binance de produção usa o lote acima.
+        using var throttle = new SemaphoreSlim(EvaluationQuoteConcurrency);
+        var quotes = await Task.WhenAll(symbols.Select(async symbol =>
+        {
+            await throttle.WaitAsync(token);
+            try { return (Symbol: symbol, Price: await QuoteAsync(symbol, token)); }
+            finally { throttle.Release(); }
+        }));
+        return quotes.Where(quote => quote.Price is >0).ToDictionary(
+            quote => quote.Symbol, quote => quote.Price!.Value, StringComparer.OrdinalIgnoreCase);
     }
 }

@@ -3,7 +3,7 @@ using CryptoScanner.Core.Models;
 
 namespace CryptoScanner.Application.Services;
 
-public sealed class CachingMarketDataService : IMarketDataService
+public sealed class CachingMarketDataService : IMarketDataService, ICurrentPriceBatchSource
 {
     private readonly IMarketDataService _inner;
     private readonly ICandleCacheRepository _cache;
@@ -28,6 +28,13 @@ public sealed class CachingMarketDataService : IMarketDataService
     public Task<decimal> GetCurrentPriceAsync(string symbol, CancellationToken cancellationToken = default)
         => _inner.GetCurrentPriceAsync(symbol, cancellationToken);
 
+    public Task<IReadOnlyDictionary<string, decimal>> GetCurrentPricesAsync(IReadOnlyCollection<string> symbols, CancellationToken cancellationToken = default)
+    {
+        if (_inner is ICurrentPriceBatchSource batchSource)
+            return batchSource.GetCurrentPricesAsync(symbols, cancellationToken);
+        return GetCurrentPricesIndividuallyAsync(symbols, cancellationToken);
+    }
+
     // Histórico (usado só pelo backtest) passa pelo cache local primeiro.
     public async Task<List<Candle>> GetHistoricalCandlesAsync(string symbol, string interval, DateTime startUtc, DateTime endUtc, CancellationToken cancellationToken = default)
     {
@@ -41,5 +48,17 @@ public sealed class CachingMarketDataService : IMarketDataService
         var fresh = await _inner.GetHistoricalCandlesAsync(symbol, interval, startUtc, endUtc, cancellationToken);
         await _cache.SaveCandlesAsync(symbol, interval, startUtc, endUtc, fresh, cancellationToken);
         return fresh;
+    }
+
+    private async Task<IReadOnlyDictionary<string, decimal>> GetCurrentPricesIndividuallyAsync(IReadOnlyCollection<string> symbols, CancellationToken cancellationToken)
+    {
+        var prices = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        foreach (var symbol in symbols.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            decimal price = await _inner.GetCurrentPriceAsync(symbol, cancellationToken);
+            if (price > 0)
+                prices[symbol] = price;
+        }
+        return prices;
     }
 }

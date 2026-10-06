@@ -5,10 +5,15 @@ namespace CryptoScanner.Infrastructure.Sqlite;
 
 public sealed partial class SqliteStrategyLabRepository
 {
-    private static async Task<List<LabTrade>> ShadowTrades(SqliteConnection db, SqliteTransaction? tx, bool history, CancellationToken token)
+    private static async Task<List<LabTrade>> ShadowTrades(SqliteConnection db, SqliteTransaction? tx, bool history, CancellationToken token,long? sinceOpportunityMs=null)
     {
         await using var cmd=db.CreateCommand(); cmd.Transaction=tx;
-        cmd.CommandText=history?"SELECT StateJson FROM LabShadowTrades ORDER BY Id DESC LIMIT 200":"SELECT StateJson FROM LabShadowTrades WHERE Closed=0";
+        cmd.CommandText=history
+            ? sinceOpportunityMs.HasValue
+                ? "SELECT t.StateJson FROM LabShadowTrades t JOIN LabOpportunities o ON o.Id=t.OpportunityId WHERE o.GridTimeMs >= $since ORDER BY t.Id DESC LIMIT 200"
+                : "SELECT StateJson FROM LabShadowTrades ORDER BY Id DESC LIMIT 200"
+            : "SELECT StateJson FROM LabShadowTrades WHERE Closed=0";
+        if(sinceOpportunityMs.HasValue && history)cmd.Parameters.AddWithValue("$since",sinceOpportunityMs.Value);
         var result=new List<LabTrade>(); await using var r=await cmd.ExecuteReaderAsync(token);
         while(await r.ReadAsync(token)) result.Add(JsonSerializer.Deserialize<LabTrade>(r.GetString(0))!);
         return result;

@@ -81,10 +81,15 @@ public sealed partial class SqliteStrategyLabRepository(string databasePath) : I
         while(await r.ReadAsync(token))result.Add((JsonSerializer.Deserialize<LabParameters>(r.GetString(0))!,Convert.ToDecimal(r.GetDouble(1)),Convert.ToDecimal(r.GetDouble(2)),Convert.ToDecimal(r.GetDouble(3))));
         return result;
     }
-    private static async Task<List<LabTrade>> Trades(SqliteConnection db,SqliteTransaction? tx,bool all,CancellationToken token)
+    private static async Task<List<LabTrade>> Trades(SqliteConnection db,SqliteTransaction? tx,bool all,CancellationToken token,long? sinceOpportunityMs=null)
     {
         await using var cmd=db.CreateCommand();cmd.Transaction=tx;
-        cmd.CommandText=all?"SELECT StateJson FROM LabTrades ORDER BY Id DESC LIMIT 200":"SELECT StateJson FROM LabTrades WHERE Closed=0";
+        cmd.CommandText=all
+            ? sinceOpportunityMs.HasValue
+                ? "SELECT t.StateJson FROM LabTrades t JOIN LabOpportunities o ON o.Id=t.OpportunityId WHERE o.GridTimeMs >= $since ORDER BY t.Id DESC LIMIT 200"
+                : "SELECT StateJson FROM LabTrades ORDER BY Id DESC LIMIT 200"
+            : "SELECT StateJson FROM LabTrades WHERE Closed=0";
+        if(sinceOpportunityMs.HasValue && all)cmd.Parameters.AddWithValue("$since",sinceOpportunityMs.Value);
         var result=new List<LabTrade>();await using var r=await cmd.ExecuteReaderAsync(token);
         while(await r.ReadAsync(token))result.Add(JsonSerializer.Deserialize<LabTrade>(r.GetString(0))!);
         return result;
@@ -99,6 +104,33 @@ public sealed partial class SqliteStrategyLabRepository(string databasePath) : I
             await Sql(db,tx,"UPDATE LabVariants SET PeakEquity=$peak,MaxDrawdown=$dd WHERE Id=$id",token,
                 ("$peak",(double)peak),("$dd",(double)dd),("$id",v.Parameters.Id));
         }
+    }
+    private static async Task<long?> ExperimentCut(SqliteConnection db, SqliteTransaction? tx, CancellationToken token)
+    {
+        var value=await Sql(db,tx,"SELECT ExperimentStartedAtMs FROM LabSettings WHERE Id=1",token);
+        return value is null or DBNull ? null : Convert.ToInt64(value);
+    }
+    private static async Task<LabOutcomeQuality> OutcomeQuality(SqliteConnection db, SqliteTransaction tx, int variantId, bool hasGap, long? sinceOpportunityMs, CancellationToken token)
+    {
+        await using var command = db.CreateCommand(); command.Transaction = tx;
+        command.CommandText = """
+            SELECT COUNT(*),
+                   COALESCE(SUM(CASE WHEN NetProfit > 0 THEN 1 ELSE 0 END), 0),
+                   COALESCE(SUM(NetProfit), 0),
+                   COALESCE(SUM(CASE WHEN NetProfit > 0 THEN NetProfit ELSE 0 END), 0),
+                   COALESCE(-SUM(CASE WHEN NetProfit < 0 THEN NetProfit ELSE 0 END), 0)
+            FROM LabTrades t JOIN LabOpportunities o ON o.Id=t.OpportunityId
+            WHERE t.VariantId=$variant AND t.Closed=1
+              AND COALESCE(json_extract(t.StateJson,'$.HasObservationGap'),0)=$gap
+              AND ($since IS NULL OR o.GridTimeMs >= $since)
+            """;
+        command.Parameters.AddWithValue("$variant", variantId);
+        command.Parameters.AddWithValue("$gap", hasGap ? 1 : 0);
+        command.Parameters.AddWithValue("$since", sinceOpportunityMs.HasValue ? sinceOpportunityMs.Value : DBNull.Value);
+        await using var reader = await command.ExecuteReaderAsync(token);
+        await reader.ReadAsync(token);
+        return new LabOutcomeQuality(reader.GetInt64(0), reader.GetInt64(1),
+            Convert.ToDecimal(reader.GetDouble(2)), Convert.ToDecimal(reader.GetDouble(3)), Convert.ToDecimal(reader.GetDouble(4)));
     }
     public Task<IReadOnlySet<string>> ObservedSymbolsAsync(string profile,long bucket,CancellationToken token=default)=>Use<IReadOnlySet<string>>(async db=>
     {
@@ -180,36 +212,42 @@ public sealed partial class SqliteStrategyLabRepository(string databasePath) : I
     public Task StartControlledExperimentAsync(CancellationToken token=default)=>Use(async db=>
     {
         using var tx=db.BeginTransaction();
+        long open=Convert.ToInt64(await Sql(db,tx,"SELECT (SELECT COUNT(*) FROM LabTrades WHERE Closed=0) + (SELECT COUNT(*) FROM LabShadowTrades WHERE Closed=0)",token));
+        if(open>0)
+            throw new InvalidOperationException($"Há {open} posição(ões) experimental(is) aberta(s). Aguarde o fechamento para iniciar uma coorte limpa.");
         foreach(var variant in await Variants(db,tx,token))
         {
             var parameters=variant.Parameters with { IsEnabled=variant.Parameters.Id is 1 or 5 };
-            await Sql(db,tx,"UPDATE LabVariants SET ParametersJson=$json WHERE Id=$id",token,
-                ("$json",JsonSerializer.Serialize(parameters)),("$id",parameters.Id));
+            await Sql(db,tx,"UPDATE LabVariants SET ParametersJson=$json,Cash=$cash,PeakEquity=$peak,MaxDrawdown=0 WHERE Id=$id",token,
+                ("$json",JsonSerializer.Serialize(parameters)),("$cash",(double)LabParameters.InitialCapital),("$peak",(double)LabParameters.InitialCapital),("$id",parameters.Id));
         }
         long started=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        await Sql(db,tx,"UPDATE LabSettings SET ExperimentName=$name,ExperimentStartedAtMs=$started,ExperimentVariantIdsJson=$variants WHERE Id=1",token,
+        await Sql(db,tx,"UPDATE LabSettings SET Enabled=1,ExperimentName=$name,ExperimentStartedAtMs=$started,ExperimentVariantIdsJson=$variants WHERE Id=1",token,
             ("$name","Validado × Stop mais distante"),("$started",started),("$variants",JsonSerializer.Serialize(new[]{1,5})));
         tx.Commit();return 0;
     },token);
     public Task<LabReport> ReportAsync(CancellationToken token=default)=>Use(async db=>
     {
-        using var tx=db.BeginTransaction(deferred:true);var open=await Trades(db,tx,false,token);var reports=new List<LabVariantReport>();
+        using var tx=db.BeginTransaction(deferred:true);var cut=await ExperimentCut(db,tx,token);var open=await Trades(db,tx,false,token);var reports=new List<LabVariantReport>();
         foreach(var v in await Variants(db,tx,token))
         {
-            long closed=Convert.ToInt64(await Sql(db,tx,"SELECT COUNT(*) FROM LabTrades WHERE VariantId=$v AND Closed=1",token,("$v",v.Parameters.Id)));
-            long wins=Convert.ToInt64(await Sql(db,tx,"SELECT COUNT(*) FROM LabTrades WHERE VariantId=$v AND Closed=1 AND NetProfit>0",token,("$v",v.Parameters.Id)));
-            long rejected=Convert.ToInt64(await Sql(db,tx,"SELECT COUNT(*) FROM LabDecisions WHERE VariantId=$v AND Accepted=0",token,("$v",v.Parameters.Id)));
-            long gaps=Convert.ToInt64(await Sql(db,tx,"SELECT COUNT(*) FROM LabTrades WHERE VariantId=$v AND json_extract(StateJson,'$.HasObservationGap')=1",token,("$v",v.Parameters.Id)));
+            long closed=Convert.ToInt64(await Sql(db,tx,"SELECT COUNT(*) FROM LabTrades t JOIN LabOpportunities o ON o.Id=t.OpportunityId WHERE t.VariantId=$v AND t.Closed=1 AND ($since IS NULL OR o.GridTimeMs >= $since)",token,("$v",v.Parameters.Id),("$since",cut.HasValue?cut.Value:DBNull.Value)));
+            long wins=Convert.ToInt64(await Sql(db,tx,"SELECT COUNT(*) FROM LabTrades t JOIN LabOpportunities o ON o.Id=t.OpportunityId WHERE t.VariantId=$v AND t.Closed=1 AND t.NetProfit>0 AND ($since IS NULL OR o.GridTimeMs >= $since)",token,("$v",v.Parameters.Id),("$since",cut.HasValue?cut.Value:DBNull.Value)));
+            long rejected=Convert.ToInt64(await Sql(db,tx,"SELECT COUNT(*) FROM LabDecisions d JOIN LabOpportunities o ON o.Id=d.OpportunityId WHERE d.VariantId=$v AND d.Accepted=0 AND ($since IS NULL OR o.GridTimeMs >= $since)",token,("$v",v.Parameters.Id),("$since",cut.HasValue?cut.Value:DBNull.Value)));
+            long gaps=Convert.ToInt64(await Sql(db,tx,"SELECT COUNT(*) FROM LabTrades t JOIN LabOpportunities o ON o.Id=t.OpportunityId WHERE t.VariantId=$v AND COALESCE(json_extract(t.StateJson,'$.HasObservationGap'),0)=1 AND ($since IS NULL OR o.GridTimeMs >= $since)",token,("$v",v.Parameters.Id),("$since",cut.HasValue?cut.Value:DBNull.Value)));
             var positions=open.Where(t=>t.VariantId==v.Parameters.Id).ToArray();
-            reports.Add(new($"V{v.Parameters.Id} · {v.Parameters.Name}",v.Parameters.Mutation,v.Cash,v.Cash+positions.Sum(t=>t.LiquidationValue),v.Drawdown,positions.Length,closed,wins,rejected,gaps,v.Parameters.IsEnabled));
+            var reliable = await OutcomeQuality(db, tx, v.Parameters.Id, false, cut, token);
+            var withGaps = await OutcomeQuality(db, tx, v.Parameters.Id, true, cut, token);
+            reports.Add(new($"V{v.Parameters.Id} · {v.Parameters.Name}",v.Parameters.Mutation,v.Cash,v.Cash+positions.Sum(t=>t.LiquidationValue),v.Drawdown,positions.Length,closed,wins,rejected,gaps,reliable,withGaps,v.Parameters.IsEnabled));
         }
         bool enabled=Convert.ToInt64(await Sql(db,tx,"SELECT Enabled FROM LabSettings WHERE Id=1",token))==1;
-        long count=Convert.ToInt64(await Sql(db,tx,"SELECT COUNT(*) FROM LabOpportunities",token));
-        var history=await Trades(db,tx,true,token);
+        long count=Convert.ToInt64(await Sql(db,tx,"SELECT COUNT(*) FROM LabOpportunities WHERE $since IS NULL OR GridTimeMs >= $since",token,("$since",cut.HasValue?cut.Value:DBNull.Value)));
+        var history=await Trades(db,tx,true,token,cut);
         var decisions=new List<LabDecisionRow>();
         await using(var cmd=db.CreateCommand())
         {
-            cmd.Transaction=tx;cmd.CommandText="SELECT o.Symbol,o.Profile,d.VariantId,d.AtMs,d.Accepted,d.Reason,o.FeaturesJson FROM LabDecisions d JOIN LabOpportunities o ON o.Id=d.OpportunityId ORDER BY d.AtMs DESC,d.OpportunityId DESC,d.VariantId LIMIT 200";
+            cmd.Transaction=tx;cmd.CommandText="SELECT o.Symbol,o.Profile,d.VariantId,d.AtMs,d.Accepted,d.Reason,o.FeaturesJson FROM LabDecisions d JOIN LabOpportunities o ON o.Id=d.OpportunityId WHERE $since IS NULL OR o.GridTimeMs >= $since ORDER BY d.AtMs DESC,d.OpportunityId DESC,d.VariantId LIMIT 200";
+            cmd.Parameters.AddWithValue("$since",cut.HasValue?cut.Value:DBNull.Value);
             await using var r=await cmd.ExecuteReaderAsync(token);
             while(await r.ReadAsync(token))
             {
@@ -219,8 +257,8 @@ public sealed partial class SqliteStrategyLabRepository(string databasePath) : I
                     $"Preço no grid {a.Close:0.########} | suporte {a.Support:0.########} | resistência {a.Resistance:0.########} | {a.BuyingPressureDetails}"));
             }
         }
-        var shadows=await ShadowTrades(db,tx,true,token);
-        long shadowCount=Convert.ToInt64(await Sql(db,tx,"SELECT COUNT(*) FROM LabShadowTrades",token));
+        var shadows=await ShadowTrades(db,tx,true,token,cut);
+        long shadowCount=Convert.ToInt64(await Sql(db,tx,"SELECT COUNT(*) FROM LabShadowTrades t JOIN LabOpportunities o ON o.Id=t.OpportunityId WHERE $since IS NULL OR o.GridTimeMs >= $since",token,("$since",cut.HasValue?cut.Value:DBNull.Value)));
         tx.Commit();return new LabReport(enabled,reports,history,count,decisions){ShadowTrades=shadows,ShadowCount=shadowCount};
     },token);
 }

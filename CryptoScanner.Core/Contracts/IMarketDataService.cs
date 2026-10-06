@@ -28,3 +28,14 @@ public interface IMarketDataService
     string symbol,
     CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Fonte opcional de cotações em lote. O laboratório usa esta capacidade para
+/// acompanhar muitas posições sem transformar a coleta em centenas de chamadas HTTP.
+/// </summary>
+public interface ICurrentPriceBatchSource
+{
+    Task<IReadOnlyDictionary<string, decimal>> GetCurrentPricesAsync(
+        IReadOnlyCollection<string> symbols,
+        CancellationToken cancellationToken = default);
+}

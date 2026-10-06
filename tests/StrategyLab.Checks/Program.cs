@@ -92,20 +92,27 @@ try
     Check(restartReport.Variants.All(v=>v.Drawdown>0&&v.Gaps>0),"Observed drawdown and gaps visible");
     await restarted.SetEnabledAsync(true);await restarted.ObserveAsync(Opportunity("NEW",5700000));
     Check((await restarted.ReportAsync()).Trades.Any(x=>x.Symbol=="NEW"),"Resume starts new opportunities");
+    try{await restarted.StartControlledExperimentAsync();throw new Exception("Clean cohort accepted open experiments");}
+    catch(InvalidOperationException){checks++;}
+    await restarted.TickAsync(new Dictionary<string,decimal>{{"NEW",130},{"COIN0USDT",130},{"COIN1USDT",130},{"COIN2USDT",130},{"COIN3USDT",130},{"COIN4USDT",130},{"COIN5USDT",130}},5800000);
     await restarted.StartControlledExperimentAsync();
     var experiment=await restarted.GetExperimentStatusAsync();
     Check(experiment.IsActive&&experiment.Name=="Validado × Stop mais distante"&&experiment.VariantIds.SequenceEqual([1,5]),"Controlled experiment records its immutable time cut and variants");
     var controlledParameters=await restarted.GetParametersAsync();
     Check(controlledParameters.Where(p=>p.IsEnabled).Select(p=>p.Id).SequenceEqual([1,5]),"Controlled experiment accepts new entries only for V1 and V5");
-    await restarted.ObserveAsync(Opportunity("CONTROLLED",6000000));
+    Check((await restarted.ReportAsync()).Opportunities==0&&controlledParameters.All(p=>p.Id is not (1 or 5) || p.IsEnabled),"Clean cohort hides previous observations and resets active portfolios");
+    long controlledAt=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+    await restarted.ObserveAsync(Opportunity("CONTROLLED",controlledAt));
     report=await restarted.ReportAsync();
     Check(report.Decisions.Count(d=>d.Symbol=="CONTROLLED")==2&&report.Decisions.Where(d=>d.Symbol=="CONTROLLED").All(d=>d.VariantId is 1 or 5),"Controlled experiment leaves disabled variants out of new decisions");
+    long expectedExits,expectedShadowExits;
     await using(var db=new SqliteConnection($"Data Source={path}"))
     {
         await db.OpenAsync();await using var cmd=db.CreateCommand();
         cmd.CommandText="SELECT COUNT(*) FROM sqlite_master WHERE name='SimulatedTrades'";
         Check(Convert.ToInt64(await cmd.ExecuteScalarAsync())==0,"Manual trade storage untouched");
-        cmd.CommandText="SELECT COUNT(*) FROM LabExits";Check(Convert.ToInt64(await cmd.ExecuteScalarAsync())==15,"Every partial exit retained");
+        cmd.CommandText="SELECT COUNT(*) FROM LabExits";expectedExits=Convert.ToInt64(await cmd.ExecuteScalarAsync());Check(expectedExits>=15,"Every partial exit retained");
+        cmd.CommandText="SELECT COUNT(*) FROM LabShadowExits";expectedShadowExits=Convert.ToInt64(await cmd.ExecuteScalarAsync());Check(expectedShadowExits>=15,"Every shadow partial exit retained");
     }
     await restarted.SetEnabledAsync(false);
     for (int i=0;i<205;i++) await restarted.ObserveAsync(Opportunity("EXPORT"+i,6000000+i*300000));
@@ -118,15 +125,16 @@ try
         using var manifestReader=new StreamReader(archive.GetEntry("manifesto.json")!.Open());
         using var manifest=JsonDocument.Parse(await manifestReader.ReadToEndAsync());
         var counts=manifest.RootElement.GetProperty("Counts");
-        Check(counts.GetProperty("oportunidades").GetInt64()==(await restarted.ReportAsync()).Opportunities,"Export includes opportunities beyond UI limit");
+        Check(counts.GetProperty("oportunidades").GetInt64()>=(await restarted.ReportAsync()).Opportunities&&counts.GetProperty("oportunidades").GetInt64()>200,"Export includes full history beyond the active clean cohort");
         Check(counts.GetProperty("decisoes").GetInt64()>400,"All rejected decisions exported under the controlled two-variant protocol");
-        Check(counts.GetProperty("saidas").GetInt64()==15,"All partial exits exported");
-        Check(counts.GetProperty("testes_sem_vaga").GetInt64()>=10 && counts.GetProperty("saidas_sem_vaga").GetInt64()==15,"Shadow exports remain separate and repeated ticks do not duplicate exits");
+        Check(counts.GetProperty("saidas").GetInt64()==expectedExits,"All partial exits exported");
+        Check(counts.GetProperty("testes_sem_vaga").GetInt64()>=10 && counts.GetProperty("saidas_sem_vaga").GetInt64()==expectedShadowExits,"Shadow exports remain separate and repeated ticks do not duplicate exits");
         using var tradesReader=new StreamReader(archive.GetEntry("trades.csv")!.Open());
         string csv=await tradesReader.ReadToEndAsync();
         Check(csv.Contains("OpportunityId")&&csv.Contains("StateJson")&&csv.Contains("FeeRate"),"Export retains links and trade cost details");
         using var summaryReader=new StreamReader(archive.GetEntry("resumo.csv")!.Open());
-        Check((await summaryReader.ReadToEndAsync()).Contains("EstimatedEquity"),"Export includes portfolio summary");
+        string summary=await summaryReader.ReadToEndAsync();
+        Check(summary.Contains("EstimatedEquity")&&summary.Contains("ReliableProfitFactor")&&summary.Contains("GapNetProfit"),"Export separates reliable and gap outcomes");
     }
     using var cts=new CancellationTokenSource();cts.Cancel();
     try{await restarted.ExportAsync(new MemoryStream(),cts.Token);throw new Exception("Export cancellation swallowed");}catch(OperationCanceledException){checks++;}
@@ -141,6 +149,10 @@ try
     await service.ObserveGridAsync([selected],ScanProfile.Intraday);Check(memory.Records.Count==1&&market.Calls==1,"Repeated grid window avoids duplicate quote request");
     memory.OpenSymbols=["GRIDUSDT","BATCH1USDT","BATCH2USDT"];
     await service.EvaluateAsync();Check(memory.Ticks.Count==1&&memory.Ticks[0].Count==3&&memory.Ticks[0].ContainsKey("GRIDUSDT"),"Open positions are quoted concurrently and persisted as one snapshot");
+    var batchRepository=new MemoryRepository { OpenSymbols=["ONEUSDT","TWOUSDT","THREEUSDT"] };
+    var batchMarket=new BatchMarket();
+    await new StrategyLabService(batchRepository,batchMarket).EvaluateAsync();
+    Check(batchMarket.BatchCalls==1&&batchMarket.SingleCalls==0&&batchRepository.Ticks.Single().Count==3,"Laboratory uses one batch price request for all open symbols");
     Console.WriteLine($"PASS: {checks} strategy-lab checks");
 }
 finally{SqliteConnection.ClearAllPools();File.Delete(path);}
@@ -164,6 +176,20 @@ sealed class Market:IMarketDataService
 {
     public TaskCompletionSource<decimal> Price=new();public int Calls;
     public Task<decimal> GetCurrentPriceAsync(string s,CancellationToken t=default){Calls++;return Price.Task;}
+    public Task<List<Candle>> GetCandlesAsync(string s,string i,int l=1000,CancellationToken t=default)=>throw new NotSupportedException();
+    public Task<List<Candle>> GetHistoricalCandlesAsync(string s,string i,DateTime a,DateTime b,CancellationToken t=default)=>throw new NotSupportedException();
+    public Task<List<string>> GetUsdtSymbolsAsync(CancellationToken t=default)=>throw new NotSupportedException();
+    public Task<MarketFlowData> GetMarketFlowDataAsync(string s,CancellationToken t=default)=>throw new NotSupportedException();
+}
+sealed class BatchMarket:IMarketDataService,ICurrentPriceBatchSource
+{
+    public int BatchCalls,SingleCalls;
+    public Task<IReadOnlyDictionary<string,decimal>> GetCurrentPricesAsync(IReadOnlyCollection<string> symbols,CancellationToken t=default)
+    {
+        BatchCalls++;
+        return Task.FromResult<IReadOnlyDictionary<string,decimal>>(symbols.ToDictionary(symbol=>symbol,_=>100m,StringComparer.OrdinalIgnoreCase));
+    }
+    public Task<decimal> GetCurrentPriceAsync(string s,CancellationToken t=default){SingleCalls++;return Task.FromResult(100m);}
     public Task<List<Candle>> GetCandlesAsync(string s,string i,int l=1000,CancellationToken t=default)=>throw new NotSupportedException();
     public Task<List<Candle>> GetHistoricalCandlesAsync(string s,string i,DateTime a,DateTime b,CancellationToken t=default)=>throw new NotSupportedException();
     public Task<List<string>> GetUsdtSymbolsAsync(CancellationToken t=default)=>throw new NotSupportedException();
