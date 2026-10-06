@@ -7,6 +7,7 @@ namespace CryptoScanner.UI;
 
 public partial class MainWindow
 {
+    private static readonly TimeSpan PotentialStrategiesWindow = TimeSpan.FromHours(6);
     private readonly List<TechnicalSetupAlert> _potentialStrategies = [];
 
     private async void SetupAlertNotifications_Loaded(object sender, RoutedEventArgs e)
@@ -54,6 +55,7 @@ public partial class MainWindow
     private void SetPotentialStrategies(IEnumerable<TechnicalSetupAlert> alerts)
     {
         var orderedAlerts = alerts
+            .Where(alert => alert.CandleOpenUtc >= DateTime.UtcNow - PotentialStrategiesWindow)
             .GroupBy(alert => $"{alert.Symbol}|{alert.Direction}|{alert.Setup}|{alert.Profile}|{alert.CandleOpenUtc:O}", StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
             .OrderByDescending(alert => alert.CandleOpenUtc)
@@ -64,8 +66,8 @@ public partial class MainWindow
         _potentialStrategies.AddRange(orderedAlerts);
         dgPotentialStrategies.ItemsSource = orderedAlerts;
         txtPotentialStrategiesSummary.Text = orderedAlerts.Count == 0
-            ? "Nenhuma estratégia potencial detectada ainda. O grid será preenchido quando o scanner identificar um setup em candle fechado."
-            : $"{orderedAlerts.Count} estratégia(s) potencial(is) detectada(s). Atualização automática a cada nova detecção.";
+            ? "Nenhuma estratégia potencial detectada nas últimas 6 horas. O grid será preenchido quando o scanner identificar um setup em candle fechado."
+            : $"{orderedAlerts.Count} estratégia(s) potencial(is) detectada(s) nas últimas 6 horas. Atualização automática a cada nova detecção.";
     }
 
     private async void BtnRefreshPotentialStrategies_Click(object sender, RoutedEventArgs e) =>
