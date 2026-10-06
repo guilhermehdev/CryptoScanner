@@ -797,6 +797,7 @@ public partial class BacktestWindow : Window
         try
         {
             var backtester = new StrategyBacktester(_marketData, _assetAnalyzer);
+            BacktestSummary? calibrationSummary = null;
 
             int? evaluationHoursOverride = int.TryParse(txtEvaluationHoursOverride.Text, out int overrideHours) && overrideHours > 0
                 ? overrideHours
@@ -814,10 +815,10 @@ public partial class BacktestWindow : Window
             {
                 if(dpValidationStart.SelectedDate is not DateTime boundary || boundary<=start || boundary>=end)
                     throw new InvalidOperationException("Escolha o início da validação entre o início e o fim do teste.");
-                var calibration=await backtester.RunAsync(symbols,start,boundary,profile,thresholds,
+                calibrationSummary=await backtester.RunAsync(symbols,start,boundary,profile,thresholds,
                     riskMode:GetSelectedRiskMode(),evaluationHoursOverride:evaluationHoursOverride,disableTimeout:disableTimeout,
                     direction:direction,useInvertedRsiMomentum:useInvertedRsiMomentum,cancellationToken:_cts.Token);
-                await SaveRunResultAsync("Calibração (parâmetros fixos)",symbols,start,boundary,profile,thresholds,GetSelectedRiskMode(),evaluationHoursOverride,calibration,
+                await SaveRunResultAsync("Calibração (parâmetros fixos)",symbols,start,boundary,profile,thresholds,GetSelectedRiskMode(),evaluationHoursOverride,calibrationSummary,
                     disableTimeout:disableTimeout,direction:direction,useInvertedRsiMomentum:useInvertedRsiMomentum);
                 start=boundary;
             }
@@ -843,6 +844,16 @@ public partial class BacktestWindow : Window
                 $"{SelectedTestModeLabel} | " + (chkChronologicalSplit.IsChecked==true ? "Validação posterior (parâmetros fixos)" : direction == TradeDirection.Short ? "Rodar Backtest (VENDA)" : "Rodar Backtest"),
                 symbols, start, end, profile, thresholds, GetSelectedRiskMode(), evaluationHoursOverride, summary, disableTimeout: disableTimeout, direction: direction, useInvertedRsiMomentum: useInvertedRsiMomentum);
 
+            if (calibrationSummary is not null)
+            {
+                dgComparison.ItemsSource = new[]
+                {
+                    ToScenarioResult("Calibração (parâmetros fixos)", calibrationSummary),
+                    ToScenarioResult("Validação posterior", summary)
+                };
+                dgComparison.Visibility = Visibility.Visible;
+            }
+
             string skippedInfo = summary.SkippedSymbols.Count > 0
                 ? $"\n\n⚠ {summary.SkippedSymbols.Count} de {symbols.Count} moedas não entraram no teste:\n" +
                   string.Join("\n", summary.SkippedSymbols)
@@ -854,6 +865,10 @@ public partial class BacktestWindow : Window
 
             _exportDiagnostics=summary.Diagnostics;
             _lastResearchCandidates = summary.ResearchCandidates;
+            string chronologicalComparison = calibrationSummary is null ? string.Empty :
+                $"\n\nComparação cronológica — calibração: {calibrationSummary.TotalTrades} operações, PF {calibrationSummary.ProfitFactor:F2}, retorno da carteira {calibrationSummary.Portfolio.ReturnPercent:F2}%; " +
+                $"validação posterior: {summary.TotalTrades} operações, PF {summary.ProfitFactor:F2}, retorno da carteira {summary.Portfolio.ReturnPercent:F2}%. " +
+                "A referência permaneceu fixa; a linha de calibração não autoriza alterar seus parâmetros.";
             txtSummaryResult.Text =
                 $"Modo: {SelectedTestModeLabel} | Risco: {selectedRiskMode} | Direção: {(direction == TradeDirection.Short ? "VENDA (Short)" : "Compra")} | " +
                 $"Score≥{thresholds.BuyOpportunityScore:F0} | RR mín.={thresholds.MinRiskReward:F1} | Stop mín.={thresholds.MinStopDistancePercent:F0}% | Stop máx.={maxStopText}" +
@@ -872,6 +887,7 @@ public partial class BacktestWindow : Window
                 $"Edge: {summary.Edge:F1} pontos % ({(summary.Edge >= 0 ? "vantagem" : "desvantagem")} estatística)\n\n" +
                 $"Filtros (motivos de rejeição, agregado): {summary.Diagnostics.Summary}\n\nPor estratégia (bloqueios entre gatilhos):\n{summary.Diagnostics.StrategySummary}" +
                 $"\n\nPassariam removendo exatamente um filtro (diagnóstico): {summary.Diagnostics.SingleFilterSummary}" +
+                chronologicalComparison +
                 skippedInfo;
 
             dgTrades.ItemsSource = summary.Trades;
@@ -1025,6 +1041,19 @@ public partial class BacktestWindow : Window
         };
         window.Show();
     }
+
+    private static ScenarioResult ToScenarioResult(string label, BacktestSummary summary) => new()
+    {
+        Label = label,
+        TotalTrades = summary.TotalTrades,
+        WinRate = summary.WinRate,
+        TotalReturnPercent = summary.TotalReturnPercent,
+        MaxDrawdownPercent = summary.MaxDrawdownPercent,
+        ProfitFactor = summary.ProfitFactor,
+        AvgRiskRewardAtEntry = summary.AvgRiskRewardAtEntry,
+        BreakEvenWinRate = summary.BreakEvenWinRate,
+        Edge = summary.Edge
+    };
 
     private void BtnCompareResearch_Click(object sender, RoutedEventArgs e)
     {
