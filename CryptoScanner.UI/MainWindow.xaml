@@ -183,12 +183,37 @@
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                     <TextBlock x:Name="txtSimulatedSummary" Grid.Row="0" Margin="4" FontWeight="Bold" Foreground="White"/>
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="4,0,4,4"><Button Content="Atualizar Diário" Click="BtnRefreshSimulatedTrades_Click" Padding="8,3"/><Button x:Name="btnToggleClosedTrades" Content="Mostrar Concluídos" Click="BtnToggleClosedTrades_Click" Padding="8,3" Margin="8,0,0,0"/></StackPanel>
-                    <DataGrid x:Name="dgSimulatedTrades" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="False" RowEditEnding="DgSimulatedTrades_RowEditEnding" PreviewMouseRightButtonDown="DgSimulatedTrades_PreviewMouseRightButtonDown" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#686868" VerticalGridLinesBrush="#686868" CellStyle="{StaticResource LightTradeGridCell}">
+                    <DataGrid x:Name="dgSimulatedTrades" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="False" RowEditEnding="DgSimulatedTrades_RowEditEnding" PreviewMouseRightButtonDown="DgSimulatedTrades_PreviewMouseRightButtonDown" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#686868" VerticalGridLinesBrush="#686868" ColumnWidth="Auto" MinColumnWidth="70">
+                        <DataGrid.ColumnHeaderStyle>
+                            <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+                                <Setter Property="Padding" Value="10,5"/>
+                            </Style>
+                        </DataGrid.ColumnHeaderStyle>
+                        <DataGrid.CellStyle>
+                            <Style TargetType="DataGridCell" BasedOn="{StaticResource LightTradeGridCell}">
+                                <Setter Property="Padding" Value="10,4"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="DataGridCell">
+                                            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </DataGrid.CellStyle>
                         <DataGrid.ContextMenu><ContextMenu><MenuItem Header="Copiar linha" Click="BtnCopySimulatedTradeRow_Click"/></ContextMenu></DataGrid.ContextMenu>
                         <DataGrid.RowStyle><Style TargetType="DataGridRow"><Style.Triggers><DataTrigger Binding="{Binding ExitReason}" Value="TP"><Setter Property="Background" Value="LightGreen"/></DataTrigger><DataTrigger Binding="{Binding ExitReason}" Value="SL"><Setter Property="Background" Value="LightSalmon"/></DataTrigger><DataTrigger Binding="{Binding ExitReason}" Value="Manual"><Setter Property="Background" Value="LightGray"/></DataTrigger><DataTrigger Binding="{Binding Closed}" Value="False"><Setter Property="Background" Value="LightYellow"/></DataTrigger></Style.Triggers></Style></DataGrid.RowStyle>
                         <DataGrid.Columns>
-                            <DataGridTemplateColumn Header="" Width="30"><DataGridTemplateColumn.CellTemplate><DataTemplate><Button Content="X" FontSize="11" Padding="4,1" Foreground="#00FFFF" Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisibilityConverter}}" Click="BtnCloseSimulatedTradeRow_Click"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Moeda" Binding="{Binding Symbol}" IsReadOnly="True"/>
+                            <DataGridTemplateColumn Header="" Width="44" MinWidth="44"><DataGridTemplateColumn.CellTemplate><DataTemplate><Button Content="X" FontSize="11" Padding="4,1" Foreground="#00FFFF" Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisibilityConverter}}" Click="BtnCloseSimulatedTradeRow_Click"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Moeda" SortMemberPath="Symbol" IsReadOnly="True" MinWidth="105">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock VerticalAlignment="Center"><Hyperlink Click="SimulatedTradeSymbol_Click" Foreground="#005A9C" ToolTip="Abrir gráfico da moeda"><Run Text="{Binding Symbol}"/></Hyperlink></TextBlock>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTextColumn Header="Lado" Binding="{Binding Direction}" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Data" Binding="{Binding EntryTime, StringFormat=dd/MM HH:mm}" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Entrada" Binding="{Binding EntryPrice, StringFormat=0.########}" IsReadOnly="True"/>
@@ -202,7 +227,7 @@
                             <DataGridTextColumn Header="Saída" Binding="{Binding ExitTime, StringFormat=dd/MM HH:mm}" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Resultado %" Binding="{Binding OutcomePercent, StringFormat=F2}" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Motivo" Binding="{Binding ExitReason}" IsReadOnly="True"/>
-                            <DataGridTextColumn Header="Observação" Binding="{Binding Note, Mode=TwoWay}" IsReadOnly="False" Width="*"/>
+                            <DataGridTextColumn Header="Observação" MinWidth="260" Binding="{Binding Note, Mode=TwoWay}" IsReadOnly="False" Width="*"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>

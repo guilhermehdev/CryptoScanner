@@ -1589,6 +1589,17 @@ public partial class MainWindow : Window
         chartWindow.Show();
     }
 
+    private void SimulatedTradeSymbol_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkContentElement { DataContext: SimulatedTrade trade } ||
+            string.IsNullOrWhiteSpace(trade.Symbol))
+            return;
+
+        string interval = ToTradingViewInterval(GetHistoryCandleInterval(trade.Profile));
+        new ChartWindow(trade.Symbol, interval) { Owner = this }.Show();
+        e.Handled = true;
+    }
+
     private void DgHistory_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
     {
         var row = FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject);
