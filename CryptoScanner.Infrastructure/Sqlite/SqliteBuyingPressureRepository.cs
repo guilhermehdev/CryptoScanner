@@ -31,6 +31,7 @@ public sealed class SqliteBuyingPressureRepository(string databasePath) : IBuyin
                     ReferencePrice REAL, BuyRatio REAL, Persistence REAL, PriceChangePercent REAL,
                     RelativeVolume REAL, OpenInterestChangePercent REAL, ExtensionPenalty REAL,
                     MeasurementsJson TEXT, RawDataJson TEXT NOT NULL,
+                    MarketRegime TEXT NOT NULL DEFAULT 'INDEFINIDO',
                     UNIQUE(Symbol, WindowEndMs, FormulaVersion)
                 );
                 CREATE INDEX IF NOT EXISTS IX_PressureEntry ON BuyingPressureSnapshots(Symbol, CollectedAtMs, WindowEndMs);
@@ -57,6 +58,18 @@ public sealed class SqliteBuyingPressureRepository(string databasePath) : IBuyin
                 );
                 """;
             await cmd.ExecuteNonQueryAsync(cancellationToken);
+            cmd.CommandText = "PRAGMA table_info(BuyingPressureSnapshots);";
+            bool hasMarketRegime = false;
+            await using (var reader = await cmd.ExecuteReaderAsync(cancellationToken))
+                while (await reader.ReadAsync(cancellationToken))
+                    hasMarketRegime |= string.Equals(reader.GetString(1), "MarketRegime", StringComparison.OrdinalIgnoreCase);
+            if (!hasMarketRegime)
+            {
+                cmd.CommandText = "ALTER TABLE BuyingPressureSnapshots ADD COLUMN MarketRegime TEXT NOT NULL DEFAULT 'INDEFINIDO';";
+                await cmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+            cmd.CommandText = "CREATE INDEX IF NOT EXISTS IX_PressureRegime ON BuyingPressureSnapshots(FormulaVersion, MarketRegime, CollectedAtMs);";
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
             _initialized = true;
         }
         finally { _initializeGate.Release(); }
@@ -76,14 +89,14 @@ public sealed class SqliteBuyingPressureRepository(string databasePath) : IBuyin
         await using var cmd = db.CreateCommand(); cmd.Transaction = tx;
         cmd.CommandText = """
             INSERT INTO BuyingPressureSnapshots
-                (Symbol, WindowEndMs, CollectedAtMs, FormulaVersion, Score, Quality, Details,
+                (Symbol, WindowEndMs, CollectedAtMs, FormulaVersion, Score, Quality, Details, MarketRegime,
                  ReferencePrice, BuyRatio, Persistence, PriceChangePercent, RelativeVolume,
                  OpenInterestChangePercent, ExtensionPenalty, MeasurementsJson, RawDataJson)
-            VALUES ($symbol,$end,$collected,$version,$score,$quality,$details,
+            VALUES ($symbol,$end,$collected,$version,$score,$quality,$details,$regime,
                     $price,$buy,$persistence,$change,$volume,$oi,$penalty,$measurements,$raw)
             ON CONFLICT(Symbol, WindowEndMs, FormulaVersion) DO UPDATE SET
                 CollectedAtMs=excluded.CollectedAtMs, Score=excluded.Score, Quality=excluded.Quality,
-                Details=excluded.Details, ReferencePrice=excluded.ReferencePrice, BuyRatio=excluded.BuyRatio,
+                Details=excluded.Details, MarketRegime=excluded.MarketRegime, ReferencePrice=excluded.ReferencePrice, BuyRatio=excluded.BuyRatio,
                 Persistence=excluded.Persistence, PriceChangePercent=excluded.PriceChangePercent,
                 RelativeVolume=excluded.RelativeVolume, OpenInterestChangePercent=excluded.OpenInterestChangePercent,
                 ExtensionPenalty=excluded.ExtensionPenalty, MeasurementsJson=excluded.MeasurementsJson,
@@ -99,6 +112,7 @@ public sealed class SqliteBuyingPressureRepository(string databasePath) : IBuyin
         AddDecimal(cmd, "$score", snapshot.Result.Score);
         cmd.Parameters.AddWithValue("$quality", snapshot.Result.Score.HasValue ? "Available" : "Unavailable");
         cmd.Parameters.AddWithValue("$details", snapshot.Result.Details);
+        cmd.Parameters.AddWithValue("$regime", NormalizeMarketRegime(snapshot.MarketRegime));
         AddDecimal(cmd, "$price", m?.ReferencePrice); AddDecimal(cmd, "$buy", m?.BuyRatio);
         AddDecimal(cmd, "$persistence", m?.Persistence); AddDecimal(cmd, "$change", m?.PriceChangePercent);
         AddDecimal(cmd, "$volume", m?.RelativeVolume); AddDecimal(cmd, "$oi", m?.OpenInterestChangePercent);
@@ -208,4 +222,12 @@ public sealed class SqliteBuyingPressureRepository(string databasePath) : IBuyin
 
     private static void AddDecimal(SqliteCommand cmd, string name, decimal? value) =>
         cmd.Parameters.AddWithValue(name, value.HasValue ? (object)(double)value.Value : DBNull.Value);
+
+    private static string NormalizeMarketRegime(string? regime) => regime?.Trim().ToUpperInvariant() switch
+    {
+        "BULL" => "BULL",
+        "BEAR" => "BEAR",
+        "LATERAL" => "LATERAL",
+        _ => "INDEFINIDO"
+    };
 }

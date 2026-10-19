@@ -59,19 +59,24 @@ public partial class PressureAnalysisWindow : Window
         if (_loading) return;
         if (!TryBuildFilter(out var filter)) return;
         _loading=true; filters.IsEnabled=false;
-        bands.ItemsSource=null; history.ItemsSource=null; historyLabel.Text="Histórico";
+        bands.ItemsSource=null; marketWindows.ItemsSource=null; history.ItemsSource=null; historyLabel.Text="Histórico";
         summary.Text="Carregando leituras e resultados…";
         try
         {
             // SQLite operations may complete synchronously; keep large reports off the UI thread.
             var report=await Task.Run(() => _repository.LoadAsync(filter,_closed.Token),_closed.Token);
             if (_closed.IsCancellationRequested) return;
-            bands.ItemsSource=report.Bands; history.ItemsSource=report.History;
+            bands.ItemsSource=report.Bands; marketWindows.ItemsSource=report.Windows; history.ItemsSource=report.History;
             long evaluated=report.Bands.Sum(b=>b.Evaluated);
             summary.Text=report.TotalReadings==0
                 ? "Nenhuma leitura neste filtro. O histórico é acumulado enquanto o scanner está rodando."
                 : $"{report.TotalReadings:N0} leituras · {report.Unavailable:N0} sem dados · {evaluated:N0} avaliadas · " +
                   $"{report.Bands.Sum(b=>b.Pending):N0} aguardando prazo · {report.Bands.Sum(b=>b.Overdue):N0} aguardando recuperação";
+            if (report.FailureReasons.Count > 0)
+            {
+                string failures=string.Join(" · ",report.FailureReasons.Take(3).Select(f=>$"{f.Count:N0}× {f.Reason}"));
+                summary.Text+=$" · Falhas registradas: {failures}";
+            }
             summary.Text+=$" · Fórmula: {BuyingPressureSnapshot.FormulaVersion}";
             historyLabel.Text=$"Histórico · {report.History.Count:N0} leituras mais recentes de {report.TotalReadings:N0} (máximo {SqlitePressureAnalysisRepository.HistoryLimit})";
         }
@@ -91,9 +96,10 @@ public partial class PressureAnalysisWindow : Window
         string asset = symbol.Text.Trim().ToUpperInvariant();
         if (asset.Length > 0 && !asset.EndsWith("USDT")) asset += "USDT";
         int minutes = int.Parse(((ComboBoxItem)horizon.SelectedItem).Tag.ToString()!);
+        string marketRegime = ((ComboBoxItem)regime.SelectedItem).Tag?.ToString() ?? "";
         long start = new DateTimeOffset(DateTime.SpecifyKind(from.Date, DateTimeKind.Local)).ToUnixTimeMilliseconds();
         long finish = new DateTimeOffset(DateTime.SpecifyKind(to.Date.AddDays(1), DateTimeKind.Local)).ToUnixTimeMilliseconds();
-        filter = new PressureAnalysisFilter(start, finish, asset, minutes, BuyingPressureSnapshot.FormulaVersion);
+        filter = new PressureAnalysisFilter(start, finish, asset, minutes, BuyingPressureSnapshot.FormulaVersion, marketRegime);
         return true;
     }
 }

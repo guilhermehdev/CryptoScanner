@@ -64,7 +64,7 @@ public sealed class ScannerService
         var symbols = topSymbols.Union(favoriteSymbols, StringComparer.OrdinalIgnoreCase).ToList();
 
         using var throttle = new SemaphoreSlim(MaxConcurrentAnalyses);
-        var analyses = symbols.Select(symbol => AnalyzeSymbolAsync(symbol, btcCandles, profile, direction, shortBreakoutOnly, throttle, errors, cancellationToken));
+        var analyses = symbols.Select(symbol => AnalyzeSymbolAsync(symbol, btcCandles, marketRegime, profile, direction, shortBreakoutOnly, throttle, errors, cancellationToken));
         var allAnalyzed = (await Task.WhenAll(analyses)).OfType<AssetAnalysis>().ToList();
 
         var technicalSetupAlerts = allAnalyzed
@@ -255,7 +255,7 @@ public sealed class ScannerService
         return (diagnostics, newSignals);
     }
 
-    private async Task<AssetAnalysis?> AnalyzeSymbolAsync(string symbol, List<Candle> btcCandles, ScanProfile profile, TradeDirection direction, bool shortBreakoutOnly, SemaphoreSlim throttle, System.Collections.Concurrent.ConcurrentDictionary<string,string> errors, CancellationToken cancellationToken)
+    private async Task<AssetAnalysis?> AnalyzeSymbolAsync(string symbol, List<Candle> btcCandles, string marketRegime, ScanProfile profile, TradeDirection direction, bool shortBreakoutOnly, SemaphoreSlim throttle, System.Collections.Concurrent.ConcurrentDictionary<string,string> errors, CancellationToken cancellationToken)
     {
         await throttle.WaitAsync(cancellationToken);
         try
@@ -266,7 +266,7 @@ public sealed class ScannerService
             var entryStrategy = useShortBreakout ? EntryStrategy.Breakout : EntryStrategy.Auto;
             var analysis = _assetAnalyzer.Analyze(symbol, candles, btcCandles, profile, riskMode, direction: direction, entryStrategy: entryStrategy);
 
-            await UpdateMarketFlowAsync(symbol, analysis, cancellationToken);
+            await UpdateMarketFlowAsync(symbol, analysis, marketRegime, cancellationToken);
 
             return analysis;
         }
@@ -385,7 +385,7 @@ public sealed class ScannerService
         var riskMode = useShortBreakout ? RiskCalculationMode.IntradayLocal : ValidatedRiskMode;
         var entryStrategy = useShortBreakout ? EntryStrategy.Breakout : EntryStrategy.Auto;
         var analysis = _assetAnalyzer.Analyze(symbol, candles, btcCandles, profile, riskMode, direction: direction, entryStrategy: entryStrategy);
-        await UpdateMarketFlowAsync(symbol, analysis, cancellationToken);
+        await UpdateMarketFlowAsync(symbol, analysis, marketRegime, cancellationToken);
 
         var thresholds = useShortBreakout
             ? ScannerProfiles.ForShortBreakoutExperimental(profile)
@@ -393,7 +393,7 @@ public sealed class ScannerService
         return AssetScoreFactory.Create(analysis, marketRegime, favoriteSet, thresholds);
     }
 
-    private async Task UpdateMarketFlowAsync(string symbol, AssetAnalysis analysis, CancellationToken cancellationToken)
+    private async Task UpdateMarketFlowAsync(string symbol, AssetAnalysis analysis, string marketRegime, CancellationToken cancellationToken)
     {
         var flow = new MarketFlowData();
         DateTimeOffset collectedAt;
@@ -415,7 +415,7 @@ public sealed class ScannerService
         if (_pressureHistory is null) return;
         try
         {
-            await _pressureHistory.RecordAsync(symbol, flow, analysis.BuyingPressure, collectedAt, cancellationToken);
+            await _pressureHistory.RecordAsync(symbol, flow, analysis.BuyingPressure, collectedAt, marketRegime, cancellationToken);
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {

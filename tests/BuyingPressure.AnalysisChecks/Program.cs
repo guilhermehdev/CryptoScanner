@@ -14,12 +14,12 @@ try
     await using var db=new SqliteConnection($"Data Source={path}"); await db.OpenAsync();
     using (var tx=db.BeginTransaction())
     {
-        async Task Seed(int id,decimal? score,decimal? result,long? collected=null,string symbol="BTCUSDT",string version=BuyingPressureSnapshot.FormulaVersion,bool pending=false,bool reconstructed=false)
+        async Task Seed(int id,decimal? score,decimal? result,long? collected=null,string symbol="BTCUSDT",string version=BuyingPressureSnapshot.FormulaVersion,bool pending=false,bool reconstructed=false,string regime="LATERAL")
         {
             await using var cmd=db.CreateCommand(); cmd.Transaction=tx;
             cmd.CommandText="""
-                INSERT INTO BuyingPressureSnapshots(Id,Symbol,WindowEndMs,CollectedAtMs,FormulaVersion,Score,Quality,Details,ReferencePrice,RawDataJson)
-                VALUES($id,$symbol,$window,$collected,$version,$score,$quality,'details',100,'{}');
+                INSERT INTO BuyingPressureSnapshots(Id,Symbol,WindowEndMs,CollectedAtMs,FormulaVersion,Score,Quality,Details,MarketRegime,ReferencePrice,RawDataJson)
+                VALUES($id,$symbol,$window,$collected,$version,$score,$quality,'details',$regime,100,'{}');
                 INSERT INTO BuyingPressureOutcomes(SnapshotId,HorizonMinutes,TargetTimeMs,Price,ReturnPercent,Reconstructed)
                 VALUES($id,30,$due,$price,$result,$reconstructed);
                 """;
@@ -27,6 +27,7 @@ try
             cmd.Parameters.AddWithValue("$window",now-3600000-id*300000L);
             cmd.Parameters.AddWithValue("$collected",collected??now);
             cmd.Parameters.AddWithValue("$version",version);
+            cmd.Parameters.AddWithValue("$regime",regime);
             cmd.Parameters.AddWithValue("$score",score.HasValue?(object)(double)score.Value:DBNull.Value);
             cmd.Parameters.AddWithValue("$quality",score.HasValue?"Available":"Unavailable");
             cmd.Parameters.AddWithValue("$due",pending?now+3600000:now-60000);
@@ -35,8 +36,8 @@ try
             cmd.Parameters.AddWithValue("$reconstructed",reconstructed?1:0);
             await cmd.ExecuteNonQueryAsync();
         }
-        await Seed(1,0,-10,collected:filter.FromMs);
-        await Seed(2,9.99m,0);
+        await Seed(1,0,-10,collected:filter.FromMs,regime:"BULL");
+        await Seed(2,9.99m,0,regime:"BULL");
         await Seed(3,10,10);
         await Seed(4,100,20,reconstructed:true);
         await Seed(5,99.99m,null,pending:true);
@@ -63,6 +64,23 @@ try
     Check(report.History.Single(r=>r.Id==6).Status=="Aguardando recuperação","Overdue history status");
     Check(report.History.Single(r=>r.Id==7).Status=="Sem dados","Unavailable history status");
     Check(report.History.Single(r=>r.Id==4).Source=="Histórico recuperado","Recovered provenance shown");
+    Check((await repo.LoadAsync(filter with { MarketRegime="BULL" })).TotalReadings==2,"Market-regime filter isolates readings");
+    var bullWindows=(await repo.LoadAsync(filter with { MarketRegime="BULL" })).Windows;
+    Check(bullWindows.All(w=>w.MarketRegime=="BULL") && bullWindows.Sum(w=>w.Readings)==2,"Independent windows retain regime and group closed periods");
+    await using (var cmd=db.CreateCommand())
+    {
+        cmd.CommandText="INSERT INTO BuyingPressureFailures(Symbol,WindowEndMs,FormulaVersion,CollectedAtMs,Details,RawDataJson) VALUES('BTCUSDT',$window,$version,$now,'OI indisponível','{}');";
+        cmd.Parameters.AddWithValue("$window",now-3600000-7*300000L); cmd.Parameters.AddWithValue("$version",BuyingPressureSnapshot.FormulaVersion); cmd.Parameters.AddWithValue("$now",now);
+        await cmd.ExecuteNonQueryAsync();
+    }
+    report=await repo.LoadAsync(filter);
+    Check(report.History.Single(r=>r.Id==7).FailureReason=="OI indisponível" && report.FailureReasons.Single().Count==1,"Initial failure reason remains visible in analysis");
+    await using (var export=new MemoryStream())
+    {
+        await repo.ExportCsvAsync(filter,export);
+        string csv=System.Text.Encoding.UTF8.GetString(export.ToArray());
+        Check(csv.Contains("Regime") && csv.Contains("FalhaInicial") && csv.Contains("BULL") && csv.Contains("OI indisponível"),"CSV exposes regime and audit fields");
+    }
     Check((await repo.LoadAsync(filter with { Symbol="btcusdt" })).TotalReadings==7,"Case-insensitive asset");
     Check((await repo.LoadAsync(filter with { Symbol="" })).TotalReadings==8,"All-assets filter");
     Check((await repo.LoadAsync(filter with { Symbol="BTCUSDT' OR 1=1 --" })).TotalReadings==0,"Parameterized filters");

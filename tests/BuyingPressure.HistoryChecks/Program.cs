@@ -28,6 +28,33 @@ SimulatedTrade Trade(long at, string symbol = "BTCUSDT") => new() { Symbol=symbo
     EntryTime=DateTimeOffset.FromUnixTimeMilliseconds(at).UtcDateTime, EntryPrice=101, StopLoss=90, TakeProfit=120 };
 try
 {
+    string legacyPressurePath = Path.Combine(AppContext.BaseDirectory, $"pressure-legacy-{Guid.NewGuid():N}.db");
+    try
+    {
+        await using (var legacyDb = new SqliteConnection($"Data Source={legacyPressurePath}"))
+        {
+            await legacyDb.OpenAsync();
+            await using var legacyCmd = legacyDb.CreateCommand();
+            legacyCmd.CommandText = """
+                CREATE TABLE BuyingPressureSnapshots (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT, Symbol TEXT NOT NULL, WindowEndMs INTEGER NOT NULL,
+                    CollectedAtMs INTEGER NOT NULL, FormulaVersion TEXT NOT NULL, Score REAL, Quality TEXT NOT NULL,
+                    Details TEXT NOT NULL, ReferencePrice REAL, BuyRatio REAL, Persistence REAL, PriceChangePercent REAL,
+                    RelativeVolume REAL, OpenInterestChangePercent REAL, ExtensionPenalty REAL, MeasurementsJson TEXT,
+                    RawDataJson TEXT NOT NULL, UNIQUE(Symbol, WindowEndMs, FormulaVersion));
+                INSERT INTO BuyingPressureSnapshots(Symbol,WindowEndMs,CollectedAtMs,FormulaVersion,Score,Quality,Details,RawDataJson)
+                VALUES('LEGACY',300000,301000,'buying-pressure-v1',50,'Available','fixture','{}');
+                """;
+            await legacyCmd.ExecuteNonQueryAsync();
+        }
+        var legacyRepository = new SqliteBuyingPressureRepository(legacyPressurePath);
+        await legacyRepository.InitializeAsync();
+        await using var legacyCheck = new SqliteConnection($"Data Source={legacyPressurePath}"); await legacyCheck.OpenAsync();
+        await using var legacyCheckCommand = legacyCheck.CreateCommand();
+        legacyCheckCommand.CommandText = "SELECT MarketRegime FROM BuyingPressureSnapshots WHERE Symbol='LEGACY';";
+        Check((string?)await legacyCheckCommand.ExecuteScalarAsync()=="INDEFINIDO", "Legacy pressure snapshots receive an explicit default regime");
+    }
+    finally { SqliteConnection.ClearAllPools(); File.Delete(legacyPressurePath); }
     // Upgrade a database from before pressure-history support, retaining its existing trade.
     await Scalar("CREATE TABLE SimulatedTrades(Id INTEGER PRIMARY KEY AUTOINCREMENT,Symbol TEXT NOT NULL,EntryTime TEXT NOT NULL,EntryPrice REAL NOT NULL,TakeProfit REAL NOT NULL,StopLoss REAL NOT NULL,Closed INTEGER DEFAULT 0); INSERT INTO SimulatedTrades(Symbol,EntryTime,EntryPrice,TakeProfit,StopLoss) VALUES ('OLD','2026-09-04T00:00:00Z',100,120,90);");
     var trades = new SqliteSimulatedTradeRepository(path);
@@ -91,9 +118,11 @@ try
     catch (ArgumentException) { checks++; }
     Check((await new SqliteSimulatedTradeRepository(path).GetAllAsync()).Single(t=>t.Id==id).BuyingPressureAtEntry==80, "Trade link survives restart and future readings");
     var historySnapshot = Snapshot("RECORD",window:end+600000);
-    await history.RecordAsync("RECORD",historySnapshot.RawData,historySnapshot.Result,DateTimeOffset.FromUnixTimeMilliseconds(historySnapshot.CollectedAtMs));
+    await history.RecordAsync("RECORD",historySnapshot.RawData,historySnapshot.Result,DateTimeOffset.FromUnixTimeMilliseconds(historySnapshot.CollectedAtMs),"BEAR");
     Check(Convert.ToInt64(await Scalar("SELECT COUNT(*) FROM BuyingPressureSnapshots WHERE Symbol='RECORD'"))==1, "Record service persists snapshots");
     Check(Convert.ToInt64(await Scalar("SELECT COUNT(*) FROM BuyingPressurePrices WHERE Symbol='RECORD'"))==1, "Record service reuses fetched candle prices");
+    string? recordedRegime = Convert.ToString(await Scalar("SELECT MarketRegime FROM BuyingPressureSnapshots WHERE Symbol='RECORD'"));
+    Check(recordedRegime=="BEAR", $"Market regime persists with the pressure snapshot ({recordedRegime ?? "null"})");
     using var cancellation = new CancellationTokenSource(); cancellation.Cancel();
     try { await repo.SaveAsync(Snapshot(),cancellation.Token); throw new Exception("Cancellation swallowed"); }
     catch (OperationCanceledException) { checks++; }

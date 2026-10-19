@@ -16,7 +16,7 @@ public sealed record BuyingPressureMeasurements(long WindowEndMs, decimal Refere
     decimal OpenInterestChangePercent, decimal ExtensionPenalty, decimal BaselinePrice, decimal Atr);
 
 public sealed record BuyingPressureSnapshot(string Symbol, long WindowEndMs, long CollectedAtMs,
-    BuyingPressureResult Result, MarketFlowData RawData)
+    BuyingPressureResult Result, MarketFlowData RawData, string MarketRegime = "INDEFINIDO")
 {
     public const string FormulaVersion = "buying-pressure-v1";
 }

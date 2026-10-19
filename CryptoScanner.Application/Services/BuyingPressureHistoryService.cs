@@ -8,11 +8,11 @@ public sealed class BuyingPressureHistoryService(IBuyingPressureRepository repos
     private readonly SemaphoreSlim _evaluationGate = new(1, 1);
 
     public async Task RecordAsync(string symbol, MarketFlowData flow, BuyingPressureResult result,
-        DateTimeOffset collectedAt, CancellationToken cancellationToken = default)
+        DateTimeOffset collectedAt, string marketRegime = "INDEFINIDO", CancellationToken cancellationToken = default)
     {
         long collectedMs = collectedAt.ToUnixTimeMilliseconds();
         long end = result.Measurements?.WindowEndMs ?? collectedMs / 300_000 * 300_000;
-        await repository.SaveAsync(new(symbol.ToUpperInvariant(), end, collectedMs, result, flow), cancellationToken);
+        await repository.SaveAsync(new(symbol.ToUpperInvariant(), end, collectedMs, result, flow, marketRegime), cancellationToken);
         // Reuse prices already fetched by the scanner before requesting historical endpoints.
         var prices = flow.PressureCandles.Where(c => c.Close > 0 && c.Low > 0 &&
                 c.High >= Math.Max(c.Open, c.Close) && c.Low <= Math.Min(c.Open, c.Close) &&

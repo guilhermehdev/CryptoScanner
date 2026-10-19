@@ -47,7 +47,8 @@ A partir desta versão, o scan e a busca manual gravam no mesmo SQLite do aplica
 
 - `BuyingPressureSnapshots`: uma leitura por ativo, fechamento de 5 minutos e versão
   da fórmula, compartilhada por Swing e Intraday. Guarda horários UTC em milissegundos,
-  nota, qualidade, componentes numéricos, referências e entradas completas em JSON.
+  nota, qualidade, regime de mercado no momento da coleta, componentes numéricos,
+  referências e entradas completas em JSON.
 - `BuyingPressureFailures`: primeira falha por ativo/janela/versão, com os dados recebidos.
   Se uma tentativa posterior recuperar a janela, a nota passa a ter o horário real dessa
   recuperação. Uma leitura já válida nunca é substituída por dados posteriores.
@@ -85,7 +86,7 @@ Abra **Análise da pressão** na barra superior do scanner. O botão **Atualizar
 o histórico local; não faz operações de mercado nem solicita preços à Binance.
 
 - Filtros: datas de **coleta** (dias locais, incluindo o último dia), ativo exato
-  ou todos, e resultado de 30 minutos, 1 hora, 4 horas ou 24 horas.
+  ou todos, regime registrado e resultado de 30 minutos, 1 hora, 4 horas ou 24 horas.
 - A versão da fórmula é fixada na versão atual e aparece no resumo; versões diferentes
   não são misturadas. Swing e Intraday compartilham os mesmos registros.
 - Faixas de 10 pontos: limite inferior incluso e superior exclusivo, exceto 90–100,
@@ -98,6 +99,13 @@ o histórico local; não faz operações de mercado nem solicita preços à Bina
 - As estatísticas consideram **todo** o filtro. O histórico detalhado exibe até 500
   leituras mais recentes; selecionar uma linha mostra os componentes do tooltip.
 - A coleta e o fechamento da janela aparecem separadamente, no horário local.
+- A tabela de **janelas de mercado independentes** agrupa os ativos que tiveram o
+  mesmo fechamento do horizonte escolhido. Ela evita tratar as moedas e leituras do
+  mesmo momento como se fossem muitos eventos independentes. Ainda é uma visão
+  descritiva: validar exige períodos cronológicos distintos.
+- A coluna **Falha inicial** preserva o motivo da primeira ausência de dados, mesmo
+  se a mesma janela tiver sido recuperada depois. A exportação CSV inclui regime e
+  essa falha para auditoria externa.
 
 Leituras sobrepostas não são observações independentes. Os resultados exibidos são
 retornos brutos de mercado; não constituem taxa de acerto de trades. Sem dados,
