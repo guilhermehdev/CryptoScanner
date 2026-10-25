@@ -28,25 +28,49 @@
             <DatePicker x:Name="start" Width="125"/>
             <TextBlock Text="Fim:" VerticalAlignment="Center" Margin="12,0,6,0"/>
             <DatePicker x:Name="end" Width="125"/>
+            <TextBlock Text="Taxa/ordem %:" VerticalAlignment="Center" Margin="18,0,6,0"/>
+            <TextBox x:Name="feePercent" Width="48" Text="0,10" ToolTip="Taxa Spot cobrada em cada ordem: entrada e saída."/>
+            <TextBlock Text="Slippage/ordem %:" VerticalAlignment="Center" Margin="12,0,6,0"/>
+            <TextBox x:Name="slippagePercent" Width="48" Text="0,05" ToolTip="Pior preço assumido em cada ordem: entrada e saída."/>
             <Button x:Name="run" Content="Rodar backtest" Click="Run_Click" Padding="14,4" Margin="18,0,0,0"/>
+            <Button x:Name="compare" Content="Comparar 4 variantes (Diário)" Click="Compare_Click" Padding="14,4" Margin="8,0,0,0"/>
         </WrapPanel>
         <Border Grid.Row="2" Background="#252525" BorderBrush="#444" BorderThickness="1" Padding="10" Margin="0,0,0,10">
             <TextBlock x:Name="summary" TextWrapping="Wrap" Foreground="#D8D8D8"
                        Text="Spot experimental: candle fechado fora da banda cria setup; compra só rompe a máxima e venda só fecha uma posição LONG ao perder a mínima. Stop e alvo são estruturais."/>
         </Border>
-        <DataGrid x:Name="trades" Grid.Row="3" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="Ativo" Binding="{Binding Symbol}" Width="100"/>
-                <DataGridTextColumn Header="Variante" Binding="{Binding Settings.DisplayName}" Width="190"/>
-                <DataGridTextColumn Header="Setup UTC" Binding="{Binding SetupTimeUtc, StringFormat=dd/MM/yyyy HH:mm}" Width="145"/>
-                <DataGridTextColumn Header="Entrada UTC" Binding="{Binding EntryTimeUtc, StringFormat=dd/MM/yyyy HH:mm}" Width="145"/>
-                <DataGridTextColumn Header="Entrada" Binding="{Binding EntryPrice, StringFormat=0.########}" Width="105"/>
-                <DataGridTextColumn Header="Stop" Binding="{Binding Stop, StringFormat=0.########}" Width="105"/>
-                <DataGridTextColumn Header="Alvo (média)" Binding="{Binding Target, StringFormat=0.########}" Width="120"/>
-                <DataGridTextColumn Header="Saída" Binding="{Binding ExitPrice, StringFormat=0.########, TargetNullValue=Aberta}" Width="105"/>
-                <DataGridTextColumn Header="Resultado %" Binding="{Binding ReturnPercent, StringFormat=F2, TargetNullValue=—}" Width="95"/>
-                <DataGridTextColumn Header="Motivo" Binding="{Binding ExitReason}" Width="*"/>
-            </DataGrid.Columns>
-        </DataGrid>
+        <TabControl x:Name="resultTabs" Grid.Row="3">
+            <TabItem Header="Operações">
+                <DataGrid x:Name="trades" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Ativo" Binding="{Binding Symbol}" Width="100"/>
+                        <DataGridTextColumn Header="Variante" Binding="{Binding Settings.DisplayName}" Width="190"/>
+                        <DataGridTextColumn Header="Setup UTC" Binding="{Binding SetupTimeUtc, StringFormat=dd/MM/yyyy HH:mm}" Width="145"/>
+                        <DataGridTextColumn Header="Entrada UTC" Binding="{Binding EntryTimeUtc, StringFormat=dd/MM/yyyy HH:mm}" Width="145"/>
+                        <DataGridTextColumn Header="Entrada" Binding="{Binding EntryPrice, StringFormat=0.########}" Width="105"/>
+                        <DataGridTextColumn Header="Stop" Binding="{Binding Stop, StringFormat=0.########}" Width="105"/>
+                        <DataGridTextColumn Header="Alvo (média)" Binding="{Binding Target, StringFormat=0.########}" Width="120"/>
+                        <DataGridTextColumn Header="Saída" Binding="{Binding ExitPrice, StringFormat=0.########, TargetNullValue=Aberta}" Width="105"/>
+                        <DataGridTextColumn Header="Bruto %" Binding="{Binding GrossReturnPercent, StringFormat=F2, TargetNullValue=—}" Width="85"/>
+                        <DataGridTextColumn Header="Líquido %" Binding="{Binding NetReturnPercent, StringFormat=F2, TargetNullValue=—}" Width="90"/>
+                        <DataGridTextColumn Header="Motivo" Binding="{Binding ExitReason}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+            <TabItem Header="Comparação diária">
+                <DataGrid x:Name="comparison" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Variante" Binding="{Binding Settings.DisplayName}" Width="210"/>
+                        <DataGridTextColumn Header="Entradas" Binding="{Binding Trades}" Width="80"/>
+                        <DataGridTextColumn Header="Fechadas" Binding="{Binding ClosedTrades}" Width="80"/>
+                        <DataGridTextColumn Header="Win Rate %" Binding="{Binding WinRatePercent, StringFormat=F1}" Width="95"/>
+                        <DataGridTextColumn Header="Retorno bruto %" Binding="{Binding GrossReturnPercent, StringFormat=F2}" Width="115"/>
+                        <DataGridTextColumn Header="Retorno líquido %" Binding="{Binding NetReturnPercent, StringFormat=F2}" Width="125"/>
+                        <DataGridTextColumn Header="PF" Binding="{Binding ProfitFactor, StringFormat=F2, TargetNullValue=—}" Width="75"/>
+                        <DataGridTextColumn Header="DD seq. %" Binding="{Binding MaxSequentialDrawdownPercent, StringFormat=F2}" Width="95"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+        </TabControl>
     </Grid>
 </Window>

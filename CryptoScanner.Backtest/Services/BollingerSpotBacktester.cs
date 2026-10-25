@@ -6,8 +6,13 @@ namespace CryptoScanner.Backtest.Services;
 
 public sealed class BollingerSpotBacktester
 {
-    public BollingerSpotBacktestResult Run(string symbol, IReadOnlyList<Candle> candles, BollingerSpotSettings settings)
+    public BollingerSpotBacktestResult Run(
+        string symbol,
+        IReadOnlyList<Candle> candles,
+        BollingerSpotSettings settings,
+        BollingerSpotBacktestCosts? costs = null)
     {
+        costs ??= BollingerSpotBacktestCosts.Default;
         var ordered = candles.OrderBy(c => c.OpenTime).ToList();
         var strategy = new BollingerSpotStrategy(symbol, settings);
         var closed = new List<Candle>();
@@ -66,7 +71,8 @@ public sealed class BollingerSpotBacktester
             if (signal is not null)
             {
                 open = new BollingerSpotBacktestTrade(symbol, settings, signal.Setup.CandidateTimeUtc, candle.OpenTime,
-                    signal.Price, signal.Stop, signal.Target, null, null, "");
+                    signal.Price, signal.Stop, signal.Target, null, null, "",
+                    costs.FeePercentPerOrder, costs.SlippagePercentPerOrder);
                 trades.Add(open);
             }
 

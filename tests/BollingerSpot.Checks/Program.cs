@@ -2,6 +2,7 @@ using CryptoScanner.Core.Models;
 using CryptoScanner.Infrastructure.Sqlite;
 using CryptoScanner.Strategies;
 using CryptoScanner.Backtest.Services;
+using CryptoScanner.Backtest.Models;
 
 int checks=0;
 void Check(bool value,string name){if(!value)throw new Exception(name);checks++;}
@@ -48,6 +49,11 @@ historical.Add(C(21, 91, 96, 90, 95));  // rompe 95 somente na barra posterior
 var historicalTrades = new BollingerSpotBacktester().Run("BTCUSDT", historical, settings).Trades;
 Check(historicalTrades.Count == 1 && historicalTrades[0].EntryTimeUtc == historical[21].OpenTime && historicalTrades[0].EntryPrice == 96m,
     "Backtest enters only on a later candle and does not invalidate the candidate candle itself");
+
+var costs = new BollingerSpotBacktestTrade("BTCUSDT", settings, DateTime.UnixEpoch, DateTime.UnixEpoch,
+    100m, 90m, 110m, DateTime.UnixEpoch.AddDays(1), 110m, "Alvo", 0.10m, 0.05m);
+Check(costs.GrossReturnPercent == 10m && costs.NetReturnPercent is decimal net && net < 10m && costs.EntryFillPrice == 100.15m && costs.ExitFillPrice == 109.835m,
+    "Spot fee and slippage are applied to both entry and exit before reporting net return");
 
 Check(new BollingerSpotSettings(BollingerSpotVariant.Bollinger20x3,BollingerSpotTimeframe.Daily).Period==20 &&
       new BollingerSpotSettings(BollingerSpotVariant.Bollinger20x23,BollingerSpotTimeframe.Daily).StandardDeviations==2.3m &&
