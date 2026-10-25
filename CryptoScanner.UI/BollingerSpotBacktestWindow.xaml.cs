@@ -2,6 +2,7 @@ using CryptoScanner.Backtest.Models;
 using CryptoScanner.Backtest.Services;
 using CryptoScanner.Core.Contracts;
 using CryptoScanner.Core.Models;
+using CryptoScanner.Strategies;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -10,10 +11,46 @@ namespace CryptoScanner.UI;
 public partial class BollingerSpotBacktestWindow : Window
 {
     private readonly IMarketDataService _marketData;
-    public BollingerSpotBacktestWindow(IMarketDataService marketData)
+    private readonly IAppSettingsRepository _settingsRepository;
+    private readonly Func<BollingerSpotSettings, Task> _applySettings;
+
+    public BollingerSpotBacktestWindow(
+        IMarketDataService marketData,
+        IAppSettingsRepository settingsRepository,
+        Func<BollingerSpotSettings, Task> applySettings)
     {
-        InitializeComponent(); _marketData = marketData;
+        InitializeComponent();
+        _marketData = marketData;
+        _settingsRepository = settingsRepository;
+        _applySettings = applySettings;
         start.SelectedDate = DateTime.Today.AddYears(-1); end.SelectedDate = DateTime.Today;
+        Loaded += BollingerSpotBacktestWindow_Loaded;
+    }
+
+    private async void BollingerSpotBacktestWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await _settingsRepository.InitializeAsync();
+            var storedVariant = await _settingsRepository.GetAsync(MainWindow.BollingerSpotVariantSettingKey);
+            var storedTimeframe = await _settingsRepository.GetAsync(MainWindow.BollingerSpotTimeframeSettingKey);
+            SelectByTag(variant, Enum.TryParse<BollingerSpotVariant>(storedVariant, out var savedVariant) ? savedVariant : BollingerSpotSettings.Default.Variant);
+            SelectByTag(timeframe, Enum.TryParse<BollingerSpotTimeframe>(storedTimeframe, out var savedFrame) ? savedFrame : BollingerSpotSettings.Default.Timeframe);
+        }
+        catch
+        {
+            // A tela permanece no padrão Diário + 20/3 se a preferência ainda não existir.
+        }
+    }
+
+    private static void SelectByTag(System.Windows.Controls.ComboBox comboBox, object value)
+    {
+        foreach (var item in comboBox.Items.OfType<ComboBoxItem>())
+            if (string.Equals(item.Tag?.ToString(), value.ToString(), StringComparison.OrdinalIgnoreCase))
+            {
+                comboBox.SelectedItem = item;
+                return;
+            }
     }
 
     private async void Run_Click(object sender, RoutedEventArgs e)
@@ -31,6 +68,7 @@ public partial class BollingerSpotBacktestWindow : Window
         run.IsEnabled = false; summary.Text = "Carregando candles fechados…";
         try
         {
+            await _applySettings(settings);
             var all = new List<BollingerSpotBacktestTrade>();
             var backtester = new BollingerSpotBacktester();
             var warmup = selectedFrame == BollingerSpotTimeframe.FourHours ? TimeSpan.FromHours(4 * 100) : TimeSpan.FromDays(100);
@@ -38,7 +76,12 @@ public partial class BollingerSpotBacktestWindow : Window
             foreach (var asset in assets)
             {
                 var candles = await _marketData.GetHistoricalCandlesAsync(asset, settings.Interval, from.ToUniversalTime() - warmup, until);
-                var closed = candles.Where(c => c.OpenTime + (selectedFrame == BollingerSpotTimeframe.FourHours ? TimeSpan.FromHours(4) : TimeSpan.FromDays(1)) <= DateTime.UtcNow && c.OpenTime < until).ToList();
+                // O provedor já entrega 4h/1d em UTC. Reagrupar por bucket UTC mantém
+                // a regra OHLC explícita e é uma operação identidade para candles já
+                // alinhados, sem recorrer a candles de 1 minuto.
+                var closed = BollingerSpotCandleAggregator.AggregateUtc(candles, selectedFrame)
+                    .Where(c => c.OpenTime + (selectedFrame == BollingerSpotTimeframe.FourHours ? TimeSpan.FromHours(4) : TimeSpan.FromDays(1)) <= DateTime.UtcNow && c.OpenTime < until)
+                    .ToList();
                 if (closed.Count < 100) continue;
                 all.AddRange(backtester.Run(asset, closed, settings).Trades.Where(t => t.EntryTimeUtc >= from.ToUniversalTime()));
             }

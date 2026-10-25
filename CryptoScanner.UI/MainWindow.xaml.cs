@@ -3,8 +3,10 @@ using CryptoScanner.Application.Models;
 using CryptoScanner.Core.Configuration;
 using CryptoScanner.Core.Contracts;
 using CryptoScanner.Core.Models;
+using CryptoScanner.Core.Utilities;
 using CryptoScanner.Exchange.Services;
 using CryptoScanner.Infrastructure.Sqlite;
+using CryptoScanner.Strategies;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
@@ -45,6 +47,10 @@ public partial class MainWindow : Window
     private readonly IAlertSettingsRepository _alertSettingsRepository;
     private readonly IAppSettingsRepository _appSettingsRepository;
     private readonly BinanceWebSocketService _webSocketService = new();
+    private readonly ConcurrentDictionary<(string Symbol, BollingerSpotSettings Settings), BollingerSpotStrategy> _bollingerSpotStrategies = new();
+    private readonly SemaphoreSlim _bollingerSpotCandleGate = new(1, 1);
+    private readonly SemaphoreSlim _bollingerSpotPriceGate = new(1, 1);
+    private BollingerSpotSettings _bollingerSpotSettings = BollingerSpotSettings.Default;
     private readonly CoinGeckoService _coinGeckoService = new();
     private readonly OllamaVisionAnalyzer _llmAnalyzer = new(new HttpClient { Timeout = TimeSpan.FromMinutes(3) });
     private readonly ILlmOpinionRepository _llmOpinionRepository;
@@ -352,6 +358,7 @@ public partial class MainWindow : Window
         _labTimer.Start();
         _=EvaluateLabAsync();
         await LoadAutoScanIntervalAsync();
+        await LoadBollingerSpotSettingsAsync();
         try { await _llmOpinionRepository.InitializeAsync(); }
         catch (Exception ex) { txtLlmOpinion.Text = $"Histórico da LLM indisponível: {ex.Message}"; }
 
@@ -388,6 +395,37 @@ public partial class MainWindow : Window
     }
 
     private const string AutoScanIntervalSettingKey = "AutoScanIntervalMinutes";
+    public const string BollingerSpotVariantSettingKey = "BollingerSpotVariant";
+    public const string BollingerSpotTimeframeSettingKey = "BollingerSpotTimeframe";
+
+    private async Task LoadBollingerSpotSettingsAsync()
+    {
+        try
+        {
+            await _appSettingsRepository.InitializeAsync();
+            string? savedVariant = await _appSettingsRepository.GetAsync(BollingerSpotVariantSettingKey);
+            string? savedTimeframe = await _appSettingsRepository.GetAsync(BollingerSpotTimeframeSettingKey);
+
+            var variant = Enum.TryParse<BollingerSpotVariant>(savedVariant, true, out var configuredVariant)
+                ? configuredVariant : BollingerSpotSettings.Default.Variant;
+            var timeframe = Enum.TryParse<BollingerSpotTimeframe>(savedTimeframe, true, out var configuredTimeframe)
+                ? configuredTimeframe : BollingerSpotSettings.Default.Timeframe;
+            _bollingerSpotSettings = new BollingerSpotSettings(variant, timeframe);
+        }
+        catch
+        {
+            // Mantém Diário + 20/3 se o armazenamento de preferências estiver indisponível.
+            _bollingerSpotSettings = BollingerSpotSettings.Default;
+        }
+    }
+
+    private async Task ApplyBollingerSpotSettingsAsync(BollingerSpotSettings settings)
+    {
+        _bollingerSpotSettings = settings;
+        await _appSettingsRepository.InitializeAsync();
+        await _appSettingsRepository.SetAsync(BollingerSpotVariantSettingKey, settings.Variant.ToString());
+        await _appSettingsRepository.SetAsync(BollingerSpotTimeframeSettingKey, settings.Timeframe.ToString());
+    }
 
     private async Task LoadAutoScanIntervalAsync()
     {
@@ -501,7 +539,7 @@ public partial class MainWindow : Window
     {
         var cacheRepository = new SqliteCandleCacheRepository(GetCandleCachePath());
         var cachingMarketData = new CachingMarketDataService(new BinanceExchangeService(), cacheRepository);
-        var window = new BollingerSpotBacktestWindow(cachingMarketData)
+        var window = new BollingerSpotBacktestWindow(cachingMarketData, _appSettingsRepository, ApplyBollingerSpotSettingsAsync)
         {
             Owner = this
         };
@@ -979,6 +1017,9 @@ public partial class MainWindow : Window
             }
 
             _lastSimulatedTrades = trades;
+            // Ao reabrir o app, as posições Spot Bollinger retomam o mesmo stop e alvo
+            // estruturais gravados na simulação; não são recalculados por percentuais.
+            RestoreBollingerSpotPositions(trades);
             ApplySimulatedTradesFilter();
 
             int totalClosed = trades.Count(t => t.Closed);
@@ -1256,7 +1297,11 @@ public partial class MainWindow : Window
             {
                 trade.CurrentPrice = price;
                 trade.UnrealizedPnLPercent = (trade.Direction == TradeDirection.Short ? trade.EntryPrice - price : price - trade.EntryPrice) / trade.EntryPrice * 100m;
-                matchingTrades.Add(trade);
+                // Trades Bollinger são conduzidos pelo motor estrutural abaixo. Assim,
+                // uma venda por perda da mínima também pode encerrar uma posição Spot,
+                // algo que o gerenciador genérico de TP/SL não conhece.
+                if (string.IsNullOrWhiteSpace(trade.BollingerVariant))
+                    matchingTrades.Add(trade);
             }
 
             foreach (var signal in _lastHistory.Where(signal =>
@@ -1266,6 +1311,7 @@ public partial class MainWindow : Window
             }
         });
 
+        await ProcessBollingerSpotPriceAsync(symbol, price);
         foreach (var trade in matchingTrades)
             await ProcessPartialExitTickAsync(trade, price);
     }
@@ -1282,17 +1328,186 @@ public partial class MainWindow : Window
         if (!IsLiveScannerEnabled)
             return;
 
+        if (string.Equals(interval, _bollingerSpotSettings.Interval, StringComparison.OrdinalIgnoreCase) &&
+            _bollingerSpotSettings.Variant != BollingerSpotVariant.Disabled)
+        {
+            // O stream só informa o relógio UTC do BTC. Para cada ativo do universo já
+            // analisado, buscamos os candles desse MESMO timeframe e descartamos qualquer
+            // candle ainda aberto antes de avaliar a estratégia.
+            Dispatcher.BeginInvoke(async () => await EvaluateBollingerSpotOnClosedCandleAsync());
+        }
+
         ScanProfile? matching =
             string.Equals(interval, ScanProfile.Swing.CandleInterval, StringComparison.OrdinalIgnoreCase) ? ScanProfile.Swing :
             string.Equals(interval, ScanProfile.Intraday.CandleInterval, StringComparison.OrdinalIgnoreCase) ? ScanProfile.Intraday :
             null;
 
         if (matching == null)
-            return; // não é 1h nem 4h — não deveria acontecer, únicos streams assinados
+            return; // pode ser o fechamento diário usado exclusivamente pelo Bollinger
 
         // Esse evento chega pela thread de recebimento do WebSocket, não pela thread da UI —
         // RunScannerAsync mexe direto em elementos de tela, então precisa ser despachado.
         Dispatcher.BeginInvoke(async () => await RunScannerAsync(matching));
+    }
+
+    private async Task EvaluateBollingerSpotOnClosedCandleAsync()
+    {
+        if (!_bollingerSpotCandleGate.Wait(0))
+            return; // um único processamento por fechamento, mesmo se o socket reconectar
+
+        try
+        {
+            var settings = _bollingerSpotSettings;
+            if (settings.Variant == BollingerSpotVariant.Disabled)
+                return;
+
+            var symbols = _rankingsByProfile.Values
+                .SelectMany(ranking => ranking)
+                .Select(asset => asset.Symbol)
+                .Where(symbol => !string.IsNullOrWhiteSpace(symbol))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            if (symbols.Length == 0)
+                return;
+
+            using var throttle = new SemaphoreSlim(6);
+            await Task.WhenAll(symbols.Select(async symbol =>
+            {
+                await throttle.WaitAsync();
+                try
+                {
+                    var candles = await _priceCheckService.GetCandlesAsync(symbol, settings.Interval, 120);
+                    var intervalLength = CandleIntervalHelper.ToTimeSpan(settings.Interval);
+                    var closed = BollingerSpotCandleAggregator.AggregateUtc(candles, settings.Timeframe)
+                        .Where(candle => candle.OpenTime.ToUniversalTime() + intervalLength <= DateTime.UtcNow)
+                        .OrderBy(candle => candle.OpenTime)
+                        .ToList();
+                    if (closed.Count < 100)
+                        return; // warm-up mínimo exigido, sempre acima de 20/25
+
+                    var strategy = GetBollingerSpotStrategy(symbol, settings);
+                    var setup = strategy.ProcessClosedCandle(closed);
+                    if (setup is not null)
+                        ReportBollingerSpot($"setup pendente {setup.Direction}: {setup.Symbol} · {settings.DisplayName} · " +
+                                            $"candle {setup.CandidateTimeUtc:dd/MM HH:mm} UTC · máxima {setup.High:0.########} · mínima {setup.Low:0.########} · média {setup.Middle:0.########}.");
+                }
+                catch
+                {
+                    // Falha de um ativo não interrompe os demais nem converte ausência de
+                    // dados em sinal. A próxima confirmação de candle tentará de novo.
+                }
+                finally
+                {
+                    throttle.Release();
+                }
+            }));
+        }
+        finally
+        {
+            _bollingerSpotCandleGate.Release();
+        }
+    }
+
+    private BollingerSpotStrategy GetBollingerSpotStrategy(string symbol, BollingerSpotSettings settings) =>
+        _bollingerSpotStrategies.GetOrAdd((symbol.ToUpperInvariant(), settings), key => new BollingerSpotStrategy(key.Symbol, key.Settings));
+
+    private async Task ProcessBollingerSpotPriceAsync(string symbol, decimal price)
+    {
+        await _bollingerSpotPriceGate.WaitAsync();
+        try
+        {
+            var strategies = _bollingerSpotStrategies
+                .Where(pair => string.Equals(pair.Key.Symbol, symbol, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+            foreach (var pair in strategies)
+            {
+                var strategy = pair.Value;
+                var positionBeforeTick = strategy.Position;
+                var (signal, exit) = strategy.ProcessPrice(price);
+
+                if (signal is not null)
+                {
+                    var trade = new SimulatedTrade
+                    {
+                        Symbol = signal.Symbol,
+                        Direction = TradeDirection.Long,
+                        EntryTime = DateTime.UtcNow,
+                        EntryPrice = signal.Price,
+                        StopLoss = signal.Stop,
+                        TakeProfit = signal.Target,
+                        Profile = "Bollinger Spot experimental",
+                        BollingerVariant = signal.Setup.Settings.Variant.ToString(),
+                        BollingerPeriod = signal.Setup.Settings.Period,
+                        BollingerStandardDeviations = signal.Setup.Settings.StandardDeviations,
+                        BollingerTimeframe = signal.Setup.Settings.Timeframe.ToString(),
+                        BollingerSetupTime = signal.Setup.CandidateTimeUtc,
+                        Note = $"{signal.Setup.Settings.DisplayName} | {signal.Reason} | Setup UTC {signal.Setup.CandidateTimeUtc:O} | Entrada {signal.Price:0.########} | Stop {signal.Stop:0.########} | Alvo {signal.Target:0.########}"
+                    };
+                    trade.Id = await _simulatedTradeRepository.AddAsync(trade);
+                    ReportBollingerSpot($"COMPRA Spot: {trade.Symbol} · {signal.Setup.Settings.DisplayName} · entrada {trade.EntryPrice:0.########} · stop {trade.StopLoss:0.########} · alvo {trade.TakeProfit:0.########}. {signal.Reason}");
+                    await LoadSimulatedTradesAsync();
+                }
+
+                if (exit is not null && positionBeforeTick is not null)
+                {
+                    SimulatedTrade? trade;
+                    lock (_lastSimulatedTrades)
+                    {
+                        trade = _lastSimulatedTrades.FirstOrDefault(candidate => candidate.IsOpen &&
+                            string.Equals(candidate.Symbol, positionBeforeTick.Symbol, StringComparison.OrdinalIgnoreCase) &&
+                            string.Equals(candidate.BollingerVariant, positionBeforeTick.Settings.Variant.ToString(), StringComparison.Ordinal) &&
+                            string.Equals(candidate.BollingerTimeframe, positionBeforeTick.Settings.Timeframe.ToString(), StringComparison.Ordinal) &&
+                            candidate.BollingerSetupTime?.ToUniversalTime() == positionBeforeTick.SetupTimeUtc.ToUniversalTime());
+                    }
+
+                    if (trade is not null)
+                    {
+                        decimal outcome = (exit.Price - trade.EntryPrice) / trade.EntryPrice * 100m;
+                        await _simulatedTradeRepository.CloseTradeAsync(trade.Id, exit.Price, outcome, exit.Reason);
+                        ReportBollingerSpot($"VENDA/saída Spot: {trade.Symbol} · {positionBeforeTick.Settings.DisplayName} · preço {exit.Price:0.########} · resultado {outcome:F2}% · {exit.Reason}.");
+                        await LoadSimulatedTradesAsync();
+                    }
+                }
+            }
+        }
+        finally
+        {
+            _bollingerSpotPriceGate.Release();
+        }
+    }
+
+    private void RestoreBollingerSpotPositions(IEnumerable<SimulatedTrade> trades)
+    {
+        foreach (var trade in trades.Where(trade => trade.IsOpen && !string.IsNullOrWhiteSpace(trade.BollingerVariant)))
+        {
+            if (!Enum.TryParse<BollingerSpotVariant>(trade.BollingerVariant, true, out var variant) ||
+                !Enum.TryParse<BollingerSpotTimeframe>(trade.BollingerTimeframe, true, out var timeframe) ||
+                trade.BollingerSetupTime is not DateTime setupTime)
+                continue;
+
+            var settings = new BollingerSpotSettings(variant, timeframe);
+            var strategy = GetBollingerSpotStrategy(trade.Symbol, settings);
+            if (strategy.Position is null)
+            {
+                strategy.RestorePosition(new BollingerSpotPosition
+                {
+                    Symbol = trade.Symbol,
+                    Settings = settings,
+                    SetupTimeUtc = setupTime.ToUniversalTime(),
+                    EntryPrice = trade.EntryPrice,
+                    Stop = trade.StopLoss,
+                    Target = trade.TakeProfit
+                });
+            }
+        }
+    }
+
+    private void ReportBollingerSpot(string message)
+    {
+        System.Diagnostics.Debug.WriteLine($"[Bollinger Spot] {message}");
+        Dispatcher.BeginInvoke(() => txtScanSummary.Text = message);
     }
 
     private async void DgSimulatedTrades_RowEditEnding(object sender, DataGridRowEditEndingEventArgs e)
