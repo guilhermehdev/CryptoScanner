@@ -20,6 +20,12 @@ public sealed class SimulatedTrade : ObservableModel
     }
     public string Note { get; set; } = "";
     public string Profile { get; set; } = "";
+    // Metadados da hipótese Spot Bollinger. Permanecem nulos nos trades legados.
+    public string BollingerVariant { get; set; } = "";
+    public int? BollingerPeriod { get; set; }
+    public decimal? BollingerStandardDeviations { get; set; }
+    public string BollingerTimeframe { get; set; } = "";
+    public DateTime? BollingerSetupTime { get; set; }
 
     // Raio-x completo do momento da entrada — inalterado, sem mudança
     public decimal ScoreAtEntry { get; set; }

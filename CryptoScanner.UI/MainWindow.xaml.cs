@@ -499,10 +499,9 @@ public partial class MainWindow : Window
 
     private void BtnFullBacktest_Click(object sender, RoutedEventArgs e)
     {
-        var databasePath = GetDatabasePath();
         var cacheRepository = new SqliteCandleCacheRepository(GetCandleCachePath());
         var cachingMarketData = new CachingMarketDataService(new BinanceExchangeService(), cacheRepository);
-        var window = new BacktestWindow(cachingMarketData, new AssetAnalyzer(), databasePath)
+        var window = new BollingerSpotBacktestWindow(cachingMarketData)
         {
             Owner = this
         };

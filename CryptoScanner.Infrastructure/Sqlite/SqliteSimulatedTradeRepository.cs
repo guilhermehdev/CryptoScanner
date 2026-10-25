@@ -47,6 +47,11 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
             ("Direction", "TEXT NOT NULL DEFAULT 'Long'"),
             ("Note", "TEXT"),
             ("Profile", "TEXT"),
+            ("BollingerVariant", "TEXT"),
+            ("BollingerPeriod", "INTEGER"),
+            ("BollingerStandardDeviations", "REAL"),
+            ("BollingerTimeframe", "TEXT"),
+            ("BollingerSetupTime", "TEXT"),
             ("ScoreAtEntry", "REAL"),
             ("Rsi", "REAL"),
             ("Adx", "REAL"),
@@ -110,6 +115,7 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
         const string sql = """
             INSERT INTO SimulatedTrades
             (Symbol, EntryTime, EntryPrice, TakeProfit, StopLoss, Note, Profile, Direction,
+             BollingerVariant, BollingerPeriod, BollingerStandardDeviations, BollingerTimeframe, BollingerSetupTime,
              ScoreAtEntry, Rsi, Adx, AtrPercent, EmaDistanceAtr, SwingUsageAtr,
              VolumeSpike, VolumeImbalance, RelativeStrength, RiskRewardAtEntry,
              TrendScore, StructureScore, VolumeScore, CandleScore, SetupScore,
@@ -118,6 +124,7 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
              TakeProfit1, TakeProfit3, Tp1Hit, Tp2Hit, RemainingFraction, WeightedExitSum, Closed, BuyingPressureSnapshotId)
             VALUES
             (@Symbol, @EntryTime, @EntryPrice, @TakeProfit, @StopLoss, @Note, @Profile, @Direction,
+             @BollingerVariant, @BollingerPeriod, @BollingerStandardDeviations, @BollingerTimeframe, @BollingerSetupTime,
              @ScoreAtEntry, @Rsi, @Adx, @AtrPercent, @EmaDistanceAtr, @SwingUsageAtr,
              @VolumeSpike, @VolumeImbalance, @RelativeStrength, @RiskRewardAtEntry,
              @TrendScore, @StructureScore, @VolumeScore, @CandleScore, @SetupScore,
@@ -141,6 +148,11 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
         command.Parameters.AddWithValue("@Note", trade.Note ?? "");
         command.Parameters.AddWithValue("@Profile", trade.Profile ?? "");
         command.Parameters.AddWithValue("@Direction", trade.Direction.ToString());
+        command.Parameters.AddWithValue("@BollingerVariant", trade.BollingerVariant ?? "");
+        command.Parameters.AddWithValue("@BollingerPeriod", (object?)trade.BollingerPeriod ?? DBNull.Value);
+        command.Parameters.AddWithValue("@BollingerStandardDeviations", trade.BollingerStandardDeviations.HasValue ? (double)trade.BollingerStandardDeviations.Value : DBNull.Value);
+        command.Parameters.AddWithValue("@BollingerTimeframe", trade.BollingerTimeframe ?? "");
+        command.Parameters.AddWithValue("@BollingerSetupTime", trade.BollingerSetupTime?.ToString("O") ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("@ScoreAtEntry", (double)trade.ScoreAtEntry);
         command.Parameters.AddWithValue("@Rsi", (double)trade.Rsi);
         command.Parameters.AddWithValue("@Adx", (double)trade.Adx);
@@ -260,6 +272,11 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
                 StopLoss = Convert.ToDecimal(reader.GetDouble(reader.GetOrdinal("StopLoss"))),
                 Note = GetStringOrDefault(reader, "Note"),
                 Profile = GetStringOrDefault(reader, "Profile"),
+                BollingerVariant = GetStringOrDefault(reader, "BollingerVariant"),
+                BollingerPeriod = reader.IsDBNull(reader.GetOrdinal("BollingerPeriod")) ? null : reader.GetInt32(reader.GetOrdinal("BollingerPeriod")),
+                BollingerStandardDeviations = GetNullableDecimal(reader, "BollingerStandardDeviations"),
+                BollingerTimeframe = GetStringOrDefault(reader, "BollingerTimeframe"),
+                BollingerSetupTime = reader.IsDBNull(reader.GetOrdinal("BollingerSetupTime")) ? null : DateTime.Parse(reader.GetString(reader.GetOrdinal("BollingerSetupTime"))),
                 Direction = Enum.TryParse<TradeDirection>(GetStringOrDefault(reader, "Direction"), true, out var direction) ? direction : TradeDirection.Long,
                 ScoreAtEntry = GetDecimalOrDefault(reader, "ScoreAtEntry"),
                 Rsi = GetDecimalOrDefault(reader, "Rsi"),
