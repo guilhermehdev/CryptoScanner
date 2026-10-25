@@ -23,7 +23,8 @@ public partial class BollingerSpotBacktestWindow : Window
         _marketData = marketData;
         _settingsRepository = settingsRepository;
         _applySettings = applySettings;
-        start.SelectedDate = DateTime.Today.AddYears(-1); end.SelectedDate = DateTime.Today;
+        start.SelectedDate = new DateTime(2020, 1, 1);
+        end.SelectedDate = new DateTime(2026, 12, 30);
         Loaded += BollingerSpotBacktestWindow_Loaded;
     }
 
@@ -62,13 +63,17 @@ public partial class BollingerSpotBacktestWindow : Window
         { summary.Text = "Selecione uma variante ativa e um período válido."; return; }
         var settings = new BollingerSpotSettings(selected, selectedFrame);
         if (settings.Variant == BollingerSpotVariant.Disabled) { summary.Text = "Escolha uma variante Bollinger para rodar o teste."; return; }
-        var assets = symbols.Text.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-            .Select(s => s.ToUpperInvariant().EndsWith("USDT") ? s.ToUpperInvariant() : s.ToUpperInvariant() + "USDT").Distinct().ToArray();
-        if (assets.Length == 0) { summary.Text = "Informe ao menos um ativo."; return; }
         run.IsEnabled = false; summary.Text = "Carregando candles fechados…";
         try
         {
             await _applySettings(settings);
+            var assets = top30Liquidity.IsChecked == true
+                ? (await _marketData.GetUsdtSymbolsAsync()).Take(30).ToArray()
+                : symbols.Text.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => s.ToUpperInvariant().EndsWith("USDT") ? s.ToUpperInvariant() : s.ToUpperInvariant() + "USDT")
+                    .Distinct()
+                    .ToArray();
+            if (assets.Length == 0) { summary.Text = "A Binance não retornou ativos líquidos disponíveis."; return; }
             var all = new List<BollingerSpotBacktestTrade>();
             var backtester = new BollingerSpotBacktester();
             var warmup = selectedFrame == BollingerSpotTimeframe.FourHours ? TimeSpan.FromHours(4 * 100) : TimeSpan.FromDays(100);
@@ -87,7 +92,8 @@ public partial class BollingerSpotBacktestWindow : Window
             }
             trades.ItemsSource = all.OrderByDescending(t => t.EntryTimeUtc).ToList();
             var closedTrades = all.Where(t => t.Closed).ToList();
-            summary.Text = $"{settings.DisplayName} · {assets.Length} ativo(s) · {all.Count} entrada(s), {closedTrades.Count} fechada(s) · retorno somado: {closedTrades.Sum(t => t.ReturnPercent ?? 0m):F2}% · candles fechados em UTC. Estratégia experimental, sem comprovação de rentabilidade.";
+            string universe = top30Liquidity.IsChecked == true ? "30 mais líquidos da Binance" : $"{assets.Length} ativo(s) manual(is)";
+            summary.Text = $"{settings.DisplayName} · {universe} · {all.Count} entrada(s), {closedTrades.Count} fechada(s) · retorno somado: {closedTrades.Sum(t => t.ReturnPercent ?? 0m):F2}% · candles fechados em UTC. Estratégia experimental, sem comprovação de rentabilidade.";
         }
         catch (Exception ex) { summary.Text = $"Não foi possível rodar: {ex.Message}"; }
         finally { run.IsEnabled = true; }
