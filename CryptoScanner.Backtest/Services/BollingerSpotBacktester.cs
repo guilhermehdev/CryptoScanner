@@ -16,12 +16,10 @@ public sealed class BollingerSpotBacktester
 
         foreach (var candle in ordered)
         {
-            // O candle é confirmado antes de virar candidato. Nunca há entrada no candle candidato.
-            closed.Add(candle);
-            strategy.ProcessClosedCandle(closed);
-
-            // Para candles posteriores, usa o extremo que confirma o rompimento. Caso uma barra
-            // toque stop e rompimento, o stop tem prioridade conservadora.
+            // Primeiro percorremos a faixa do candle ATUAL contra setups criados por candles
+            // ANTERIORES. Só depois confirmamos o fechamento atual como possível candidato.
+            // A ordem inversa invalidava todo setup de compra na própria mínima do candle que
+            // o criou, produzindo falsamente zero operações.
             if (open is not null && candle.Low <= open.Stop)
             {
                 var (_, exit) = strategy.ProcessPrice(open.Stop);
@@ -30,27 +28,52 @@ public sealed class BollingerSpotBacktester
                     trades[^1] = open with { ExitTimeUtc = candle.OpenTime, ExitPrice = open.Stop, ExitReason = exit.Reason };
                     open = null;
                 }
-                continue;
             }
-            var (signal, exitAtLow) = strategy.ProcessPrice(candle.Low);
-            if (exitAtLow is not null && open is not null)
+
+            BollingerSpotSignal? signal = null;
+            void Apply((BollingerSpotSignal? Signal, BollingerSpotExit? Exit) result)
             {
-                trades[^1] = open with { ExitTimeUtc = candle.OpenTime, ExitPrice = exitAtLow.Price, ExitReason = exitAtLow.Reason };
-                open = null;
+                signal ??= result.Signal;
+                if (result.Exit is not null && open is not null)
+                {
+                    trades[^1] = open with
+                    {
+                        ExitTimeUtc = candle.OpenTime,
+                        ExitPrice = result.Exit.Price,
+                        ExitReason = result.Exit.Reason
+                    };
+                    open = null;
+                }
             }
-            var (highSignal, exitAtHigh) = strategy.ProcessPrice(candle.High);
-            signal ??= highSignal;
-            if (exitAtHigh is not null && open is not null)
+
+            // Sem intrabar disponível, assumimos o caminho conservador. Stop tem prioridade
+            // para LONG. Num setup de venda, testamos primeiro a máxima para não permitir que
+            // uma saída aconteça se a invalidação acima da máxima também ocorreu na barra.
+            if (open is null || candle.Low > open.Stop)
             {
-                trades[^1] = open with { ExitTimeUtc = candle.OpenTime, ExitPrice = exitAtHigh.Price, ExitReason = exitAtHigh.Reason };
-                open = null;
+                if (strategy.PendingSetup?.Direction == BollingerSpotSetupDirection.Sell)
+                {
+                    Apply(strategy.ProcessPrice(candle.High));
+                    Apply(strategy.ProcessPrice(candle.Low));
+                }
+                else
+                {
+                    Apply(strategy.ProcessPrice(candle.Low));
+                    Apply(strategy.ProcessPrice(candle.High));
+                }
             }
+
             if (signal is not null)
             {
                 open = new BollingerSpotBacktestTrade(symbol, settings, signal.Setup.CandidateTimeUtc, candle.OpenTime,
                     signal.Price, signal.Stop, signal.Target, null, null, "");
                 trades.Add(open);
             }
+
+            // O candle só vira setup depois que toda a sua faixa já foi processada. Portanto,
+            // uma compra nunca ocorre no mesmo candle que fechou abaixo da banda.
+            closed.Add(candle);
+            strategy.ProcessClosedCandle(closed);
         }
         return new(trades);
     }

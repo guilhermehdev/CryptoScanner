@@ -1,6 +1,7 @@
 using CryptoScanner.Core.Models;
 using CryptoScanner.Infrastructure.Sqlite;
 using CryptoScanner.Strategies;
+using CryptoScanner.Backtest.Services;
 
 int checks=0;
 void Check(bool value,string name){if(!value)throw new Exception(name);checks++;}
@@ -38,6 +39,15 @@ Check(sell is { Direction:BollingerSpotSetupDirection.Sell, High:111m, Low:105m 
 Check(sellStrategy.ProcessPrice(105m).Exit is null,"Sell does not exit at marked low");
 var sellExit=sellStrategy.ProcessPrice(104.99m).Exit;
 Check(sellExit?.Reason.Contains("Perda da mínima") == true && sellStrategy.Position is null,"Sell exits long only below marked low");
+
+// Regressão do motor histórico: o candle candidato não pode se invalidar com a
+// própria mínima. A entrada só pode ocorrer no candle posterior que rompe a máxima.
+var historical = Flat();
+historical.Add(C(20, 100, 95, 89, 90)); // fecha abaixo da banda: cria setup ao FINAL da barra
+historical.Add(C(21, 91, 96, 90, 95));  // rompe 95 somente na barra posterior
+var historicalTrades = new BollingerSpotBacktester().Run("BTCUSDT", historical, settings).Trades;
+Check(historicalTrades.Count == 1 && historicalTrades[0].EntryTimeUtc == historical[21].OpenTime && historicalTrades[0].EntryPrice == 96m,
+    "Backtest enters only on a later candle and does not invalidate the candidate candle itself");
 
 Check(new BollingerSpotSettings(BollingerSpotVariant.Bollinger20x3,BollingerSpotTimeframe.Daily).Period==20 &&
       new BollingerSpotSettings(BollingerSpotVariant.Bollinger20x23,BollingerSpotTimeframe.Daily).StandardDeviations==2.3m &&
