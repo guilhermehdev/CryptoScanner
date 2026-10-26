@@ -56,16 +56,18 @@ Check(costs.GrossReturnPercent == 10m && costs.NetReturnPercent is decimal net &
     "Spot fee and slippage are applied to both entry and exit before reporting net return");
 
 Check(BollingerSpotSettings.Default == new BollingerSpotSettings(BollingerSpotVariant.Bollinger25x3, BollingerSpotTimeframe.Daily) &&
-      new BollingerSpotSettings(BollingerSpotVariant.Bollinger25x28,BollingerSpotTimeframe.Daily).StandardDeviations==2.8m &&
-      new BollingerSpotSettings(BollingerSpotVariant.Bollinger25x32,BollingerSpotTimeframe.Daily).StandardDeviations==3.2m &&
-      BollingerSpotExperimentProfile.All.Count==5 && BollingerSpotExperimentProfile.FromKey("M3").Settings.Timeframe==BollingerSpotTimeframe.SixHours,
-      "Base and M1-M4 map to the prescribed experimental parameters");
+      new BollingerSpotSettings(BollingerSpotVariant.Bollinger25x29,BollingerSpotTimeframe.Daily).StandardDeviations==2.9m &&
+      BollingerSpotExperimentProfile.All.Count==4 && BollingerSpotExperimentProfile.FromKey("B").Settings.Timeframe==BollingerSpotTimeframe.TwelveHours &&
+      BollingerSpotExperimentProfile.FromKey("C").Settings == new BollingerSpotSettings(BollingerSpotVariant.Bollinger20x3, BollingerSpotTimeframe.TwelveHours),
+      "Base and the three controlled tests map to the prescribed experimental parameters");
 
 var minutes=Enumerable.Range(0,8).Select(i=>new Candle{OpenTime=DateTime.UnixEpoch.AddHours(i),Open=10+i,High=12+i,Low=9+i,Close=11+i,Volume=1}).ToList();
 var fourHours=BollingerSpotCandleAggregator.AggregateUtc(minutes,BollingerSpotTimeframe.FourHours);
 Check(fourHours.Count==2 && fourHours[0].OpenTime==DateTime.UnixEpoch && fourHours[0].Open==10 && fourHours[0].High==15 && fourHours[0].Low==9 && fourHours[0].Close==14,"Four-hour UTC aggregation uses OHLC");
 var sixHours=BollingerSpotCandleAggregator.AggregateUtc(minutes,BollingerSpotTimeframe.SixHours);
 Check(sixHours.Count==2 && sixHours[0].OpenTime==DateTime.UnixEpoch && sixHours[0].Open==10 && sixHours[0].High==17 && sixHours[0].Low==9 && sixHours[0].Close==16,"Six-hour UTC aggregation uses OHLC");
+var twelveHours=BollingerSpotCandleAggregator.AggregateUtc(minutes,BollingerSpotTimeframe.TwelveHours);
+Check(twelveHours.Count==1 && twelveHours[0].OpenTime==DateTime.UnixEpoch && twelveHours[0].Open==10 && twelveHours[0].High==19 && twelveHours[0].Low==9 && twelveHours[0].Close==18,"Twelve-hour UTC aggregation uses OHLC");
 var days=Enumerable.Range(0,30).Select(i=>new Candle{OpenTime=DateTime.UnixEpoch.AddHours(i),Open=10,High=12,Low=9,Close=11,Volume=1}).ToList();
 var daily=BollingerSpotCandleAggregator.AggregateUtc(days,BollingerSpotTimeframe.Daily);
 Check(daily.Count==2 && daily[0].OpenTime==DateTime.UnixEpoch && daily[0].Volume==24,"Daily UTC aggregation uses midnight buckets");

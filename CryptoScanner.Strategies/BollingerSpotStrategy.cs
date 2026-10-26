@@ -119,6 +119,7 @@ public static class BollingerSpotCandleAggregator
         {
             BollingerSpotTimeframe.FourHours => TimeSpan.FromHours(4),
             BollingerSpotTimeframe.SixHours => TimeSpan.FromHours(6),
+            BollingerSpotTimeframe.TwelveHours => TimeSpan.FromHours(12),
             _ => TimeSpan.FromDays(1)
         };
         return source.OrderBy(c => c.OpenTime).GroupBy(c => Bucket(c.OpenTime, bucket)).Select(group =>

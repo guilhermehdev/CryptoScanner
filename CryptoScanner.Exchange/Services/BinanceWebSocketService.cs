@@ -12,7 +12,7 @@ public sealed class BinanceWebSocketService : IAsyncDisposable
     // que um candle novo fecha, em vez de esperar o próximo tick do timer fixo. Assinados
     // uma única vez, de forma permanente, independente de qual perfil está ativo na tela —
     // isso evita ter que reassinar toda vez que o usuário troca de perfil.
-    private static readonly string[] KlineStreams = { "btcusdt@kline_1h", "btcusdt@kline_4h", "btcusdt@kline_6h", "btcusdt@kline_1d" };
+    private static readonly string[] KlineStreams = { "btcusdt@kline_1h", "btcusdt@kline_4h", "btcusdt@kline_6h", "btcusdt@kline_12h", "btcusdt@kline_1d" };
 
     private ClientWebSocket? _webSocket;
     private CancellationTokenSource? _receiveLoopCts;
@@ -26,7 +26,7 @@ public sealed class BinanceWebSocketService : IAsyncDisposable
 
     /// <summary>
     /// Disparado no instante exato em que um candle de BTCUSDT fecha — parâmetro é o
-    /// intervalo ("1h", "4h", "6h" ou "1d"), pra quem escuta decidir se isso é relevante pro perfil
+    /// intervalo ("1h", "4h", "6h", "12h" ou "1d"), pra quem escuta decidir se isso é relevante pro perfil
     /// atualmente selecionado.
     /// </summary>
     public event Action<string>? CandleClosed;
