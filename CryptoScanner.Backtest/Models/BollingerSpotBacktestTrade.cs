@@ -31,7 +31,10 @@ public sealed record BollingerSpotVariantComparison(
     decimal GrossReturnPercent,
     decimal NetReturnPercent,
     decimal? ProfitFactor,
-    decimal MaxSequentialDrawdownPercent);
+    decimal MaxSequentialDrawdownPercent)
+{
+    public string ProfileName { get; init; } = "";
+}
 
 public sealed record BollingerSpotBacktestResult(IReadOnlyList<BollingerSpotBacktestTrade> Trades)
 {

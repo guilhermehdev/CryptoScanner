@@ -115,7 +115,12 @@ public static class BollingerSpotCandleAggregator
 {
     public static List<Candle> AggregateUtc(IEnumerable<Candle> source, BollingerSpotTimeframe timeframe)
     {
-        TimeSpan bucket = timeframe == BollingerSpotTimeframe.FourHours ? TimeSpan.FromHours(4) : TimeSpan.FromDays(1);
+        TimeSpan bucket = timeframe switch
+        {
+            BollingerSpotTimeframe.FourHours => TimeSpan.FromHours(4),
+            BollingerSpotTimeframe.SixHours => TimeSpan.FromHours(6),
+            _ => TimeSpan.FromDays(1)
+        };
         return source.OrderBy(c => c.OpenTime).GroupBy(c => Bucket(c.OpenTime, bucket)).Select(group =>
         {
             var items = group.OrderBy(c => c.OpenTime).ToList();

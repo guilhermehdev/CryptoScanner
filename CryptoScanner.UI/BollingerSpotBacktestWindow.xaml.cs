@@ -36,8 +36,11 @@ public partial class BollingerSpotBacktestWindow : Window
             await _settingsRepository.InitializeAsync();
             var storedVariant = await _settingsRepository.GetAsync(MainWindow.BollingerSpotVariantSettingKey);
             var storedTimeframe = await _settingsRepository.GetAsync(MainWindow.BollingerSpotTimeframeSettingKey);
-            SelectByTag(variant, Enum.TryParse<BollingerSpotVariant>(storedVariant, out var savedVariant) ? savedVariant : BollingerSpotSettings.Default.Variant);
-            SelectByTag(timeframe, Enum.TryParse<BollingerSpotTimeframe>(storedTimeframe, out var savedFrame) ? savedFrame : BollingerSpotSettings.Default.Timeframe);
+            var settings = new BollingerSpotSettings(
+                Enum.TryParse<BollingerSpotVariant>(storedVariant, out var savedVariant) ? savedVariant : BollingerSpotSettings.Default.Variant,
+                Enum.TryParse<BollingerSpotTimeframe>(storedTimeframe, out var savedFrame) ? savedFrame : BollingerSpotSettings.Default.Timeframe);
+            SelectByTag(profile, BollingerSpotExperimentProfile.FromSettings(settings).Key);
+            ApplyProfileTimeframe();
         }
         catch
         {
@@ -55,14 +58,19 @@ public partial class BollingerSpotBacktestWindow : Window
             }
     }
 
+    private BollingerSpotExperimentProfile SelectedProfile =>
+        profile.SelectedItem is ComboBoxItem item
+            ? BollingerSpotExperimentProfile.FromKey(item.Tag?.ToString())
+            : BollingerSpotExperimentProfile.All[0];
+
+    private void Profile_SelectionChanged(object sender, SelectionChangedEventArgs e) => ApplyProfileTimeframe();
+
+    private void ApplyProfileTimeframe() => SelectByTag(timeframe, SelectedProfile.Settings.Timeframe);
+
     private async void Run_Click(object sender, RoutedEventArgs e)
     {
-        if (variant.SelectedItem is not ComboBoxItem selectedVariant || timeframe.SelectedItem is not ComboBoxItem selectedTimeframe ||
-            !Enum.TryParse<BollingerSpotVariant>(selectedVariant.Tag?.ToString(), out var selected) ||
-            !Enum.TryParse<BollingerSpotTimeframe>(selectedTimeframe.Tag?.ToString(), out var selectedFrame))
-        { summary.Text = "Selecione uma variante ativa e um timeframe válido."; return; }
-        var settings = new BollingerSpotSettings(selected, selectedFrame);
-        if (settings.Variant == BollingerSpotVariant.Disabled) { summary.Text = "Escolha uma variante Bollinger para rodar o teste."; return; }
+        var selectedProfile = SelectedProfile;
+        var settings = selectedProfile.Settings;
         if (!TryReadPeriodAndCosts(out var from, out var to, out var costs)) return;
 
         run.IsEnabled = compare.IsEnabled = false;
@@ -79,7 +87,7 @@ public partial class BollingerSpotBacktestWindow : Window
             trades.ItemsSource = all.OrderByDescending(t => t.EntryTimeUtc).ToList();
             var closedTrades = all.Where(t => t.Closed).ToList();
             string universe = top30Liquidity.IsChecked == true ? "30 mais líquidos da Binance" : $"{assets.Length} ativo(s) manual(is)";
-            summary.Text = $"{settings.DisplayName} · {universe} · {all.Count} entrada(s), {closedTrades.Count} fechada(s) · retorno bruto: {closedTrades.Sum(t => t.GrossReturnPercent ?? 0m):F2}% · líquido: {closedTrades.Sum(t => t.NetReturnPercent ?? 0m):F2}% · taxa {costs.FeePercentPerOrder:F2}% + slippage {costs.SlippagePercentPerOrder:F2}% por ordem. Estratégia experimental.";
+            summary.Text = $"{selectedProfile.DisplayName} · {universe} · {all.Count} entrada(s), {closedTrades.Count} fechada(s) · retorno bruto: {closedTrades.Sum(t => t.GrossReturnPercent ?? 0m):F2}% · líquido: {closedTrades.Sum(t => t.NetReturnPercent ?? 0m):F2}% · taxa {costs.FeePercentPerOrder:F2}% + slippage {costs.SlippagePercentPerOrder:F2}% por ordem. Estratégia experimental.";
             resultTabs.SelectedIndex = 0;
         }
         catch (Exception ex) { summary.Text = $"Não foi possível rodar: {ex.Message}"; }
@@ -94,27 +102,23 @@ public partial class BollingerSpotBacktestWindow : Window
         {
             var assets = await ResolveAssetsAsync();
             if (assets.Length == 0) return;
-            var candlesBySymbol = await LoadClosedCandlesAsync(assets, BollingerSpotTimeframe.Daily, from, to);
-            var variants = new[]
-            {
-                BollingerSpotVariant.Bollinger20x3,
-                BollingerSpotVariant.Bollinger20x23,
-                BollingerSpotVariant.Bollinger25x3,
-                BollingerSpotVariant.Bollinger25x23
-            };
+            var profiles = BollingerSpotExperimentProfile.All;
+            var candlesByTimeframe = new Dictionary<BollingerSpotTimeframe, Dictionary<string, List<Candle>>>();
+            foreach (var timeframeToLoad in profiles.Select(experiment => experiment.Settings.Timeframe).Distinct())
+                candlesByTimeframe[timeframeToLoad] = await LoadClosedCandlesAsync(assets, timeframeToLoad, from, to);
             var backtester = new BollingerSpotBacktester();
-            var rows = variants.Select(variantToCompare =>
+            var rows = profiles.Select(profileToCompare =>
             {
-                var settings = new BollingerSpotSettings(variantToCompare, BollingerSpotTimeframe.Daily);
-                var result = new BollingerSpotBacktestResult(candlesBySymbol
+                var settings = profileToCompare.Settings;
+                var result = new BollingerSpotBacktestResult(candlesByTimeframe[settings.Timeframe]
                     .SelectMany(pair => backtester.Run(pair.Key, pair.Value, settings, costs).Trades
                         .Where(trade => trade.EntryTimeUtc >= from.ToUniversalTime()))
                     .ToArray());
-                return result.ToComparison(settings);
+                return result.ToComparison(settings) with { ProfileName = profileToCompare.DisplayName };
             }).OrderByDescending(row => row.NetReturnPercent).ToList();
 
             comparison.ItemsSource = rows;
-            summary.Text = $"Comparação diária: mesmos ativos, período e custos em todas as variantes. Líquido considera taxa {costs.FeePercentPerOrder:F2}% + slippage {costs.SlippagePercentPerOrder:F2}% por ordem; não promove automaticamente nenhuma variante.";
+            summary.Text = $"Comparação Base + M1–M4: mesmos ativos, período e custos em todos os perfis. Líquido considera taxa {costs.FeePercentPerOrder:F2}% + slippage {costs.SlippagePercentPerOrder:F2}% por ordem; não promove automaticamente nenhuma variante.";
             resultTabs.SelectedIndex = 1;
         }
         catch (Exception ex) { summary.Text = $"Não foi possível comparar: {ex.Message}"; }
@@ -165,9 +169,10 @@ public partial class BollingerSpotBacktestWindow : Window
     {
         var result = new Dictionary<string, List<Candle>>(StringComparer.OrdinalIgnoreCase);
         var list = assets.ToArray();
-        var interval = selectedTimeframe == BollingerSpotTimeframe.FourHours ? "4h" : "1d";
-        var intervalLength = selectedTimeframe == BollingerSpotTimeframe.FourHours ? TimeSpan.FromHours(4) : TimeSpan.FromDays(1);
-        var warmup = selectedTimeframe == BollingerSpotTimeframe.FourHours ? TimeSpan.FromHours(400) : TimeSpan.FromDays(100);
+        var settings = new BollingerSpotSettings(BollingerSpotVariant.Bollinger25x3, selectedTimeframe);
+        var interval = settings.Interval;
+        var intervalLength = settings.CandleDuration;
+        var warmup = TimeSpan.FromTicks(intervalLength.Ticks * 100);
         DateTime until = to.Date.AddDays(1).ToUniversalTime();
 
         for (int index = 0; index < list.Length; index++)
