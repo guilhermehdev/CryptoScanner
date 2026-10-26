@@ -14,6 +14,8 @@ public partial class BollingerSpotBacktestWindow : Window
     private readonly IMarketDataService _marketData;
     private readonly IAppSettingsRepository _settingsRepository;
     private readonly Func<BollingerSpotSettings, Task> _applySettings;
+    private const string FrozenUniverseSettingKey = "BollingerSpotFrozenUniverse";
+    private string[] _frozenUniverse = Array.Empty<string>();
 
     public BollingerSpotBacktestWindow(
         IMarketDataService marketData,
@@ -41,6 +43,15 @@ public partial class BollingerSpotBacktestWindow : Window
                 Enum.TryParse<BollingerSpotTimeframe>(storedTimeframe, out var savedFrame) ? savedFrame : BollingerSpotSettings.Default.Timeframe);
             SelectByTag(profile, BollingerSpotExperimentProfile.FromSettings(settings).Key);
             ApplyProfileTimeframe();
+
+            var frozen = await _settingsRepository.GetAsync(FrozenUniverseSettingKey);
+            _frozenUniverse = ParseSymbols(frozen);
+            if (_frozenUniverse.Length > 0)
+            {
+                symbols.Text = string.Join(',', _frozenUniverse);
+                top30Liquidity.IsChecked = false;
+                summary.Text = $"Universo congelado carregado: {_frozenUniverse.Length} ativos. Desmarcado = usa esta mesma lista; marque Top 30 atual para consultar uma lista nova.";
+            }
         }
         catch
         {
@@ -91,7 +102,7 @@ public partial class BollingerSpotBacktestWindow : Window
                 all.AddRange(backtester.Run(asset, candles, settings, costs).Trades.Where(t => t.EntryTimeUtc >= from.ToUniversalTime()));
             trades.ItemsSource = all.OrderByDescending(t => t.EntryTimeUtc).ToList();
             var closedTrades = all.Where(t => t.Closed).ToList();
-            string universe = top30Liquidity.IsChecked == true ? "30 mais líquidos da Binance" : $"{assets.Length} ativo(s) manual(is)";
+            string universe = DescribeUniverse(assets);
             summary.Text = $"{selectedProfile.DisplayName} · {universe} · {all.Count} entrada(s), {closedTrades.Count} fechada(s) · retorno bruto: {closedTrades.Sum(t => t.GrossReturnPercent ?? 0m):F2}% · líquido: {closedTrades.Sum(t => t.NetReturnPercent ?? 0m):F2}% · taxa {costs.FeePercentPerOrder:F2}% + slippage {costs.SlippagePercentPerOrder:F2}% por ordem. Estratégia experimental.";
             resultTabs.SelectedIndex = 0;
         }
@@ -123,7 +134,7 @@ public partial class BollingerSpotBacktestWindow : Window
             }).OrderByDescending(row => row.NetReturnPercent).ToList();
 
             comparison.ItemsSource = rows;
-            summary.Text = $"Comparação Base + A/B: mesmos ativos, período e custos em todos os perfis. Líquido considera taxa {costs.FeePercentPerOrder:F2}% + slippage {costs.SlippagePercentPerOrder:F2}% por ordem; não promove automaticamente nenhuma variante.";
+            summary.Text = $"Comparação Base + A/B · {DescribeUniverse(assets)}: mesmos ativos, período e custos em todos os perfis. Líquido considera taxa {costs.FeePercentPerOrder:F2}% + slippage {costs.SlippagePercentPerOrder:F2}% por ordem; não promove automaticamente nenhuma variante.";
             resultTabs.SelectedIndex = 1;
         }
         catch (Exception ex) { summary.Text = $"Não foi possível comparar: {ex.Message}"; }
@@ -164,6 +175,49 @@ public partial class BollingerSpotBacktestWindow : Window
             .Select(symbol => symbol.ToUpperInvariant().EndsWith("USDT") ? symbol.ToUpperInvariant() : symbol.ToUpperInvariant() + "USDT")
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private async void FreezeTop30_Click(object sender, RoutedEventArgs e)
+    {
+        freezeTop30.IsEnabled = false;
+        try
+        {
+            summary.Text = "Buscando e congelando os 30 pares USDT mais líquidos na Binance…";
+            _frozenUniverse = (await _marketData.GetUsdtSymbolsAsync()).Take(30).ToArray();
+            if (_frozenUniverse.Length == 0)
+            {
+                summary.Text = "A Binance não retornou ativos para congelar.";
+                return;
+            }
+
+            await _settingsRepository.InitializeAsync();
+            await _settingsRepository.SetAsync(FrozenUniverseSettingKey, string.Join(',', _frozenUniverse));
+            symbols.Text = string.Join(',', _frozenUniverse);
+            top30Liquidity.IsChecked = false;
+            summary.Text = $"Universo congelado: {_frozenUniverse.Length} ativos salvos. Os próximos Backtests usarão esta lista enquanto Top 30 atual estiver desmarcado.";
+        }
+        catch (Exception ex)
+        {
+            summary.Text = $"Não foi possível congelar o universo: {ex.Message}";
+        }
+        finally
+        {
+            freezeTop30.IsEnabled = true;
+        }
+    }
+
+    private static string[] ParseSymbols(string? text) => (text ?? "")
+        .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+        .Select(symbol => symbol.ToUpperInvariant())
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
+    private string DescribeUniverse(IReadOnlyCollection<string> assets)
+    {
+        bool usesFrozen = top30Liquidity.IsChecked != true && _frozenUniverse.Length > 0 &&
+            assets.Count == _frozenUniverse.Length && assets.All(symbol => _frozenUniverse.Contains(symbol, StringComparer.OrdinalIgnoreCase));
+        return usesFrozen ? $"universo congelado ({assets.Count} ativos)" :
+            top30Liquidity.IsChecked == true ? "Top 30 atual da Binance" : $"{assets.Count} ativo(s) manual(is)";
     }
 
     private async Task<Dictionary<string, List<Candle>>> LoadClosedCandlesAsync(

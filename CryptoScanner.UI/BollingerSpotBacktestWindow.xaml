@@ -21,9 +21,10 @@
                 <ComboBoxItem Content="Diário" Tag="Daily"/>
             </ComboBox>
             <TextBlock Text="Ativos:" VerticalAlignment="Center" Margin="18,0,6,0"/>
-            <CheckBox x:Name="top30Liquidity" Content="30 mais líquidos na Binance" IsChecked="True" VerticalAlignment="Center"/>
+            <CheckBox x:Name="top30Liquidity" Content="Top 30 atual da Binance" IsChecked="True" VerticalAlignment="Center"/>
+            <Button x:Name="freezeTop30" Content="Congelar Top 30" Click="FreezeTop30_Click" Padding="8,3" Margin="7,0,0,0" ToolTip="Salva a lista atual e passa a reutilizá-la nos próximos testes."/>
             <TextBox x:Name="symbols" Width="210" Margin="10,0,0,0" Text="BTCUSDT,ETHUSDT,SOLUSDT"
-                     ToolTip="Usado somente se desmarcar os 30 mais líquidos."/>
+                     ToolTip="Lista manual ou universo congelado."/>
             <TextBlock Text="Início:" VerticalAlignment="Center" Margin="18,0,6,0"/>
             <DatePicker x:Name="start" Width="125"/>
             <TextBlock Text="Fim:" VerticalAlignment="Center" Margin="12,0,6,0"/>
