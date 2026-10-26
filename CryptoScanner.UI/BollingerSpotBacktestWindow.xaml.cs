@@ -44,12 +44,17 @@ public partial class BollingerSpotBacktestWindow : Window
         }
         catch
         {
-            // A tela permanece no padrão Diário + 20/3 se a preferência ainda não existir.
+            // A tela permanece no perfil Base (25/3 Diário) se a preferência não existir.
         }
     }
 
     private static void SelectByTag(System.Windows.Controls.ComboBox comboBox, object value)
     {
+        // O SelectionChanged do perfil pode disparar durante InitializeComponent, antes
+        // do ComboBox de timeframe ter sido criado pelo XAML.
+        if (comboBox is null || value is null)
+            return;
+
         foreach (var item in comboBox.Items.OfType<ComboBoxItem>())
             if (string.Equals(item.Tag?.ToString(), value.ToString(), StringComparison.OrdinalIgnoreCase))
             {
