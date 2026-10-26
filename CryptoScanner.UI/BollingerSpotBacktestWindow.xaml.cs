@@ -79,8 +79,6 @@ public partial class BollingerSpotBacktestWindow : Window
             ? BollingerSpotExperimentProfile.FromKey(item.Tag?.ToString())
             : BollingerSpotExperimentProfile.All[0];
 
-    private void Profile_SelectionChanged(object sender, SelectionChangedEventArgs e) => ApplyProfileTimeframe();
-
     private void ApplyProfileTimeframe() => SelectByTag(timeframe, SelectedProfile.Settings.Timeframe);
 
     private async void Run_Click(object sender, RoutedEventArgs e)
@@ -89,13 +87,10 @@ public partial class BollingerSpotBacktestWindow : Window
         var settings = selectedProfile.Settings;
         if (!TryReadPeriodAndCosts(out var from, out var to, out var costs)) return;
 
-        run.IsEnabled = compare.IsEnabled = false;
+        run.IsEnabled = false;
         try
         {
-            // A Base é a única hipótese liberada para o scanner ao vivo. A Secundária
-            // segue exclusivamente em pesquisa até vencer a validação cronológica.
-            if (settings == BollingerSpotExperimentProfile.All[0].Settings)
-                await _applySettings(settings);
+            await _applySettings(settings);
             var assets = await ResolveAssetsAsync();
             if (assets.Length == 0) return;
             var candlesBySymbol = await LoadClosedCandlesAsync(assets, settings.Timeframe, from, to);
@@ -110,38 +105,7 @@ public partial class BollingerSpotBacktestWindow : Window
             resultTabs.SelectedIndex = 0;
         }
         catch (Exception ex) { summary.Text = $"Não foi possível rodar: {ex.Message}"; }
-        finally { run.IsEnabled = compare.IsEnabled = true; }
-    }
-
-    private async void Compare_Click(object sender, RoutedEventArgs e)
-    {
-        if (!TryReadPeriodAndCosts(out var from, out var to, out var costs)) return;
-        run.IsEnabled = compare.IsEnabled = false;
-        try
-        {
-            var assets = await ResolveAssetsAsync();
-            if (assets.Length == 0) return;
-            var profiles = BollingerSpotExperimentProfile.All;
-            var candlesByTimeframe = new Dictionary<BollingerSpotTimeframe, Dictionary<string, List<Candle>>>();
-            foreach (var timeframeToLoad in profiles.Select(experiment => experiment.Settings.Timeframe).Distinct())
-                candlesByTimeframe[timeframeToLoad] = await LoadClosedCandlesAsync(assets, timeframeToLoad, from, to);
-            var backtester = new BollingerSpotBacktester();
-            var rows = profiles.Select(profileToCompare =>
-            {
-                var settings = profileToCompare.Settings;
-                var result = new BollingerSpotBacktestResult(candlesByTimeframe[settings.Timeframe]
-                    .SelectMany(pair => backtester.Run(pair.Key, pair.Value, settings, costs).Trades
-                        .Where(trade => trade.EntryTimeUtc >= from.ToUniversalTime()))
-                    .ToArray());
-                return result.ToComparison(settings) with { ProfileName = profileToCompare.DisplayName };
-            }).OrderByDescending(row => row.NetReturnPercent).ToList();
-
-            comparison.ItemsSource = rows;
-            summary.Text = $"Comparação Base + Secundária · {DescribeUniverse(assets)}: mesmos ativos, período e custos em ambos os perfis. Líquido considera taxa {costs.FeePercentPerOrder:F2}% + slippage {costs.SlippagePercentPerOrder:F2}% por ordem; a Secundária não é promovida ao modo ao vivo.";
-            resultTabs.SelectedIndex = 1;
-        }
-        catch (Exception ex) { summary.Text = $"Não foi possível comparar: {ex.Message}"; }
-        finally { run.IsEnabled = compare.IsEnabled = true; }
+        finally { run.IsEnabled = true; }
     }
 
     private bool TryReadPeriodAndCosts(out DateTime from, out DateTime to, out BollingerSpotBacktestCosts costs)

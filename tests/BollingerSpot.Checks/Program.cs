@@ -58,8 +58,8 @@ Check(costs.GrossReturnPercent == 10m && costs.NetReturnPercent is decimal net &
 Check(BollingerSpotSettings.Default == new BollingerSpotSettings(BollingerSpotVariant.Bollinger25x3, BollingerSpotTimeframe.Daily) &&
       new BollingerSpotSettings(BollingerSpotVariant.Bollinger20x32,BollingerSpotTimeframe.Daily).StandardDeviations==3.2m &&
       new BollingerSpotSettings(BollingerSpotVariant.Bollinger20x32,BollingerSpotTimeframe.Daily).Period==20 &&
-      BollingerSpotExperimentProfile.All.Count==2 && BollingerSpotExperimentProfile.FromKey("Secondary").Settings == new BollingerSpotSettings(BollingerSpotVariant.Bollinger20x3, BollingerSpotTimeframe.TwelveHours),
-      "Base and the secondary 12-hour test map to the prescribed experimental parameters");
+      BollingerSpotExperimentProfile.All.Count==1 && BollingerSpotExperimentProfile.FromKey("Secondary").Settings == BollingerSpotSettings.Default,
+      "Only the validated Base remains an active experiment profile");
 
 var minutes=Enumerable.Range(0,8).Select(i=>new Candle{OpenTime=DateTime.UnixEpoch.AddHours(i),Open=10+i,High=12+i,Low=9+i,Close=11+i,Volume=1}).ToList();
 var fourHours=BollingerSpotCandleAggregator.AggregateUtc(minutes,BollingerSpotTimeframe.FourHours);

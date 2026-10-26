@@ -63,8 +63,7 @@ public sealed record BollingerSpotExperimentProfile(string Key, string DisplayNa
 {
     public static IReadOnlyList<BollingerSpotExperimentProfile> All { get; } =
     [
-        new("Base", "Base — Bollinger 25/3 · Diário", new(BollingerSpotVariant.Bollinger25x3, BollingerSpotTimeframe.Daily)),
-        new("Secondary", "Secundária — Bollinger 20/3 · 12 horas", new(BollingerSpotVariant.Bollinger20x3, BollingerSpotTimeframe.TwelveHours))
+        new("Base", "Base — Bollinger 25/3 · Diário", new(BollingerSpotVariant.Bollinger25x3, BollingerSpotTimeframe.Daily))
     ];
 
     public static BollingerSpotExperimentProfile FromKey(string? key) =>
