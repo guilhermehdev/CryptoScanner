@@ -221,19 +221,14 @@ public partial class MainWindow : Window
 
         try
         {
-            var directions = GetSelectedScannerDirections();
-            var shortBreakoutOnly = GetUseShortExperimentalProfile();
-            var results = await Task.WhenAll(directions.Select(direction =>
-                _scanner.RunAsync(
-                    profile,
-                    direction,
-                    shortExperimental: false,
-                    shortBreakoutOnly: direction == TradeDirection.Short && shortBreakoutOnly,
-                    // Short breakout is operational only in Intraday. Long and the
-                    // non-candidate Swing view remain available for observation, but
-                    // they do not create alerts or simulated trades.
-                    persistSignals: direction == TradeDirection.Short && (!shortBreakoutOnly || profile.Name == ScanProfile.Intraday.Name))));
-            var result = results.Length == 1 ? results[0] : MergeScannerResults(results);
+            // O scanner convencional é exclusivamente observacional em Long.
+            // Sinais operacionais são emitidos somente pela estratégia Bollinger Base.
+            var result = await _scanner.RunAsync(
+                profile,
+                TradeDirection.Long,
+                shortExperimental: false,
+                shortBreakoutOnly: false,
+                persistSignals: false);
 
             _lastHistory = result.History; // já é global (Signals não filtra por Profile)
             await RefreshOpenSignalPricesAsync(result.History);
@@ -477,39 +472,6 @@ public partial class MainWindow : Window
         _viewedProfile = ReferenceEquals(sender, rbIntraday) ? ScanProfile.Intraday : ScanProfile.Swing;
         ApplyRankingFilter();
         RefreshTitle();
-    }
-
-    private TradeDirection GetSelectedScannerDirection() =>
-        rbScanShort?.IsChecked == true ? TradeDirection.Short : TradeDirection.Long;
-
-    private bool IsBothDirectionsSelected() => rbScanBoth?.IsChecked == true;
-
-    private IReadOnlyList<TradeDirection> GetSelectedScannerDirections() =>
-        IsBothDirectionsSelected()
-            ? new[] { TradeDirection.Long, TradeDirection.Short }
-            : new[] { GetSelectedScannerDirection() };
-
-    private bool GetUseShortExperimentalProfile() =>
-        (GetSelectedScannerDirection() == TradeDirection.Short || IsBothDirectionsSelected()) && chkShortExperimental?.IsChecked == true;
-
-    private void ScanDirectionChanged(object sender, RoutedEventArgs e)
-    {
-        if (!_isWindowLoaded || !IsLiveScannerEnabled)
-            return;
-
-        _ = RunScannerAsync(ScanProfile.Swing);
-        _ = RunScannerAsync(ScanProfile.Intraday);
-    }
-
-    private void ShortExperimentalChanged(object sender, RoutedEventArgs e)
-    {
-        if (!_isWindowLoaded || !IsLiveScannerEnabled)
-            return;
-
-        // A change to the experimental profile must refresh both rankings so the
-        // visible grid and the background profile use exactly the same thresholds.
-        _ = RunScannerAsync(ScanProfile.Swing);
-        _ = RunScannerAsync(ScanProfile.Intraday);
     }
 
     private void BtnBacktestHistory_Click(object sender, RoutedEventArgs e)
@@ -918,16 +880,13 @@ public partial class MainWindow : Window
         btnSearch.IsEnabled = false;
         try
         {
-            // Busca no lado selecionado; no modo Ambos, mostra as duas leituras
-            // do mesmo ativo no ranking.
-            var lookupResults = await Task.WhenAll(GetSelectedScannerDirections().Select(direction =>
-                _scanner.LookupSymbolAsync(
-                    input,
-                    _viewedProfile,
-                    direction: direction,
-                    shortExperimental: false,
-                    shortBreakoutOnly: direction == TradeDirection.Short && GetUseShortExperimentalProfile())));
-            var foundResults = lookupResults.Where(result => result != null).Cast<AssetScore>().ToList();
+            var lookupResult = await _scanner.LookupSymbolAsync(
+                input,
+                _viewedProfile,
+                direction: TradeDirection.Long,
+                shortExperimental: false,
+                shortBreakoutOnly: false);
+            var foundResults = lookupResult is null ? new List<AssetScore>() : new List<AssetScore> { lookupResult };
             if (foundResults.Count == 0)
             {
                 MessageBox.Show(
@@ -1891,9 +1850,7 @@ public partial class MainWindow : Window
         var ranking=_rankingsByProfile.GetValueOrDefault(profile,Array.Empty<AssetScore>());
         var diag=_diagnosticsByProfile.GetValueOrDefault(profile);
         string updated=_scanCompletedAt.TryGetValue(profile,out var at)?at.ToString("dd/MM HH:mm:ss"):"aguardando";
-        string side = IsBothDirectionsSelected() ? "Ambos" : GetSelectedScannerDirection() == TradeDirection.Short ? "Venda" : "Compra";
-        string experiment = GetUseShortExperimentalProfile() ? " · Short rompimento" : "";
-        txtScanSummary.Text=$"{profile} · {side}{experiment} · Analisados: {diag?.TotalAnalyzed ?? 0} · Elegíveis no universo: {diag?.PassedAll ?? 0} · Em observação: {ranking.Count(a=>a.DisplaySignal=="MONITORAR")} · Atualizado: {updated}";
+        txtScanSummary.Text=$"{profile} · Observação Long · Analisados: {diag?.TotalAnalyzed ?? 0} · Elegíveis no universo: {diag?.PassedAll ?? 0} · Em observação: {ranking.Count(a=>a.DisplaySignal=="MONITORAR")} · Atualizado: {updated}";
         txtScanSummary.ToolTip="Resumo do perfil completo, antes do filtro de favoritos. A busca manual não muda o horário da última varredura.";
         var top=diag is null?default:Blockers(diag).First();
         txtDiagnostics.Text=diag is null?"Aguardando análise deste perfil.":top.Count>0
@@ -1944,8 +1901,6 @@ public partial class MainWindow : Window
     // valores já calculados em RunScannerAsync.
     private void RefreshTitle()
     {
-        string experiment = GetUseShortExperimentalProfile() ? " | Short rompimento" : "";
-        string side = IsBothDirectionsSelected() ? "Ambos" : GetSelectedScannerDirection() == TradeDirection.Short ? "Venda" : "Compra";
-        Title = $"Scanner [{_lastMarketRegime}] | {side}{experiment} | Exibindo: {_viewedProfile.Name}";
+        Title = $"Scanner [{_lastMarketRegime}] | Observação Long | Exibindo: {_viewedProfile.Name}";
     }
 }
