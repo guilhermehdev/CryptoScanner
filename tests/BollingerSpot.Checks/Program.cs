@@ -77,9 +77,10 @@ try
 {
  var repo=new SqliteSimulatedTradeRepository(db);await repo.InitializeAsync();
  var id=await repo.AddAsync(new SimulatedTrade{Symbol="BTCUSDT",EntryTime=DateTime.UtcNow,EntryPrice=100,StopLoss=89,TakeProfit=102,
-     BollingerVariant="Bollinger20x3",BollingerPeriod=20,BollingerStandardDeviations=3,BollingerTimeframe="Daily",BollingerSetupTime=DateTime.UnixEpoch});
+     BollingerVariant="Bollinger20x3",BollingerPeriod=20,BollingerStandardDeviations=3,BollingerTimeframe="Daily",BollingerSetupTime=DateTime.UnixEpoch,
+     TechnicalContexts="FFFD compra [Intraday]"});
  var restored=(await repo.GetAllAsync()).Single(t=>t.Id==id);
- Check(restored.StopLoss==89 && restored.TakeProfit==102 && restored.BollingerPeriod==20 && restored.BollingerTimeframe=="Daily","Restored spot simulation preserves structural levels and Bollinger metadata");
+ Check(restored.StopLoss==89 && restored.TakeProfit==102 && restored.BollingerPeriod==20 && restored.BollingerTimeframe=="Daily" && restored.TechnicalContexts=="FFFD compra [Intraday]","Restored spot simulation preserves structural levels, Bollinger metadata and technical contexts");
 }
 finally{Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();File.Delete(db);}
 Console.WriteLine($"PASS: {checks} Bollinger Spot checks");

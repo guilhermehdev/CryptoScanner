@@ -52,6 +52,7 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
             ("BollingerStandardDeviations", "REAL"),
             ("BollingerTimeframe", "TEXT"),
             ("BollingerSetupTime", "TEXT"),
+            ("TechnicalContexts", "TEXT"),
             ("ScoreAtEntry", "REAL"),
             ("Rsi", "REAL"),
             ("Adx", "REAL"),
@@ -115,7 +116,7 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
         const string sql = """
             INSERT INTO SimulatedTrades
             (Symbol, EntryTime, EntryPrice, TakeProfit, StopLoss, Note, Profile, Direction,
-             BollingerVariant, BollingerPeriod, BollingerStandardDeviations, BollingerTimeframe, BollingerSetupTime,
+             BollingerVariant, BollingerPeriod, BollingerStandardDeviations, BollingerTimeframe, BollingerSetupTime, TechnicalContexts,
              ScoreAtEntry, Rsi, Adx, AtrPercent, EmaDistanceAtr, SwingUsageAtr,
              VolumeSpike, VolumeImbalance, RelativeStrength, RiskRewardAtEntry,
              TrendScore, StructureScore, VolumeScore, CandleScore, SetupScore,
@@ -124,7 +125,7 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
              TakeProfit1, TakeProfit3, Tp1Hit, Tp2Hit, RemainingFraction, WeightedExitSum, Closed, BuyingPressureSnapshotId)
             VALUES
             (@Symbol, @EntryTime, @EntryPrice, @TakeProfit, @StopLoss, @Note, @Profile, @Direction,
-             @BollingerVariant, @BollingerPeriod, @BollingerStandardDeviations, @BollingerTimeframe, @BollingerSetupTime,
+             @BollingerVariant, @BollingerPeriod, @BollingerStandardDeviations, @BollingerTimeframe, @BollingerSetupTime, @TechnicalContexts,
              @ScoreAtEntry, @Rsi, @Adx, @AtrPercent, @EmaDistanceAtr, @SwingUsageAtr,
              @VolumeSpike, @VolumeImbalance, @RelativeStrength, @RiskRewardAtEntry,
              @TrendScore, @StructureScore, @VolumeScore, @CandleScore, @SetupScore,
@@ -153,6 +154,7 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
         command.Parameters.AddWithValue("@BollingerStandardDeviations", trade.BollingerStandardDeviations.HasValue ? (double)trade.BollingerStandardDeviations.Value : DBNull.Value);
         command.Parameters.AddWithValue("@BollingerTimeframe", trade.BollingerTimeframe ?? "");
         command.Parameters.AddWithValue("@BollingerSetupTime", trade.BollingerSetupTime?.ToString("O") ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("@TechnicalContexts", trade.TechnicalContexts ?? "");
         command.Parameters.AddWithValue("@ScoreAtEntry", (double)trade.ScoreAtEntry);
         command.Parameters.AddWithValue("@Rsi", (double)trade.Rsi);
         command.Parameters.AddWithValue("@Adx", (double)trade.Adx);
@@ -277,6 +279,7 @@ public sealed class SqliteSimulatedTradeRepository : ISimulatedTradeRepository
                 BollingerStandardDeviations = GetNullableDecimal(reader, "BollingerStandardDeviations"),
                 BollingerTimeframe = GetStringOrDefault(reader, "BollingerTimeframe"),
                 BollingerSetupTime = reader.IsDBNull(reader.GetOrdinal("BollingerSetupTime")) ? null : DateTime.Parse(reader.GetString(reader.GetOrdinal("BollingerSetupTime"))),
+                TechnicalContexts = GetStringOrDefault(reader, "TechnicalContexts"),
                 Direction = Enum.TryParse<TradeDirection>(GetStringOrDefault(reader, "Direction"), true, out var direction) ? direction : TradeDirection.Long,
                 ScoreAtEntry = GetDecimalOrDefault(reader, "ScoreAtEntry"),
                 Rsi = GetDecimalOrDefault(reader, "Rsi"),

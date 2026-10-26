@@ -42,6 +42,7 @@ public sealed class SqliteSignalRepository : ISignalRepository
                 UNIQUE(Symbol, Direction, Setup, Profile, CandleOpenUtc)
             );
             CREATE INDEX IF NOT EXISTS IX_TechnicalSetupAlerts_RecordedUtc ON TechnicalSetupAlerts (RecordedUtc DESC);
+            CREATE INDEX IF NOT EXISTS IX_TechnicalSetupAlerts_Symbol_CandleOpenUtc ON TechnicalSetupAlerts (Symbol, CandleOpenUtc);
             CREATE TABLE IF NOT EXISTS Signals
             (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -292,6 +293,34 @@ public sealed class SqliteSignalRepository : ISignalRepository
                    ReturnAfter1HourPercent, ReturnAfter6HoursPercent, ReturnAfter24HoursPercent, MaximumFavorable24HoursPercent, MaximumAdverse24HoursPercent
             FROM TechnicalSetupAlerts ORDER BY CandleOpenUtc DESC, Id DESC
             """, connection);
+        return await ReadTechnicalSetupAlertsAsync(command, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<TechnicalSetupAlert>> GetTechnicalSetupAlertsForSymbolAsync(
+        string symbol,
+        DateTime fromUtc,
+        DateTime untilUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(symbol);
+        if (untilUtc <= fromUtc)
+            return Array.Empty<TechnicalSetupAlert>();
+
+        await InitializeAsync(cancellationToken);
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new SqliteCommand("""
+            SELECT Id, CandleOpenUtc, COALESCE(EntryUtc, CandleOpenUtc), RecordedUtc, Symbol, Direction, Setup, Price, Score, Profile, MarketRegime,
+                   ReturnAfter1HourPercent, ReturnAfter6HoursPercent, ReturnAfter24HoursPercent, MaximumFavorable24HoursPercent, MaximumAdverse24HoursPercent
+            FROM TechnicalSetupAlerts
+            WHERE Symbol = @Symbol COLLATE NOCASE
+              AND CandleOpenUtc >= @FromUtc
+              AND CandleOpenUtc < @UntilUtc
+            ORDER BY CandleOpenUtc ASC, Id ASC
+            """, connection);
+        command.Parameters.AddWithValue("@Symbol", symbol.Trim().ToUpperInvariant());
+        command.Parameters.AddWithValue("@FromUtc", fromUtc.ToUniversalTime().ToString("O"));
+        command.Parameters.AddWithValue("@UntilUtc", untilUtc.ToUniversalTime().ToString("O"));
         return await ReadTechnicalSetupAlertsAsync(command, cancellationToken);
     }
 

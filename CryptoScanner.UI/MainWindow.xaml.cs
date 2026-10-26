@@ -1366,6 +1366,38 @@ public partial class MainWindow : Window
     private BollingerSpotStrategy GetBollingerSpotStrategy(string symbol, BollingerSpotSettings settings) =>
         _bollingerSpotStrategies.GetOrAdd((symbol.ToUpperInvariant(), settings), key => new BollingerSpotStrategy(key.Symbol, key.Settings));
 
+    private async Task<string> GetTechnicalContextsForBollingerSetupAsync(BollingerSpotSetup setup)
+    {
+        // O intervalo é exatamente o candle fechado que criou o setup. Assim não há
+        // informação posterior à decisão nem mistura com o candle de entrada.
+        DateTime fromUtc = setup.CandidateTimeUtc.ToUniversalTime();
+        DateTime untilUtc = fromUtc + setup.Settings.CandleDuration;
+
+        try
+        {
+            var alerts = await _scanner.GetTechnicalSetupAlertsForSymbolAsync(setup.Symbol, fromUtc, untilUtc);
+            var contexts = alerts
+                .GroupBy(alert => new { alert.Setup, alert.Direction, alert.Profile })
+                .OrderBy(group => group.Key.Setup, StringComparer.Ordinal)
+                .ThenBy(group => group.Key.Profile, StringComparer.Ordinal)
+                .Select(group =>
+                {
+                    string count = group.Count() > 1 ? $" ×{group.Count()}" : "";
+                    return $"{group.Key.Setup} [{group.Key.Profile}]{count}";
+                })
+                .ToArray();
+
+            return contexts.Length == 0
+                ? "Nenhum contexto potencial no candle do setup"
+                : string.Join(" · ", contexts);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Bollinger Spot] Contextos técnicos indisponíveis para {setup.Symbol}: {ex.Message}");
+            return "Contextos indisponíveis na captura";
+        }
+    }
+
     private async Task ProcessBollingerSpotPriceAsync(string symbol, decimal price)
     {
         await _bollingerSpotPriceGate.WaitAsync();
@@ -1383,6 +1415,7 @@ public partial class MainWindow : Window
 
                 if (signal is not null)
                 {
+                    string technicalContexts = await GetTechnicalContextsForBollingerSetupAsync(signal.Setup);
                     var trade = new SimulatedTrade
                     {
                         Symbol = signal.Symbol,
@@ -1397,7 +1430,8 @@ public partial class MainWindow : Window
                         BollingerStandardDeviations = signal.Setup.Settings.StandardDeviations,
                         BollingerTimeframe = signal.Setup.Settings.Timeframe.ToString(),
                         BollingerSetupTime = signal.Setup.CandidateTimeUtc,
-                        Note = $"{signal.Setup.Settings.DisplayName} | {signal.Reason} | Setup UTC {signal.Setup.CandidateTimeUtc:O} | Entrada {signal.Price:0.########} | Stop {signal.Stop:0.########} | Alvo {signal.Target:0.########}"
+                        TechnicalContexts = technicalContexts,
+                        Note = $"{signal.Setup.Settings.DisplayName} | {signal.Reason} | Setup UTC {signal.Setup.CandidateTimeUtc:O} | Entrada {signal.Price:0.########} | Stop {signal.Stop:0.########} | Alvo {signal.Target:0.########} | Contextos técnicos: {technicalContexts}"
                     };
                     trade.Id = await _simulatedTradeRepository.AddAsync(trade);
                     ReportBollingerSpot($"COMPRA Spot: {trade.Symbol} · {signal.Setup.Settings.DisplayName} · entrada {trade.EntryPrice:0.########} · stop {trade.StopLoss:0.########} · alvo {trade.TakeProfit:0.########}. {signal.Reason}");
@@ -1515,7 +1549,7 @@ public partial class MainWindow : Window
         string text = $"{trade.Symbol} | Entrada: {trade.EntryPrice:0.########} em {trade.EntryTime:dd/MM/yyyy HH:mm} | " +
                       $"TP1: {trade.TakeProfit1?.ToString("0.########") ?? "—"} | TP2: {trade.TakeProfit:0.########} | TP3: {trade.TakeProfit3?.ToString("0.########") ?? "—"} | " +
                       $"SL: {trade.StopLoss:0.########} | {currentOrExit} | " +
-                      $"Progresso: {trade.PartialExitProgressText} | Status: {status}" +
+                      $"Progresso: {trade.PartialExitProgressText} | Contextos técnicos: {(string.IsNullOrWhiteSpace(trade.TechnicalContexts) ? "não coletados" : trade.TechnicalContexts)} | Status: {status}" +
                       (string.IsNullOrWhiteSpace(trade.Note) ? "" : $" | Obs: {trade.Note}");
 
         try

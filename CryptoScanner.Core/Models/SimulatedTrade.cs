@@ -26,6 +26,9 @@ public sealed class SimulatedTrade : ObservableModel
     public decimal? BollingerStandardDeviations { get; set; }
     public string BollingerTimeframe { get; set; } = "";
     public DateTime? BollingerSetupTime { get; set; }
+    // Contextos técnicos observacionais capturados no candle que gerou o setup Bollinger.
+    // Não participam da entrada, do stop ou do alvo; servem apenas para análise posterior.
+    public string TechnicalContexts { get; set; } = "";
 
     // Raio-x completo do momento da entrada — inalterado, sem mudança
     public decimal ScoreAtEntry { get; set; }

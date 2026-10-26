@@ -219,6 +219,7 @@
                             <DataGridTextColumn Header="Progresso" Binding="{Binding PartialExitProgressText}" IsReadOnly="True"/>
                             <DataGridTextColumn Header="SL" Binding="{Binding StopLoss, Mode=TwoWay}" IsReadOnly="False"/>
                             <DataGridTextColumn Header="Score" Binding="{Binding ScoreAtEntry, StringFormat=F2}" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Contextos técnicos" MinWidth="220" Binding="{Binding TechnicalContexts}" IsReadOnly="True"/>
                             <DataGridCheckBoxColumn Header="Aberto?" Binding="{Binding IsOpen, Mode=OneWay}" IsReadOnly="True"/>
                             <DataGridTextColumn Header="P/L Atual %" Binding="{Binding UnrealizedPnLPercent, StringFormat='+0.00;-0.00;0.00'}" IsReadOnly="True"><DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{Binding UnrealizedPnLPercent, Converter={StaticResource PnLColorConverter}}"/><Setter Property="FontWeight" Value="Bold"/></Style></DataGridTextColumn.ElementStyle></DataGridTextColumn>
                             <DataGridTextColumn Header="Saída" Binding="{Binding ExitTime, StringFormat=dd/MM HH:mm}" IsReadOnly="True"/>

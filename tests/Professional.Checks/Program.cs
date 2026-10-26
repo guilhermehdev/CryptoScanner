@@ -424,6 +424,9 @@ Check(insertedTechnicalAlerts.Count == 1,
     "Technical setup persistence returns only the newly recorded alerts");
 Check((await technicalAlertRepository.GetTechnicalSetupAlertsAsync()).Count == 1,
     "Technical setup history keeps one record per candle, setup, profile, symbol and direction");
+Check((await technicalAlertRepository.GetTechnicalSetupAlertsForSymbolAsync("alertusdt", day.AddMinutes(-1), day.AddHours(1))).Single().Setup == "FFFD compra" &&
+      !(await technicalAlertRepository.GetTechnicalSetupAlertsForSymbolAsync("ALERTUSDT", day.AddHours(1), day.AddHours(2))).Any(),
+    "Technical contexts can be read precisely by symbol and closed-candle window");
 var savedTechnicalAlert = (await technicalAlertRepository.GetTechnicalSetupAlertsAsync()).Single();
 await technicalAlertRepository.UpdateTechnicalSetupAlertOutcomeAsync(savedTechnicalAlert.Id, 1m, 2m, 3m, 5m, 1m);
 var evaluatedTechnicalAlert = (await technicalAlertRepository.GetTechnicalSetupAlertsAsync()).Single();
