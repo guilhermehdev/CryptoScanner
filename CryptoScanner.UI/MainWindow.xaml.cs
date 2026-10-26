@@ -403,23 +403,14 @@ public partial class MainWindow : Window
         try
         {
             await _appSettingsRepository.InitializeAsync();
-            string? savedVariant = await _appSettingsRepository.GetAsync(BollingerSpotVariantSettingKey);
-            string? savedTimeframe = await _appSettingsRepository.GetAsync(BollingerSpotTimeframeSettingKey);
-
-            var variant = Enum.TryParse<BollingerSpotVariant>(savedVariant, true, out var configuredVariant)
-                ? configuredVariant : BollingerSpotSettings.Default.Variant;
-            var timeframe = Enum.TryParse<BollingerSpotTimeframe>(savedTimeframe, true, out var configuredTimeframe)
-                ? configuredTimeframe : BollingerSpotSettings.Default.Timeframe;
-            // Só os três perfis pré-definidos podem alimentar o modo ao vivo. Preferências
-            // legadas (20 períodos, 2,8/3,2 ou 6h) voltam à Base, sem deixar uma hipótese antiga
-            // operar silenciosamente depois da mudança de experimento.
-            _bollingerSpotSettings = BollingerSpotExperimentProfile
-                .FromSettings(new BollingerSpotSettings(variant, timeframe)).Settings;
+            // A hipótese secundária é apenas de pesquisa. Mesmo que uma preferência antiga
+            // exista no banco, o scanner ao vivo inicia sempre na Base validada.
+            _bollingerSpotSettings = BollingerSpotExperimentProfile.All[0].Settings;
         }
         catch
         {
-            // Mantém Diário + 20/3 se o armazenamento de preferências estiver indisponível.
-            _bollingerSpotSettings = BollingerSpotSettings.Default;
+            // Mantém 25/3 Diário se o armazenamento de preferências estiver indisponível.
+            _bollingerSpotSettings = BollingerSpotExperimentProfile.All[0].Settings;
         }
     }
 

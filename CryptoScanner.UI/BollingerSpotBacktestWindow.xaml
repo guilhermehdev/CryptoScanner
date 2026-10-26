@@ -10,8 +10,7 @@
             <TextBlock Text="Perfil:" VerticalAlignment="Center" Margin="0,0,6,0"/>
             <ComboBox x:Name="profile" Width="225" SelectedIndex="0" SelectionChanged="Profile_SelectionChanged">
                 <ComboBoxItem Content="Base — Bollinger 25/3 · Diário" Tag="Base"/>
-                <ComboBoxItem Content="Teste A — Bollinger 20/3,2 · Diário" Tag="A"/>
-                <ComboBoxItem Content="Teste B — Bollinger 25/3,2 · Diário" Tag="B"/>
+                <ComboBoxItem Content="Secundária — Bollinger 20/3 · 12 horas" Tag="Secondary"/>
             </ComboBox>
             <TextBlock Text="Timeframe:" VerticalAlignment="Center" Margin="18,0,6,0"/>
             <ComboBox x:Name="timeframe" Width="105" IsEnabled="False">
@@ -34,7 +33,7 @@
             <TextBlock Text="Slippage/ordem %:" VerticalAlignment="Center" Margin="12,0,6,0"/>
             <TextBox x:Name="slippagePercent" Width="48" Text="0,05" ToolTip="Pior preço assumido em cada ordem: entrada e saída."/>
             <Button x:Name="run" Content="Rodar backtest" Click="Run_Click" Padding="14,4" Margin="18,0,0,0"/>
-            <Button x:Name="compare" Content="Comparar Base + A/B" Click="Compare_Click" Padding="14,4" Margin="8,0,0,0"/>
+            <Button x:Name="compare" Content="Comparar Base + Secundária" Click="Compare_Click" Padding="14,4" Margin="8,0,0,0"/>
         </WrapPanel>
         <Border Grid.Row="2" Background="#252525" BorderBrush="#444" BorderThickness="1" Padding="10" Margin="0,0,0,10">
             <TextBlock x:Name="summary" TextWrapping="Wrap" Foreground="#D8D8D8"

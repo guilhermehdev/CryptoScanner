@@ -92,7 +92,10 @@ public partial class BollingerSpotBacktestWindow : Window
         run.IsEnabled = compare.IsEnabled = false;
         try
         {
-            await _applySettings(settings);
+            // A Base é a única hipótese liberada para o scanner ao vivo. A Secundária
+            // segue exclusivamente em pesquisa até vencer a validação cronológica.
+            if (settings == BollingerSpotExperimentProfile.All[0].Settings)
+                await _applySettings(settings);
             var assets = await ResolveAssetsAsync();
             if (assets.Length == 0) return;
             var candlesBySymbol = await LoadClosedCandlesAsync(assets, settings.Timeframe, from, to);
@@ -134,7 +137,7 @@ public partial class BollingerSpotBacktestWindow : Window
             }).OrderByDescending(row => row.NetReturnPercent).ToList();
 
             comparison.ItemsSource = rows;
-            summary.Text = $"Comparação Base + A/B · {DescribeUniverse(assets)}: mesmos ativos, período e custos em todos os perfis. Líquido considera taxa {costs.FeePercentPerOrder:F2}% + slippage {costs.SlippagePercentPerOrder:F2}% por ordem; não promove automaticamente nenhuma variante.";
+            summary.Text = $"Comparação Base + Secundária · {DescribeUniverse(assets)}: mesmos ativos, período e custos em ambos os perfis. Líquido considera taxa {costs.FeePercentPerOrder:F2}% + slippage {costs.SlippagePercentPerOrder:F2}% por ordem; a Secundária não é promovida ao modo ao vivo.";
             resultTabs.SelectedIndex = 1;
         }
         catch (Exception ex) { summary.Text = $"Não foi possível comparar: {ex.Message}"; }
