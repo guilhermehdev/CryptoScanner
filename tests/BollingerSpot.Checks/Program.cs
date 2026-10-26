@@ -56,10 +56,10 @@ Check(costs.GrossReturnPercent == 10m && costs.NetReturnPercent is decimal net &
     "Spot fee and slippage are applied to both entry and exit before reporting net return");
 
 Check(BollingerSpotSettings.Default == new BollingerSpotSettings(BollingerSpotVariant.Bollinger25x3, BollingerSpotTimeframe.Daily) &&
-      new BollingerSpotSettings(BollingerSpotVariant.Bollinger25x29,BollingerSpotTimeframe.Daily).StandardDeviations==2.9m &&
-      BollingerSpotExperimentProfile.All.Count==4 && BollingerSpotExperimentProfile.FromKey("B").Settings.Timeframe==BollingerSpotTimeframe.TwelveHours &&
-      BollingerSpotExperimentProfile.FromKey("C").Settings == new BollingerSpotSettings(BollingerSpotVariant.Bollinger20x3, BollingerSpotTimeframe.TwelveHours),
-      "Base and the three controlled tests map to the prescribed experimental parameters");
+      new BollingerSpotSettings(BollingerSpotVariant.Bollinger20x32,BollingerSpotTimeframe.Daily).StandardDeviations==3.2m &&
+      new BollingerSpotSettings(BollingerSpotVariant.Bollinger20x32,BollingerSpotTimeframe.Daily).Period==20 &&
+      BollingerSpotExperimentProfile.All.Count==3 && BollingerSpotExperimentProfile.FromKey("B").Settings == new BollingerSpotSettings(BollingerSpotVariant.Bollinger25x32, BollingerSpotTimeframe.Daily),
+      "Base and the two daily 3.2 tests map to the prescribed experimental parameters");
 
 var minutes=Enumerable.Range(0,8).Select(i=>new Candle{OpenTime=DateTime.UnixEpoch.AddHours(i),Open=10+i,High=12+i,Low=9+i,Close=11+i,Volume=1}).ToList();
 var fourHours=BollingerSpotCandleAggregator.AggregateUtc(minutes,BollingerSpotTimeframe.FourHours);

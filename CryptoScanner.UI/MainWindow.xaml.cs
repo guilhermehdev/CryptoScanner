@@ -410,7 +410,7 @@ public partial class MainWindow : Window
                 ? configuredVariant : BollingerSpotSettings.Default.Variant;
             var timeframe = Enum.TryParse<BollingerSpotTimeframe>(savedTimeframe, true, out var configuredTimeframe)
                 ? configuredTimeframe : BollingerSpotSettings.Default.Timeframe;
-            // Só os quatro perfis pré-definidos podem alimentar o modo ao vivo. Preferências
+            // Só os três perfis pré-definidos podem alimentar o modo ao vivo. Preferências
             // legadas (20 períodos, 2,8/3,2 ou 6h) voltam à Base, sem deixar uma hipótese antiga
             // operar silenciosamente depois da mudança de experimento.
             _bollingerSpotSettings = BollingerSpotExperimentProfile

@@ -7,11 +7,11 @@ public enum BollingerSpotVariant
     Bollinger20x23,
     Bollinger25x3,
     Bollinger25x23,
-    // Mantidos para conseguir ler simulações históricas M1/M2/M4, mas não são
-    // perfis ativos depois que o experimento foi reduzido.
+    // Mantidos para conseguir ler simulações históricas, mas não são perfis ativos.
     Bollinger25x28,
     Bollinger25x32,
-    Bollinger25x29
+    Bollinger25x29,
+    Bollinger20x32
 }
 
 public enum BollingerSpotTimeframe
@@ -37,7 +37,7 @@ public sealed record BollingerSpotSettings(BollingerSpotVariant Variant, Bolling
         BollingerSpotVariant.Bollinger20x23 or BollingerSpotVariant.Bollinger25x23 => 2.3m,
         BollingerSpotVariant.Bollinger25x28 => 2.8m,
         BollingerSpotVariant.Bollinger25x29 => 2.9m,
-        BollingerSpotVariant.Bollinger25x32 => 3.2m,
+        BollingerSpotVariant.Bollinger20x32 or BollingerSpotVariant.Bollinger25x32 => 3.2m,
         _ => 3m
     };
     public string Interval => Timeframe switch
@@ -64,9 +64,8 @@ public sealed record BollingerSpotExperimentProfile(string Key, string DisplayNa
     public static IReadOnlyList<BollingerSpotExperimentProfile> All { get; } =
     [
         new("Base", "Base — Bollinger 25/3 · Diário", new(BollingerSpotVariant.Bollinger25x3, BollingerSpotTimeframe.Daily)),
-        new("A", "Teste A — Bollinger 25/2,9 · Diário", new(BollingerSpotVariant.Bollinger25x29, BollingerSpotTimeframe.Daily)),
-        new("B", "Teste B — Bollinger 25/3 · 12 horas", new(BollingerSpotVariant.Bollinger25x3, BollingerSpotTimeframe.TwelveHours)),
-        new("C", "Teste C — Bollinger 20/3 · 12 horas", new(BollingerSpotVariant.Bollinger20x3, BollingerSpotTimeframe.TwelveHours))
+        new("A", "Teste A — Bollinger 20/3,2 · Diário", new(BollingerSpotVariant.Bollinger20x32, BollingerSpotTimeframe.Daily)),
+        new("B", "Teste B — Bollinger 25/3,2 · Diário", new(BollingerSpotVariant.Bollinger25x32, BollingerSpotTimeframe.Daily))
     ];
 
     public static BollingerSpotExperimentProfile FromKey(string? key) =>

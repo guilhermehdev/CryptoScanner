@@ -123,7 +123,7 @@ public partial class BollingerSpotBacktestWindow : Window
             }).OrderByDescending(row => row.NetReturnPercent).ToList();
 
             comparison.ItemsSource = rows;
-            summary.Text = $"Comparação Base + A/B/C: mesmos ativos, período e custos em todos os perfis. Líquido considera taxa {costs.FeePercentPerOrder:F2}% + slippage {costs.SlippagePercentPerOrder:F2}% por ordem; não promove automaticamente nenhuma variante.";
+            summary.Text = $"Comparação Base + A/B: mesmos ativos, período e custos em todos os perfis. Líquido considera taxa {costs.FeePercentPerOrder:F2}% + slippage {costs.SlippagePercentPerOrder:F2}% por ordem; não promove automaticamente nenhuma variante.";
             resultTabs.SelectedIndex = 1;
         }
         catch (Exception ex) { summary.Text = $"Não foi possível comparar: {ex.Message}"; }
