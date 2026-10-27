@@ -87,7 +87,8 @@
             </WrapPanel>
             <WrapPanel>
                 <Button Content="Análise" Click="BtnAnalytics_Click" Padding="8,2" Margin="0,3,6,0"/>
-                <Button Content="Backtest" Click="BtnFullBacktest_Click" Padding="8,2" Margin="0,3,6,0"/>
+                <Button Content="Backtest" Click="BtnFullBacktest_Click" Padding="8,2" Margin="0,3,6,0" ToolTip="Backtest completo das estratégias, incluindo Onda Pullback."/>
+                <Button Content="Backtest Spot" Click="BtnBollingerSpotBacktest_Click" Padding="8,2" Margin="0,3,6,0" ToolTip="Experimento separado da estratégia Bollinger Spot."/>
                 <Button Content="Histórico" Click="BtnBacktestHistory_Click" Padding="8,2" Margin="0,3,6,0"/>
                 <Button Content="Alertas" Click="BtnAlertSettings_Click" Padding="8,2" Margin="0,3,6,0"/>
                 <Button Content="Setups" Click="BtnTechnicalSetupHistory_Click" Padding="8,2" Margin="0,3,6,0" ToolTip="Histórico das situações técnicas observadas; não são sinais de trade."/>

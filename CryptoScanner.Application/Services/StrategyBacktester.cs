@@ -18,7 +18,7 @@ public sealed class StrategyBacktester
     /// configuração de tela idêntica gera a mesma assinatura de sempre, e o sistema recusa
     /// salvar o resultado novo mesmo que o motor por trás tenha mudado completamente.
     /// </summary>
-    public const int EngineVersion = 15; // Adds single-filter counterfactual diagnostics.
+    public const int EngineVersion = 18; // Parameterizes WavePullback without changing its defaults.
 
     private const int LookbackCandles = 300;
     private readonly IMarketDataService _marketData;
@@ -52,11 +52,16 @@ public sealed class StrategyBacktester
         var intervalSpan = CandleIntervalHelper.ToTimeSpan(profile.CandleInterval);
         var fetchStart = startUtc - TimeSpan.FromTicks(intervalSpan.Ticks * LookbackCandles);
 
-        onProgress?.Invoke("Buscando dados do BTC...", 0);
-        var btcCandles = await _marketData.GetHistoricalCandlesAsync("BTCUSDT", profile.CandleInterval, fetchStart, endUtc, cancellationToken);
-
+        var btcCandles = new List<Candle>();
+        var btcDailyCandles = new List<Candle>();
         var dailyFetchStart = startUtc - TimeSpan.FromDays(220);
-        var btcDailyCandles = await _marketData.GetHistoricalCandlesAsync("BTCUSDT", "1d", dailyFetchStart, endUtc, cancellationToken);
+        if (thresholds?.EntryStrategy != EntryStrategy.WavePullback)
+        {
+            onProgress?.Invoke("Buscando dados do BTC...", 0);
+            btcCandles = await _marketData.GetHistoricalCandlesAsync("BTCUSDT", profile.CandleInterval, fetchStart, endUtc, cancellationToken);
+
+            btcDailyCandles = await _marketData.GetHistoricalCandlesAsync("BTCUSDT", "1d", dailyFetchStart, endUtc, cancellationToken);
+        }
 
         var allTrades = new List<BacktestTradeResult>();
         var allResearchCandidates = new List<BacktestResearchCandidate>();
@@ -94,7 +99,9 @@ public sealed class StrategyBacktester
                     // E o checkbox "Multi-timeframe (4.2)" está marcado. A 4.1 pura continua
                     // funcionando sem isso — ScanMultiTimeframe cai de volta pro comportamento
                     // de timeframe único quando não recebe candles diários (symbolDailyCandles=null).
-                    if (riskMode == RiskCalculationMode.SwingWithPartialExits && thresholds?.EnableMultiTimeframe == true)
+                    if (riskMode == RiskCalculationMode.SwingWithPartialExits &&
+                        thresholds?.EnableMultiTimeframe == true &&
+                        thresholds.EntryStrategy != EntryStrategy.WavePullback)
                     {
                         symbolDailyCandles = await _marketData.GetHistoricalCandlesAsync(symbol, "1d", dailyFetchStart, endUtc, cancellationToken);
                     }
@@ -284,6 +291,87 @@ public sealed class StrategyBacktester
             // que o scanner ao vivo usa (nunca vê mais que 300 candles de contexto real).
             int assetWindowStart = Math.Max(0, i + 1 - LookbackCandles);
             var candlesSoFar = candles.GetRange(assetWindowStart, i + 1 - assetWindowStart);
+
+            // A Onda é uma hipótese de entrada independente. Ela não passa pelo
+            // EligibilityEvaluator genérico porque seus filtros (inclinação da EMA,
+            // toque na banda, candle de confirmação, RSI e RR) são o próprio gatilho.
+            // Assim o backtest não mistura a onda com rompimento/pullback legados nem
+            // exige candles do BTC que a estratégia não utiliza.
+            if (thresholds?.EntryStrategy == EntryStrategy.WavePullback)
+            {
+                diagnostics.TotalAnalyzed++;
+                if (!diagnostics.Strategies.TryGetValue(nameof(EntryStrategy.WavePullback), out var waveDiagnostics))
+                    diagnostics.Strategies[nameof(EntryStrategy.WavePullback)] = waveDiagnostics = new StrategyDiagnostics();
+
+                waveDiagnostics.Evaluated++;
+                decimal minimumRiskReward = Math.Max(2m, thresholds.MinRiskReward);
+                var waveSignal = WavePullbackBacktestStrategy.Evaluate(candlesSoFar, direction, minimumRiskReward, thresholds.WaveParameters);
+                if (waveSignal is null || i + 1 >= candles.Count)
+                    continue;
+
+                waveDiagnostics.Triggered++;
+                string waveKey = $"{nameof(EntryStrategy.WavePullback)}:{direction}";
+                if (lastSignalTimeByKey.TryGetValue(waveKey, out var lastWaveSignal) &&
+                    currentCandle.OpenTime < lastWaveSignal.AddDays(profile.DuplicateSignalWindowDays))
+                {
+                    diagnostics.SkippedDuplicateToday++;
+                    waveDiagnostics.Rejections["Duplicado"] = waveDiagnostics.Rejections.GetValueOrDefault("Duplicado") + 1;
+                    continue;
+                }
+
+                decimal waveEntryPrice = candles[i + 1].Open;
+                decimal waveFill = direction == TradeDirection.Long
+                    ? waveEntryPrice * (1 + LabParameters.Slippage)
+                    : waveEntryPrice * (1 - LabParameters.Slippage);
+                decimal executionMinimumTarget = direction == TradeDirection.Long
+                    ? waveFill + minimumRiskReward * (waveFill - waveSignal.Stop)
+                    : waveFill - minimumRiskReward * (waveSignal.Stop - waveFill);
+                decimal waveTarget = direction == TradeDirection.Long
+                    ? Math.Max(waveSignal.Target, executionMinimumTarget)
+                    : Math.Min(waveSignal.Target, executionMinimumTarget);
+                if (waveSignal.StructuralTargetBoundary is decimal boundary &&
+                    ((direction == TradeDirection.Long && waveTarget > boundary) ||
+                     (direction == TradeDirection.Short && waveTarget < boundary)))
+                {
+                    RecordEntryRejection(diagnostics, "Onda: alvo ajustado ultrapassa a estrutura");
+                    waveDiagnostics.Rejections["Alvo ajustado ultrapassa a estrutura"] = waveDiagnostics.Rejections.GetValueOrDefault("Alvo ajustado ultrapassa a estrutura") + 1;
+                    continue;
+                }
+
+                var waveEntryRisk = EntryRiskMetrics.CalculateDirectional(waveFill, waveSignal.Stop, waveTarget, direction);
+                if (waveEntryRisk.RiskReward < minimumRiskReward)
+                {
+                    RecordEntryRejection(diagnostics, "Onda: R/R após slippage abaixo do mínimo");
+                    waveDiagnostics.Rejections["R/R após slippage"] = waveDiagnostics.Rejections.GetValueOrDefault("R/R após slippage") + 1;
+                    continue;
+                }
+
+                waveDiagnostics.Eligible++;
+                diagnostics.PassedAll++;
+                lastSignalTimeByKey[waveKey] = decisionTime;
+
+                openPosition = new BacktestOpenPosition
+                {
+                    Symbol = symbol,
+                    EntryTime = candles[i + 1].OpenTime,
+                    EntryPrice = waveEntryPrice,
+                    TakeProfit = waveTarget,
+                    StopLoss = waveSignal.Stop,
+                    Direction = direction,
+                    Signal = $"{waveSignal.Reason}; R/R efetivo {waveEntryRisk.RiskReward:F2}:1",
+                    Score = 100m,
+                    ResistanceDistancePercent = direction == TradeDirection.Long
+                        ? waveEntryRisk.TargetDistancePercent
+                        : waveEntryRisk.StopDistancePercent,
+                    SupportDistancePercent = direction == TradeDirection.Long
+                        ? waveEntryRisk.StopDistancePercent
+                        : waveEntryRisk.TargetDistancePercent,
+                    RiskRewardAtEntry = waveEntryRisk.RiskReward,
+                    TargetZonePosition = "Não aplicável (Onda)",
+                    Rsi = waveSignal.Rsi
+                };
+                continue;
+            }
 
             // Avança os ponteiros do BTC até o instante atual, sem reescanear do início —
             // seguro porque candles[] e btcCandles[]/btcDailyCandles[] estão em ordem crescente de tempo.

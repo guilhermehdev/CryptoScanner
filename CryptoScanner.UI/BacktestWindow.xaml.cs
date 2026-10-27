@@ -182,6 +182,21 @@ public partial class BacktestWindow : Window
         sb.Append(thresholds.BlockMeanReversionInBear).Append('|');
         sb.Append(thresholds.BlockBollingerLongInSideways).Append('|');
         sb.Append(thresholds.LimitAtrForMeanReversion).Append('|');
+        var wave = thresholds.WaveParameters;
+        sb.Append(wave.EmaPeriod).Append('|');
+        sb.Append(wave.SlopeLookback).Append('|');
+        sb.Append(wave.RsiPeriod).Append('|');
+        sb.Append(wave.StructureLookback).Append('|');
+        sb.Append(wave.TouchTolerancePercent).Append('|');
+        sb.Append(wave.LongMinimumSlopeDegrees).Append('|');
+        sb.Append(wave.ShortMinimumSlopeDegrees).Append('|');
+        sb.Append(wave.StrongSlopeDegrees).Append('|');
+        sb.Append(wave.LongOverbought).Append('|');
+        sb.Append(wave.ShortOversold).Append('|');
+        sb.Append(wave.ConfirmationBodyRatio).Append('|');
+        sb.Append(wave.BreakoutBufferAtr).Append('|');
+        sb.Append(wave.MinimumStructuralRiskReward).Append('|');
+        sb.Append(wave.RequireTrendSideClose).Append('|');
         sb.Append(useInvertedRsiMomentum).Append('|');
         sb.Append(evaluationHoursOverride?.ToString() ?? "default").Append('|');
         sb.Append(tp1Fraction?.ToString() ?? "default").Append('|');
@@ -289,6 +304,7 @@ public partial class BacktestWindow : Window
         2 => TradingStrategyProfile.MeanReversion,
         3 => TradingStrategyProfile.IntradayBreakoutRetest,
         4 => TradingStrategyProfile.BollingerSqueezeBreakout,
+        5 => TradingStrategyProfile.WavePullback,
         _ => TradingStrategyProfile.BreakoutTrend
     };
 
@@ -301,6 +317,7 @@ public partial class BacktestWindow : Window
         EntryStrategy.BollingerLowerReclaim => TradingStrategyProfiles.DisplayName(TradingStrategyProfile.MeanReversion),
         EntryStrategy.IntradayBreakoutRetest => TradingStrategyProfiles.DisplayName(TradingStrategyProfile.IntradayBreakoutRetest),
         EntryStrategy.BollingerSqueezeBreakout => TradingStrategyProfiles.DisplayName(TradingStrategyProfile.BollingerSqueezeBreakout),
+        EntryStrategy.WavePullback => TradingStrategyProfiles.DisplayName(TradingStrategyProfile.WavePullback),
         _ => strategy.ToString()
     };
 
@@ -325,6 +342,15 @@ public partial class BacktestWindow : Window
 
     private void ApplyStrategyProfileOptions()
     {
+        if (grpWaveParameters != null)
+            grpWaveParameters.Visibility = GetSelectedStrategyProfile() == TradingStrategyProfile.WavePullback
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
+        if (GetSelectedStrategyProfile() == TradingStrategyProfile.WavePullback &&
+            string.IsNullOrWhiteSpace(txtWaveEmaPeriod?.Text))
+            ApplyWaveParameterFields(WavePullbackParameters.Default);
+
         switch (GetSelectedStrategyProfile())
         {
             case TradingStrategyProfile.BreakoutTrend:
@@ -360,6 +386,14 @@ public partial class BacktestWindow : Window
                 chkBlockMeanReversionInBear.IsChecked = false;
                 chkLimitAtrForMeanReversion.IsChecked = false;
                 break;
+            case TradingStrategyProfile.WavePullback:
+                chkEnablePullbackBounce.IsChecked = false;
+                chkEnableMeanReversionScalp.IsChecked = false;
+                chkEnableBollingerReversal.IsChecked = false;
+                chkBlockBollingerLongInSideways.IsChecked = false;
+                chkBlockMeanReversionInBear.IsChecked = false;
+                chkLimitAtrForMeanReversion.IsChecked = false;
+                break;
         }
     }
 
@@ -387,6 +421,10 @@ public partial class BacktestWindow : Window
                 rbBacktestIntraday.IsChecked = true;
                 rbRiskBollingerSqueezeBreakout.IsChecked = true;
                 break;
+            case TradingStrategyProfile.WavePullback:
+                rbBacktestSwing.IsChecked = true;
+                rbRiskPartialExits.IsChecked = true;
+                break;
         }
     }
 
@@ -398,6 +436,75 @@ public partial class BacktestWindow : Window
         txtMinimumBollingerTarget.Text = GetSelectedStrategyProfile() == TradingStrategyProfile.MeanReversion
             ? "3"
             : "0";
+    }
+
+    private static string WaveDecimal(decimal value) => value.ToString("0.####", CultureInfo.CurrentCulture);
+
+    private void ApplyWaveParameterFields(WavePullbackParameters parameters)
+    {
+        if (txtWaveEmaPeriod == null)
+            return;
+
+        txtWaveEmaPeriod.Text = parameters.EmaPeriod.ToString(CultureInfo.CurrentCulture);
+        txtWaveSlopeLookback.Text = parameters.SlopeLookback.ToString(CultureInfo.CurrentCulture);
+        txtWaveRsiPeriod.Text = parameters.RsiPeriod.ToString(CultureInfo.CurrentCulture);
+        txtWaveLongMinimumSlope.Text = WaveDecimal(parameters.LongMinimumSlopeDegrees);
+        txtWaveShortMinimumSlope.Text = WaveDecimal(parameters.ShortMinimumSlopeDegrees);
+        txtWaveStrongSlope.Text = WaveDecimal(parameters.StrongSlopeDegrees);
+        txtWaveTouchTolerance.Text = WaveDecimal(parameters.TouchTolerancePercent);
+        txtWaveStructureLookback.Text = parameters.StructureLookback.ToString(CultureInfo.CurrentCulture);
+        txtWaveStructuralRiskReward.Text = WaveDecimal(parameters.MinimumStructuralRiskReward);
+        txtWaveLongOverbought.Text = WaveDecimal(parameters.LongOverbought);
+        txtWaveShortOversold.Text = WaveDecimal(parameters.ShortOversold);
+        txtWaveConfirmationBody.Text = WaveDecimal(parameters.ConfirmationBodyRatio);
+        txtWaveBreakoutBufferAtr.Text = WaveDecimal(parameters.BreakoutBufferAtr);
+        chkWaveRequireTrendSideClose.IsChecked = parameters.RequireTrendSideClose;
+    }
+
+    private bool TryParseWaveParameters(out WavePullbackParameters parameters)
+    {
+        parameters = WavePullbackParameters.Default;
+        if (GetSelectedStrategyProfile() != TradingStrategyProfile.WavePullback)
+            return true;
+
+        if (!int.TryParse(txtWaveEmaPeriod.Text, out int emaPeriod) || emaPeriod < 2 ||
+            !int.TryParse(txtWaveSlopeLookback.Text, out int slopeLookback) || slopeLookback < 1 ||
+            !int.TryParse(txtWaveRsiPeriod.Text, out int rsiPeriod) || rsiPeriod < 2 ||
+            !int.TryParse(txtWaveStructureLookback.Text, out int structureLookback) || structureLookback < 2 ||
+            !decimal.TryParse(txtWaveLongMinimumSlope.Text, out decimal longMinimumSlope) || longMinimumSlope < 0 ||
+            !decimal.TryParse(txtWaveShortMinimumSlope.Text, out decimal shortMinimumSlope) || shortMinimumSlope < 0 ||
+            !decimal.TryParse(txtWaveStrongSlope.Text, out decimal strongSlope) || strongSlope < 0 ||
+            !decimal.TryParse(txtWaveTouchTolerance.Text, out decimal touchTolerance) || touchTolerance < 0 ||
+            !decimal.TryParse(txtWaveStructuralRiskReward.Text, out decimal structuralRiskReward) || structuralRiskReward < 2 ||
+            !decimal.TryParse(txtWaveLongOverbought.Text, out decimal longOverbought) || longOverbought is < 0 or > 100 ||
+            !decimal.TryParse(txtWaveShortOversold.Text, out decimal shortOversold) || shortOversold is < 0 or > 100 ||
+            !decimal.TryParse(txtWaveConfirmationBody.Text, out decimal confirmationBody) || confirmationBody is < 0 or > 1 ||
+            !decimal.TryParse(txtWaveBreakoutBufferAtr.Text, out decimal breakoutBufferAtr) || breakoutBufferAtr < 0)
+        {
+            MessageBox.Show(
+                "Revise os parâmetros da onda. Inteiros precisam ser positivos, R/R estrutural deve ser pelo menos 2, RSI deve ficar entre 0 e 100 e o corpo mínimo entre 0 e 1.",
+                "Backtest", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
+
+        parameters = new WavePullbackParameters
+        {
+            EmaPeriod = emaPeriod,
+            SlopeLookback = slopeLookback,
+            RsiPeriod = rsiPeriod,
+            StructureLookback = structureLookback,
+            TouchTolerancePercent = touchTolerance,
+            LongMinimumSlopeDegrees = longMinimumSlope,
+            ShortMinimumSlopeDegrees = shortMinimumSlope,
+            StrongSlopeDegrees = strongSlope,
+            LongOverbought = longOverbought,
+            ShortOversold = shortOversold,
+            ConfirmationBodyRatio = confirmationBody,
+            BreakoutBufferAtr = breakoutBufferAtr,
+            MinimumStructuralRiskReward = structuralRiskReward,
+            RequireTrendSideClose = chkWaveRequireTrendSideClose.IsChecked == true
+        };
+        return true;
     }
 
     /// <summary>
@@ -525,6 +632,7 @@ public partial class BacktestWindow : Window
         txtMinStopDistance.Text = t.MinStopDistancePercent.ToString();
         txtMaxStopDistance.Text = t.MaxStopDistancePercent.ToString();
         txtMaxRiskReward.Text = t.MaxRiskReward.ToString();
+        ApplyWaveParameterFields(t.WaveParameters);
         chkTargetAtr.IsChecked = false;
         chkMaximumAtrPercent.IsChecked = false;
         cmbStructureExperiment.SelectedIndex = 0;
@@ -582,6 +690,7 @@ public partial class BacktestWindow : Window
         chkBlockBollingerLongInSideways.IsChecked = false;
         chkRequireBearishMomentum.IsChecked = false;
         chkBlockShortInSideways.IsChecked = false;
+        ApplyWaveParameterFields(WavePullbackParameters.Default);
     }
 
     private void ApplyDiagnosticThresholdFields()
@@ -610,6 +719,7 @@ public partial class BacktestWindow : Window
         chkBlockBollingerLongInSideways.IsChecked = false;
         chkRequireBearishMomentum.IsChecked = false;
         chkBlockShortInSideways.IsChecked = false;
+        ApplyWaveParameterFields(WavePullbackParameters.Default);
     }
 
     private string SelectedTestModeLabel => cmbTestMode.SelectedIndex switch
@@ -677,9 +787,16 @@ public partial class BacktestWindow : Window
             maximumAtrPercent = parsedMaximumAtrPercent;
         }
 
+        if (GetSelectedStrategyProfile() == TradingStrategyProfile.WavePullback)
+            minRiskReward = Math.Max(2m, minRiskReward);
+
+        if (!TryParseWaveParameters(out var waveParameters))
+            return false;
+
         thresholds = new EligibilityThresholds
         {
             EntryStrategy=TradingStrategyProfiles.EntryStrategyFor(GetSelectedStrategyProfile()),
+            WaveParameters = waveParameters,
             StructuralEntryExperiment=cmbStructureExperiment.SelectedIndex == 3,
             IsolatedEntryExperiment=cmbStructureExperiment.SelectedIndex is 1 or 2 ? cmbStructureExperiment.SelectedIndex : 0,
             TargetZoneExperiment=cmbStructureExperiment.SelectedIndex is >= 4 and <= 6 ? cmbStructureExperiment.SelectedIndex - 3 : 0,
@@ -758,6 +875,16 @@ public partial class BacktestWindow : Window
             (profile.Name != ScanProfile.Intraday.Name || selectedRiskMode != RiskCalculationMode.BollingerSqueezeBreakout))
         {
             MessageBox.Show("EAB é uma pesquisa e só pode ser testado no perfil Intraday (1h) com o risco EAB: squeeze Bollinger.", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        if (strategyProfile == TradingStrategyProfile.WavePullback && profile.Name != ScanProfile.Swing.Name)
+        {
+            MessageBox.Show("Onda Pullback usa o perfil Swing (4h). O stop e o alvo da onda são calculados pela própria estratégia.", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        if (strategyProfile == TradingStrategyProfile.WavePullback && cmbStructureExperiment.SelectedIndex > 0)
+        {
+            MessageBox.Show("A estratégia Onda Pullback não usa os experimentos estruturais genéricos.", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         if (thresholds.MaximumAtrPercent is not null &&
@@ -1086,7 +1213,7 @@ public partial class BacktestWindow : Window
         {
             var culture = CultureInfo.InvariantCulture;
             var sb = new StringBuilder();
-            sb.AppendLine(string.Join(";",
+            sb.AppendLine(CsvLine(
                 "Symbol", "Direction", "EntryTime", "EntryPrice", "ExitTime", "ExitPrice",
                 "OutcomePercent", "ExitReason", "Signal", "Score",
                 "ResistanceDistancePercent", "SupportDistancePercent", "RiskRewardAtEntry",
@@ -1101,7 +1228,7 @@ public partial class BacktestWindow : Window
 
             foreach (var t in _lastDisplayedTrades)
             {
-                sb.AppendLine(string.Join(";",
+                sb.AppendLine(CsvLine(
                     t.Symbol,
                     t.Direction,
                     t.EntryTime.ToString("yyyy-MM-dd HH:mm", culture),
@@ -1160,7 +1287,7 @@ public partial class BacktestWindow : Window
                 research.AppendLine("Symbol;Direction;Strategy;DecisionTime;EntryTime;EntryPrice;MarketRegime;PassedAllFilters;Failures;Score;Rsi;Adx;AtrPercent;VolumeSpike;VolumeImbalance;CloseAfter6Hours;ReturnAfter6HoursPercent;CloseAfter24Hours;ReturnAfter24HoursPercent;MaximumFavorable24HoursPercent;MaximumAdverse24HoursPercent");
                 foreach (var candidate in _lastResearchCandidates)
                 {
-                    research.AppendLine(string.Join(";",
+                    research.AppendLine(CsvLine(
                         candidate.Symbol, candidate.Direction, candidate.Strategy,
                         candidate.DecisionTime.ToString("yyyy-MM-dd HH:mm", culture),
                         candidate.EntryTime.ToString("yyyy-MM-dd HH:mm", culture),
@@ -1181,7 +1308,7 @@ public partial class BacktestWindow : Window
                 researchSummary.AppendLine("Dimension;Bucket;Count;Positive24HoursPercent;AverageReturn6HoursPercent;AverageReturn24HoursPercent;GrossProfitFactor24Hours;AverageMaximumFavorable24HoursPercent;AverageMaximumAdverse24HoursPercent");
                 foreach (var summary in CandidateResearchSummaryBuilder.Build(_lastResearchCandidates))
                 {
-                    researchSummary.AppendLine(string.Join(";",
+                    researchSummary.AppendLine(CsvLine(
                         summary.Dimension, summary.Bucket, summary.Count,
                         summary.Positive24HoursPercent.ToString("F2", culture), summary.AverageReturn6HoursPercent.ToString("F4", culture),
                         summary.AverageReturn24HoursPercent.ToString("F4", culture), summary.GrossProfitFactor24Hours.ToString("F4", culture),
@@ -1199,6 +1326,18 @@ public partial class BacktestWindow : Window
         {
             MessageBox.Show($"Não foi possível exportar.\n{ex.Message}", "CryptoScanner", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    private static string CsvLine(params object?[] fields) =>
+        string.Join(";", fields.Select(CsvField));
+
+    private static string CsvField(object? value)
+    {
+        string text = value?.ToString() ?? string.Empty;
+        if (!text.Contains(';') && !text.Contains('"') && !text.Contains('\r') && !text.Contains('\n'))
+            return text;
+
+        return $"\"{text.Replace("\"", "\"\"")}\"";
     }
 
     private void BtnCancel_Click(object sender, RoutedEventArgs e)

@@ -36,6 +36,7 @@
                         <ComboBoxItem Content="Reversão Bollinger Long (V3)"/>
                         <ComboBoxItem Content="Rompimento + Reteste Intraday (experimental)"/>
                         <ComboBoxItem Content="EAB — Bollinger Squeeze (pesquisa)"/>
+                        <ComboBoxItem Content="Onda Pullback (EMA 34 / RR 2:1)" ToolTip="Swing 4h: EMA 34 inclinada, toque na onda, candle de confirmação, RSI e alvo mínimo de 2R."/>
                     </ComboBox>
                     <TextBlock Text="Perfil:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <RadioButton x:Name="rbBacktestIntraday" Content="Intraday (1h / 24h)" GroupName="BacktestProfile" Margin="0,0,12,0" VerticalAlignment="Center"/>
@@ -119,6 +120,48 @@
                         <TextBlock Text="Timeout (horas; vazio = padrão)"/>
                         <TextBox x:Name="txtEvaluationHoursOverride" Width="80" HorizontalAlignment="Left" Margin="0,2,0,6"/>
                         <CheckBox x:Name="chkDisableTimeout" Content="Sem timeout — só TP/SL" Margin="0,0,0,8"/>
+                        <GroupBox x:Name="grpWaveParameters" Header="Parâmetros da onda" Visibility="Collapsed" Margin="0,0,0,8">
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Os valores padrão preservam o baseline. Altere uma variável por teste." Foreground="Gray" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                                <WrapPanel>
+                                    <TextBlock Text="EMA" VerticalAlignment="Center" Margin="0,0,4,4"/>
+                                    <TextBox x:Name="txtWaveEmaPeriod" Width="42" Margin="0,0,10,4"/>
+                                    <TextBlock Text="Slope candles" VerticalAlignment="Center" Margin="0,0,4,4"/>
+                                    <TextBox x:Name="txtWaveSlopeLookback" Width="42" Margin="0,0,10,4"/>
+                                    <TextBlock Text="RSI período" VerticalAlignment="Center" Margin="0,0,4,4"/>
+                                    <TextBox x:Name="txtWaveRsiPeriod" Width="42" Margin="0,0,0,4"/>
+                                </WrapPanel>
+                                <WrapPanel>
+                                    <TextBlock Text="Inclinação Long°" VerticalAlignment="Center" Margin="0,0,4,4"/>
+                                    <TextBox x:Name="txtWaveLongMinimumSlope" Width="48" Margin="0,0,10,4"/>
+                                    <TextBlock Text="Short°" VerticalAlignment="Center" Margin="0,0,4,4"/>
+                                    <TextBox x:Name="txtWaveShortMinimumSlope" Width="48" Margin="0,0,10,4"/>
+                                    <TextBlock Text="Forte°" VerticalAlignment="Center" Margin="0,0,4,4"/>
+                                    <TextBox x:Name="txtWaveStrongSlope" Width="48" Margin="0,0,0,4"/>
+                                </WrapPanel>
+                                <WrapPanel>
+                                    <TextBlock Text="Toque (%)" VerticalAlignment="Center" Margin="0,0,4,4"/>
+                                    <TextBox x:Name="txtWaveTouchTolerance" Width="48" Margin="0,0,10,4"/>
+                                    <TextBlock Text="Estrutura candles" VerticalAlignment="Center" Margin="0,0,4,4"/>
+                                    <TextBox x:Name="txtWaveStructureLookback" Width="48" Margin="0,0,10,4"/>
+                                    <TextBlock Text="Espaço R/R" VerticalAlignment="Center" Margin="0,0,4,4"/>
+                                    <TextBox x:Name="txtWaveStructuralRiskReward" Width="48" Margin="0,0,0,4"/>
+                                </WrapPanel>
+                                <WrapPanel>
+                                    <TextBlock Text="RSI máx. Long" VerticalAlignment="Center" Margin="0,0,4,4"/>
+                                    <TextBox x:Name="txtWaveLongOverbought" Width="48" Margin="0,0,10,4"/>
+                                    <TextBlock Text="RSI mín. Short" VerticalAlignment="Center" Margin="0,0,4,4"/>
+                                    <TextBox x:Name="txtWaveShortOversold" Width="48" Margin="0,0,10,4"/>
+                                    <TextBlock Text="Corpo mín." VerticalAlignment="Center" Margin="0,0,4,4"/>
+                                    <TextBox x:Name="txtWaveConfirmationBody" Width="48" Margin="0,0,0,4" ToolTip="Proporção do corpo em relação ao range. Ex.: 0,60"/>
+                                </WrapPanel>
+                                <WrapPanel>
+                                    <TextBlock Text="Buffer rompimento ATR" VerticalAlignment="Center" Margin="0,0,4,4"/>
+                                    <TextBox x:Name="txtWaveBreakoutBufferAtr" Width="48" Margin="0,0,10,4" ToolTip="Ex.: 0,05 exige fechamento 0,05 ATR além da máxima/mínima anterior."/>
+                                    <CheckBox x:Name="chkWaveRequireTrendSideClose" Content="Recuo fecha no lado da tendência" VerticalAlignment="Center" Margin="0,0,0,4"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </GroupBox>
                         <TextBlock Text="Experimento estrutural"/>
                         <ComboBox x:Name="cmbStructureExperiment" SelectedIndex="0" Margin="0,2,0,8">
                             <ComboBoxItem Content="Referência (sem alteração)"/>

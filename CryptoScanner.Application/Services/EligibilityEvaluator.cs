@@ -148,6 +148,10 @@ public static class EligibilityEvaluator
                     EntryStrategy.BollingerLowerReclaim => !asset.Setup.IsBollingerLowerReclaimSetup,
                     EntryStrategy.IntradayBreakoutRetest => !asset.Setup.IsIntradayBreakoutRetestSetup,
                     EntryStrategy.BollingerSqueezeBreakout => !asset.Setup.IsBollingerSqueezeBreakoutSetup,
+                    // A onda tem um avaliador próprio no StrategyBacktester. Se chegar
+                    // ao funil genérico por engano, não deve abrir uma operação baseada
+                    // em níveis de outra estratégia.
+                    EntryStrategy.WavePullback => true,
                     _ => failedBreakout
                 };
                 failedConsolidation = strategy == EntryStrategy.Breakout && !asset.Setup.IsConsolidating;

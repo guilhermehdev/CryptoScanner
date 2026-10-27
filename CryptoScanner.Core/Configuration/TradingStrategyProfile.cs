@@ -10,7 +10,8 @@ public enum TradingStrategyProfile
     PullbackTrend,
     MeanReversion,
     IntradayBreakoutRetest,
-    BollingerSqueezeBreakout
+    BollingerSqueezeBreakout,
+    WavePullback
 }
 
 public static class TradingStrategyProfiles
@@ -22,6 +23,7 @@ public static class TradingStrategyProfiles
         TradingStrategyProfile.MeanReversion => EntryStrategy.BollingerLowerReclaim,
         TradingStrategyProfile.IntradayBreakoutRetest => EntryStrategy.IntradayBreakoutRetest,
         TradingStrategyProfile.BollingerSqueezeBreakout => EntryStrategy.BollingerSqueezeBreakout,
+        TradingStrategyProfile.WavePullback => EntryStrategy.WavePullback,
         _ => throw new ArgumentOutOfRangeException(nameof(profile), profile, null)
     };
 
@@ -32,6 +34,7 @@ public static class TradingStrategyProfiles
         TradingStrategyProfile.MeanReversion => "Reversão Bollinger Long (V3)",
         TradingStrategyProfile.IntradayBreakoutRetest => "Rompimento + Reteste Intraday (experimental)",
         TradingStrategyProfile.BollingerSqueezeBreakout => "EAB — Bollinger Squeeze (pesquisa)",
+        TradingStrategyProfile.WavePullback => "Onda Pullback (EMA 34 / RR 2:1)",
         _ => profile.ToString()
     };
 }

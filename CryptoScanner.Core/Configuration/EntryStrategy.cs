@@ -16,5 +16,8 @@ public enum EntryStrategy
     IntradayBreakoutRetest,
     // Estreitamento e abertura das Bandas de Bollinger. Disponível somente na pesquisa
     // do Backtest até a validação cronológica concluir.
-    BollingerSqueezeBreakout
+    BollingerSqueezeBreakout,
+    // Pullback na onda/EMA 34 com inclinação direcional, toque, candle de confirmação,
+    // filtro de RSI e risco/retorno mínimo de 2:1. Executada diretamente pelo backtest.
+    WavePullback
 }

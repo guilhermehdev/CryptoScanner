@@ -496,6 +496,17 @@ public partial class MainWindow : Window
     {
         var cacheRepository = new SqliteCandleCacheRepository(GetCandleCachePath());
         var cachingMarketData = new CachingMarketDataService(new BinanceExchangeService(), cacheRepository);
+        var window = new BacktestWindow(cachingMarketData, new AssetAnalyzer(), GetDatabasePath())
+        {
+            Owner = this
+        };
+        window.Show();
+    }
+
+    private void BtnBollingerSpotBacktest_Click(object sender, RoutedEventArgs e)
+    {
+        var cacheRepository = new SqliteCandleCacheRepository(GetCandleCachePath());
+        var cachingMarketData = new CachingMarketDataService(new BinanceExchangeService(), cacheRepository);
         var window = new BollingerSpotBacktestWindow(cachingMarketData, _appSettingsRepository, ApplyBollingerSpotSettingsAsync)
         {
             Owner = this

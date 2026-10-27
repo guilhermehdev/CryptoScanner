@@ -10,6 +10,7 @@ public sealed class EligibilityThresholds
     public bool StructuralEntryExperiment { get; init; }
     public decimal? MinimumTargetAtr { get; init; }
     public EntryStrategy EntryStrategy { get; init; } = EntryStrategy.Legacy;
+    public WavePullbackParameters WaveParameters { get; init; } = WavePullbackParameters.Default;
     public required decimal BuyOpportunityScore { get; init; }
     public required decimal BearRegimePenalty { get; init; }
     public required decimal SidewaysRegimePenalty { get; init; }
